@@ -251,17 +251,16 @@ class Game {
   }
 
   addPlayer(ws) {
-    const count = this.players.size;
-    if (count === 0) {
-      this.players.set(ws, 'white');
-      return 'white';
-    } else if (count === 1) {
-      this.players.set(ws, 'black');
-      return 'black';
-    } else {
-      this.spectators.add(ws);
-      return 'spectator';
+    const colors = ['white', 'black'];
+    const occupied = new Set([...this.players.values()]);
+    for (const color of colors) {
+      if (!occupied.has(color)) {
+        this.players.set(ws, color);
+        return color;
+      }
     }
+    this.spectators.add(ws);
+    return 'spectator';
   }
 
   removePlayer(ws) {

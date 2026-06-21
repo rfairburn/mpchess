@@ -476,7 +476,7 @@
     color: 0xf0e6d0, roughness: 0.35, metalness: 0.04
   });
   const matBlack = new THREE.MeshStandardMaterial({
-    color: 0x1a1210, roughness: 0.30, metalness: 0.05
+    color: 0x3d2b1f, roughness: 0.30, metalness: 0.05
   });
   const matLight = new THREE.MeshStandardMaterial({
     color: 0xf0d9b5, roughness: 0.70
@@ -522,7 +522,7 @@
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   document.body.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffeedd, 0.35));
@@ -531,7 +531,7 @@
   const keyLight = new THREE.DirectionalLight(0xfff4e0, 1.0);
   keyLight.position.set(6, 14, 4);
   keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.mapSize.set(1024, 1024);
   keyLight.shadow.camera.left   = -8;
   keyLight.shadow.camera.right  =  8;
   keyLight.shadow.camera.top    =  8;
@@ -727,7 +727,7 @@
   function createPiece(type, color) {
     const geo = PIECE_CACHE[type];
     if (!geo) return new THREE.Group();
-    const mat = color === 'white' ? matWhite.clone() : matBlack.clone();
+    const mat = color === 'white' ? matWhite : matBlack;
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
@@ -736,8 +736,11 @@
     return group;
   }
 
-  function boardToScene(file, rank) {
-    return { x: file - 3.5, y: 0.01, z: 3.5 - rank };
+  function boardToScene(file, rank, out) {
+    out.x = file - 3.5;
+    out.y = 0.01;
+    out.z = 3.5 - rank;
+    return out;
   }
 
   function rebuildPieces() {
@@ -751,8 +754,7 @@
         const color = pieceColor(piece);
         const type = pieceType(piece);
         const mesh = createPiece(type, color);
-        const pos = boardToScene(f, r);
-        mesh.position.set(pos.x, pos.y, pos.z);
+        mesh.position.set(f - 3.5, 0.01, 3.5 - r);
         mesh.rotation.y = color === 'black' ? 0 : Math.PI;
         if (type === 'knight') mesh.rotation.y += Math.PI / 2;
         scene.add(mesh);
@@ -762,8 +764,7 @@
   }
 
   function updatePiecePosition(pieceObj, file, rank) {
-    const pos = boardToScene(file, rank);
-    pieceObj.mesh.position.set(pos.x, pos.y, pos.z);
+    pieceObj.mesh.position.set(file - 3.5, 0.01, 3.5 - rank);
     pieceObj.file = file;
     pieceObj.rank = rank;
   }
@@ -778,8 +779,8 @@
     const fromPiece = pieceMeshes.find(p => p.file === fromFile && p.rank === fromRank);
     if (!fromPiece) return;
 
-    const startPos = boardToScene(fromFile, fromRank);
-    const endPos = boardToScene(toFile, toRank);
+    const startX = fromFile - 3.5, startY = 0.01, startZ = 3.5 - fromRank;
+    const endX = toFile - 3.5, endY = 0.01, endZ = 3.5 - toRank;
     const duration = 300;
     const startTime = performance.now();
 
@@ -788,9 +789,9 @@
         const t = Math.min((time - startTime) / duration, 1);
         const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
         fromPiece.mesh.position.set(
-          startPos.x + (endPos.x - startPos.x) * ease,
-          startPos.y + (endPos.y - startPos.y) * ease + Math.sin(t * Math.PI) * 0.3,
-          startPos.z + (endPos.z - startPos.z) * ease
+          startX + (endX - startX) * ease,
+          startY + (endY - startY) * ease + Math.sin(t * Math.PI) * 0.3,
+          startZ + (endZ - startZ) * ease
         );
         if (t >= 1) {
           fromPiece.file = toFile;
@@ -805,16 +806,16 @@
     if (castled) {
       const rook = pieceMeshes.find(p => p.file === castled.from && p.rank === castled.rank && p.type === 'rook');
       if (rook) {
-        const rookStart = boardToScene(castled.from, castled.rank);
-        const rookEnd = boardToScene(castled.to, castled.rank);
+        const rookStartX = castled.from - 3.5, rookStartY = 0.01, rookStartZ = 3.5 - castled.rank;
+        const rookEndX = castled.to - 3.5, rookEndY = 0.01, rookEndZ = 3.5 - castled.rank;
         animations.push({
           update(time) {
             const t = Math.min((time - startTime) / duration, 1);
             const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
             rook.mesh.position.set(
-              rookStart.x + (rookEnd.x - rookStart.x) * ease,
-              rookStart.y + (rookEnd.y - rookStart.y) * ease,
-              rookStart.z + (rookEnd.z - rookStart.z) * ease
+              rookStartX + (rookEndX - rookStartX) * ease,
+              rookStartY + (rookEndY - rookStartY) * ease,
+              rookStartZ + (rookEndZ - rookStartZ) * ease
             );
             if (t >= 1) {
               rook.file = castled.to;
@@ -1039,7 +1040,12 @@
   const hud = document.getElementById('hud');
 
   document.addEventListener('pointerlockchange', () => {
-    hud.classList.toggle('hidden', document.pointerLockElement === renderer.domElement);
+    const locked = document.pointerLockElement === renderer.domElement;
+    hud.classList.toggle('hidden', locked);
+    if (!locked && mouseLookOn) {
+      mouseLookOn = false;
+      updateMouseModeDisplay();
+    }
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -1243,6 +1249,12 @@
 
   const clock = new THREE.Clock();
 
+  // Reusable vectors — hoisted outside the loop to eliminate per-frame GC pressure
+  const _camFwd = new THREE.Vector3();
+  const _camFwdH = new THREE.Vector3();
+  const _camRight = new THREE.Vector3();
+  const _camUp = new THREE.Vector3(0, 1, 0);
+
   (function animate() {
     requestAnimationFrame(animate);
     const dt = Math.min(clock.getDelta(), 0.1);
@@ -1250,15 +1262,14 @@
     if (mouseLookOn) {
       euler.set(pitch, yaw, 0, 'YXZ');
       camera.quaternion.setFromEuler(euler);
-      const fwd  = new THREE.Vector3();
-      camera.getWorldDirection(fwd);
-      const fwdH = fwd.clone().setY(0).normalize();
-      const right = new THREE.Vector3().crossVectors(fwdH, new THREE.Vector3(0,1,0)).normalize();
+      camera.getWorldDirection(_camFwd);
+      _camFwdH.copy(_camFwd).setY(0).normalize();
+      _camRight.crossVectors(_camFwdH, _camUp).normalize();
       const speed = 8 * dt;
-      if (keys.KeyW) camera.position.addScaledVector(fwdH,  speed);
-      if (keys.KeyS) camera.position.addScaledVector(fwdH, -speed);
-      if (keys.KeyA) camera.position.addScaledVector(right, -speed);
-      if (keys.KeyD) camera.position.addScaledVector(right,  speed);
+      if (keys.KeyW) camera.position.addScaledVector(_camFwdH,  speed);
+      if (keys.KeyS) camera.position.addScaledVector(_camFwdH, -speed);
+      if (keys.KeyA) camera.position.addScaledVector(_camRight, -speed);
+      if (keys.KeyD) camera.position.addScaledVector(_camRight,  speed);
       if (keys.KeyQ) camera.position.y += speed;
       if (keys.KeyE) camera.position.y -= speed;
     }
