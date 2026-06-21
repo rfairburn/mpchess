@@ -5,7 +5,7 @@
   "main": "test_chess.js",
   "scripts": {
     "start": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test_chess.js"
   },
   "keywords": [],
   "author": "",
