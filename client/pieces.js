@@ -6,17 +6,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { serverBoard, onStateUpdate, onRestart } from './network.js';
 import { clearHighlights, highlightCheck } from './board.js';
-
-// Piece constants (duplicated from server — will be de-duplicated later)
-const W_PAWN = 1, W_KNIGHT = 2, W_BISHOP = 3, W_ROOK = 4, W_QUEEN = 5, W_KING = 6;
-const B_PAWN = 7, B_KNIGHT = 8, B_BISHOP = 9, B_ROOK = 10, B_QUEEN = 11, B_KING = 12;
-
-function pieceColor(p) { if (p === 0) return null; return p >= 7 ? 'black' : 'white'; }
-function pieceType(p) {
-  if (p === 0) return null;
-  const t = p >= 7 ? p - 7 : p - 1;
-  return ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'][t] || null;
-}
+import { pieceColor, pieceType } from '../shared/chess.mjs';
 
 // Materials — set from app.js
 let matWhite, matBlack;
@@ -77,22 +67,72 @@ function createPiece(type, color) {
 
 export function rebuildPieces(scene) {
   if (!serverBoard || !modelsLoaded) return;
-  pieceMeshes.forEach(p => scene.remove(p.mesh));
-  pieceMeshes.length = 0;
+
+  // Build a map of what should be on the board: "file,rank" -> {type, color}
+  const desired = new Map();
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
       const piece = serverBoard[r][f];
       if (piece === 0) continue;
-      const color = pieceColor(piece);
-      const type = pieceType(piece);
-      const mesh = createPiece(type, color);
-      mesh.position.set(f - 3.5, 0.01, 3.5 - r);
-      mesh.rotation.y = color === 'black' ? 0 : Math.PI;
-      if (type === 'knight') mesh.rotation.y += Math.PI / 2;
-      scene.add(mesh);
-      pieceMeshes.push({ mesh, file: f, rank: r, type, color });
+      const key = `${f},${r}`;
+      desired.set(key, { type: pieceType(piece), color: pieceColor(piece) });
     }
   }
+
+  // Build a map of existing meshes by position
+  const existing = new Map();
+  for (const pm of pieceMeshes) {
+    const key = `${pm.file},${pm.rank}`;
+    existing.set(key, pm);
+  }
+
+  // Remove meshes no longer on the board, update changed ones, keep unchanged
+  const toKeep = new Set();
+  for (const [key, pm] of existing) {
+    const desiredPiece = desired.get(key);
+    if (!desiredPiece) {
+      // Piece no longer exists — remove immediately (no fade for removed pieces)
+      scene.remove(pm.mesh);
+    } else if (desiredPiece.type !== pm.type || desiredPiece.color !== pm.color) {
+      // Piece changed type or color — recreate the mesh
+      scene.remove(pm.mesh);
+      const newMesh = createPiece(desiredPiece.type, desiredPiece.color);
+      newMesh.position.copy(pm.mesh.position);
+      newMesh.rotation.y = pm.mesh.rotation.y;
+      scene.add(newMesh);
+      pm.mesh = newMesh;
+      pm.type = desiredPiece.type;
+      pm.color = desiredPiece.color;
+      toKeep.add(key);
+    } else {
+      // Unchanged
+      toKeep.add(key);
+    }
+  }
+
+  // Add new pieces that don't have meshes yet
+  for (const [key, desiredPiece] of desired) {
+    if (!toKeep.has(key)) {
+      const [f, r] = key.split(',').map(Number);
+      const mesh = createPiece(desiredPiece.type, desiredPiece.color);
+      mesh.position.set(f - 3.5, 0.01, 3.5 - r);
+      mesh.rotation.y = desiredPiece.color === 'black' ? 0 : Math.PI;
+      if (desiredPiece.type === 'knight') mesh.rotation.y += Math.PI / 2;
+      scene.add(mesh);
+      pieceMeshes.push({ mesh, file: f, rank: r, type: desiredPiece.type, color: desiredPiece.color });
+    }
+  }
+
+  // Rebuild the pieceMeshes array to remove deleted entries
+  const finalMeshes = [];
+  for (const pm of pieceMeshes) {
+    const key = `${pm.file},${pm.rank}`;
+    if (desired.has(key)) {
+      finalMeshes.push(pm);
+    }
+  }
+  pieceMeshes.length = 0;
+  pieceMeshes.push(...finalMeshes);
 }
 
 export function updatePiecePosition(pieceObj, file, rank) {
@@ -109,6 +149,11 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
   const fromPiece = pieceMeshes.find(p => p.file === fromFile && p.rank === fromRank);
   if (!fromPiece) return;
 
+  // Update logical position immediately so rebuildPieces (which runs right after
+  // this call) sees the piece at its destination and does not remove it.
+  fromPiece.file = toFile;
+  fromPiece.rank = toRank;
+
   const startX = fromFile - 3.5, startY = 0.01, startZ = 3.5 - fromRank;
   const endX = toFile - 3.5, endY = 0.01, endZ = 3.5 - toRank;
   const duration = 300;
@@ -124,8 +169,6 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
         startZ + (endZ - startZ) * ease
       );
       if (t >= 1) {
-        fromPiece.file = toFile;
-        fromPiece.rank = toRank;
         return true;
       }
       return false;
@@ -136,6 +179,9 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
   if (castled) {
     const rook = pieceMeshes.find(p => p.file === castled.from && p.rank === castled.rank && p.type === 'rook');
     if (rook) {
+      // Update logical position immediately (same reason as fromPiece above)
+      rook.file = castled.to;
+      rook.rank = castled.rank;
       const rookStartX = castled.from - 3.5, rookStartY = 0.01, rookStartZ = 3.5 - castled.rank;
       const rookEndX = castled.to - 3.5, rookEndY = 0.01, rookEndZ = 3.5 - castled.rank;
       animations.push({
@@ -148,8 +194,6 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
             rookStartZ + (rookEndZ - rookStartZ) * ease
           );
           if (t >= 1) {
-            rook.file = castled.to;
-            rook.rank = castled.rank;
             return true;
           }
           return false;

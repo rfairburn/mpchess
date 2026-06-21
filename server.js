@@ -2,7 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
-const { Game, W_ROOK, B_ROOK, pieceColor, pieceType, isInCheck } = require('./shared/chess');
+const { Game } = require('./shared/chess');
 
 // ═══════════════════════════════════════════════════════════
 //  HTTP SERVER + WEBSOCKET
@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 3000;
 const MIME = {
   '.html': 'text/html',
   '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
   '.stl': 'application/octet-stream',

@@ -471,14 +471,9 @@ class Game {
 }
 
 // ═══════════════════════════════════════════════════════════
-//  EXPORTS (CommonJS)
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORTS (ES Module — generated from chess.js)
 // ═══════════════════════════════════════════════════════════
 
-module.exports = {
-  EMPTY, W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-  B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
-  pieceColor, pieceType, isOwn, isEnemy,
-  startingBoard, cloneBoard, findKing,
-  isAttacked, isInCheck, getValidMoves, hasAnyMoves,
-  buildNotation, Game,
-};
+export {EMPTY, W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING, B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING, pieceColor, pieceType, isOwn, isEnemy, startingBoard, cloneBoard, findKing, isAttacked, isInCheck, getValidMoves, hasAnyMoves, buildNotation, Game};

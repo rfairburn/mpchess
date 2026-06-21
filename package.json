@@ -5,7 +5,8 @@
   "main": "test_chess.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test_chess.js"
+    "test": "node test_chess.js",
+    "build:chess": "node build_chess_mjs.js"
   },
   "keywords": [],
   "author": "",

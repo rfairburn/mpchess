@@ -5,10 +5,7 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { serverBoard, serverTurn } from './network.js';
-
-// Piece constants (duplicated from server — will be de-duplicated later)
-const W_PAWN = 1, W_KNIGHT = 2, W_BISHOP = 3, W_ROOK = 4, W_QUEEN = 5, W_KING = 6;
-const B_PAWN = 7, B_KNIGHT = 8, B_BISHOP = 9, B_ROOK = 10, B_QUEEN = 11, B_KING = 12;
+import { findKing, isInCheck } from '../shared/chess.mjs';
 
 // Materials — created in app.js, referenced here
 let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck;
@@ -79,7 +76,7 @@ function highlightSquare(file, rank, mat) {
 
 export function highlightValidMoves(moves) {
   for (const m of moves) {
-    if (serverBoard && serverBoard[m.rank][m.file] !== 0 || m.enPassant) {
+    if (serverBoard && (serverBoard[m.rank][m.file] !== 0 || m.enPassant)) {
       highlightSquare(m.file, m.rank, matCaptureMove);
     } else {
       highlightSquare(m.file, m.rank, matValidMove);
@@ -89,60 +86,6 @@ export function highlightValidMoves(moves) {
 
 export function highlightSelected(file, rank) {
   highlightSquare(file, rank, matSelected);
-}
-
-// Client-side check detection for highlighting
-function findKing(board, color) {
-  const k = color === 'white' ? W_KING : B_KING;
-  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) if (board[r][f] === k) return { file: f, rank: r };
-  return null;
-}
-
-function isAttacked(board, file, rank, byColor) {
-  if (byColor === 'white') {
-    if (rank - 1 >= 0 && file - 1 >= 0 && board[rank - 1][file - 1] === W_PAWN) return true;
-    if (rank - 1 >= 0 && file + 1 < 8 && board[rank - 1][file + 1] === W_PAWN) return true;
-  } else {
-    if (rank + 1 < 8 && file - 1 >= 0 && board[rank + 1][file - 1] === B_PAWN) return true;
-    if (rank + 1 < 8 && file + 1 < 8 && board[rank + 1][file + 1] === B_PAWN) return true;
-  }
-  const knight = byColor === 'white' ? W_KNIGHT : B_KNIGHT;
-  for (const [df, dr] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) {
-    const nf = file + df, nr = rank + dr;
-    if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8 && board[nr][nf] === knight) return true;
-  }
-  const king = byColor === 'white' ? W_KING : B_KING;
-  for (let dr = -1; dr <= 1; dr++) for (let df = -1; df <= 1; df++) {
-    if (dr === 0 && df === 0) continue;
-    const nf = file + df, nr = rank + dr;
-    if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8 && board[nr][nf] === king) return true;
-  }
-  const bishop = byColor === 'white' ? W_BISHOP : B_BISHOP;
-  const queen = byColor === 'white' ? W_QUEEN : B_QUEEN;
-  for (const [df, dr] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
-    for (let i = 1; i < 8; i++) {
-      const nf = file + df * i, nr = rank + dr * i;
-      if (nf < 0 || nf >= 8 || nr < 0 || nr >= 8) break;
-      const p = board[nr][nf];
-      if (p !== 0) { if (p === bishop || p === queen) return true; break; }
-    }
-  }
-  const rook = byColor === 'white' ? W_ROOK : B_ROOK;
-  for (const [df, dr] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
-    for (let i = 1; i < 8; i++) {
-      const nf = file + df * i, nr = rank + dr * i;
-      if (nf < 0 || nf >= 8 || nr < 0 || nr >= 8) break;
-      const p = board[nr][nf];
-      if (p !== 0) { if (p === rook || p === queen) return true; break; }
-    }
-  }
-  return false;
-}
-
-function isInCheck(board, color) {
-  const k = findKing(board, color);
-  if (!k) return false;
-  return isAttacked(board, k.file, k.rank, color === 'white' ? 'black' : 'white');
 }
 
 export function highlightCheck() {
