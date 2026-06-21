@@ -79,19 +79,28 @@ export function rebuildPieces(scene) {
     }
   }
 
-  // Build a map of existing meshes by position
+  // Build a map of existing meshes by position (skip animating pieces)
   const existing = new Map();
   for (const pm of pieceMeshes) {
+    if (animatingPieces.has(pm)) continue; // let animations finish undisturbed
     const key = `${pm.file},${pm.rank}`;
     existing.set(key, pm);
   }
 
   // Remove meshes no longer on the board, update changed ones, keep unchanged
   const toKeep = new Set();
+  // Track positions occupied by animating pieces so we don't create duplicates
+  const skipPositions = new Set();
+  for (const pm of pieceMeshes) {
+    if (animatingPieces.has(pm)) {
+      skipPositions.add(`${pm.file},${pm.rank}`);
+    }
+  }
+
   for (const [key, pm] of existing) {
     const desiredPiece = desired.get(key);
     if (!desiredPiece) {
-      // Piece no longer exists — remove immediately (no fade for removed pieces)
+      // Piece no longer exists — remove
       scene.remove(pm.mesh);
     } else if (desiredPiece.type !== pm.type || desiredPiece.color !== pm.color) {
       // Piece changed type or color — recreate the mesh
@@ -110,9 +119,9 @@ export function rebuildPieces(scene) {
     }
   }
 
-  // Add new pieces that don't have meshes yet
+  // Add new pieces that don't have meshes yet (skip animating pieces)
   for (const [key, desiredPiece] of desired) {
-    if (!toKeep.has(key)) {
+    if (!toKeep.has(key) && !skipPositions.has(key)) {
       const [f, r] = key.split(',').map(Number);
       const mesh = createPiece(desiredPiece.type, desiredPiece.color);
       mesh.position.set(f - 3.5, 0.01, 3.5 - r);
@@ -123,12 +132,16 @@ export function rebuildPieces(scene) {
     }
   }
 
-  // Rebuild the pieceMeshes array to remove deleted entries
+  // Rebuild the pieceMeshes array: keep animating pieces + pieces in desired state
   const finalMeshes = [];
   for (const pm of pieceMeshes) {
-    const key = `${pm.file},${pm.rank}`;
-    if (desired.has(key)) {
-      finalMeshes.push(pm);
+    if (animatingPieces.has(pm)) {
+      finalMeshes.push(pm); // keep animating pieces alive
+    } else {
+      const key = `${pm.file},${pm.rank}`;
+      if (desired.has(key)) {
+        finalMeshes.push(pm);
+      }
     }
   }
   pieceMeshes.length = 0;
@@ -145,14 +158,20 @@ export function updatePiecePosition(pieceObj, file, rank) {
 
 export const animations = [];
 
+// Tracks pieces currently being animated so rebuildPieces skips them.
+// This prevents rebuildPieces from removing/creating meshes mid-animation,
+// which would cause duplicate pieces or kill capture fade-out animations.
+const animatingPieces = new Set();
+
 export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, enPassant, captured) {
   const fromPiece = pieceMeshes.find(p => p.file === fromFile && p.rank === fromRank);
   if (!fromPiece) return;
 
-  // Update logical position immediately so rebuildPieces (which runs right after
-  // this call) sees the piece at its destination and does not remove it.
+  // Update logical position immediately so rebuildPieces sees the piece at
+  // its destination. Mark as animating so rebuildPieces skips it entirely.
   fromPiece.file = toFile;
   fromPiece.rank = toRank;
+  animatingPieces.add(fromPiece);
 
   const startX = fromFile - 3.5, startY = 0.01, startZ = 3.5 - fromRank;
   const endX = toFile - 3.5, endY = 0.01, endZ = 3.5 - toRank;
@@ -169,6 +188,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
         startZ + (endZ - startZ) * ease
       );
       if (t >= 1) {
+        animatingPieces.delete(fromPiece);
         return true;
       }
       return false;
@@ -179,9 +199,9 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
   if (castled) {
     const rook = pieceMeshes.find(p => p.file === castled.from && p.rank === castled.rank && p.type === 'rook');
     if (rook) {
-      // Update logical position immediately (same reason as fromPiece above)
       rook.file = castled.to;
       rook.rank = castled.rank;
+      animatingPieces.add(rook);
       const rookStartX = castled.from - 3.5, rookStartY = 0.01, rookStartZ = 3.5 - castled.rank;
       const rookEndX = castled.to - 3.5, rookEndY = 0.01, rookEndZ = 3.5 - castled.rank;
       animations.push({
@@ -194,6 +214,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
             rookStartZ + (rookEndZ - rookStartZ) * ease
           );
           if (t >= 1) {
+            animatingPieces.delete(rook);
             return true;
           }
           return false;
@@ -204,8 +225,12 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
 
   // Remove captured piece with animation
   if (captured && !enPassant) {
-    const capPiece = pieceMeshes.find(p => p.file === toFile && p.rank === toRank);
+    // Must exclude fromPiece — its file/rank was already updated to the
+    // destination, so a naive find would match the capturing piece instead
+    // of the captured piece sitting at the same square.
+    const capPiece = pieceMeshes.find(p => p !== fromPiece && p.file === toFile && p.rank === toRank);
     if (capPiece) {
+      animatingPieces.add(capPiece);
       const capStartY = capPiece.mesh.position.y;
       animations.push({
         update(time) {
@@ -217,6 +242,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
             scene.remove(capPiece.mesh);
             const idx = pieceMeshes.indexOf(capPiece);
             if (idx > -1) pieceMeshes.splice(idx, 1);
+            animatingPieces.delete(capPiece);
             return true;
           }
           return false;
@@ -230,6 +256,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
     const epRank = fromPiece.color === 'white' ? toRank - 1 : toRank + 1;
     const epPawn = pieceMeshes.find(p => p.file === toFile && p.rank === epRank && p.type === 'pawn');
     if (epPawn) {
+      animatingPieces.add(epPawn);
       const epStartY = epPawn.mesh.position.y;
       animations.push({
         update(time) {
@@ -241,6 +268,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
             scene.remove(epPawn.mesh);
             const idx = pieceMeshes.indexOf(epPawn);
             if (idx > -1) pieceMeshes.splice(idx, 1);
+            animatingPieces.delete(epPawn);
             return true;
           }
           return false;
