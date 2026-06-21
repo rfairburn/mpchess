@@ -418,6 +418,16 @@ class Game {
     }
   }
 
+  concede(ws) {
+    if (this.gameOver) return false;
+    const color = this.players.get(ws);
+    if (!color) return false;
+    this.gameOver = true;
+    const winner = color === 'white' ? 'black' : 'white';
+    this.gameResult = `${color.charAt(0).toUpperCase() + color.slice(1)} conceded. ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
+    return true;
+  }
+
   getState() {
     return {
       board: this.board,
@@ -568,6 +578,18 @@ wss.on('connection', (ws) => {
             if (c.readyState === 1) sendState(c);
           }
           broadcast({ type: 'restart' });
+        }
+        break;
+      }
+      case 'concede': {
+        const color = game.players.get(ws);
+        if (!color) return;
+        const ok = game.concede(ws);
+        if (ok) {
+          console.log(`  ${color} conceded`);
+          for (const c of wss.clients) {
+            if (c.readyState === 1) sendState(c);
+          }
         }
         break;
       }

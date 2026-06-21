@@ -174,6 +174,45 @@
       justify-content: center;
     }
     #promo-choices button:hover { background: #d4bc94; transform: scale(1.1); }
+    #concede-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10, 8, 5, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 250;
+    }
+    #concede-overlay.visible { display: flex; }
+    #concede-box {
+      background: rgba(30, 22, 14, 0.97);
+      border: 2px solid rgba(181, 136, 99, 0.6);
+      border-radius: 14px;
+      padding: 28px 36px;
+      text-align: center;
+      color: #f0d9b5;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #concede-box h3 { margin-bottom: 14px; font-size: 20px; }
+    #concede-box p { margin-bottom: 22px; font-size: 14px; color: #a08060; }
+    #concede-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+    #concede-actions button {
+      padding: 10px 28px;
+      font-size: 16px;
+      font-family: inherit;
+      color: #1a1410;
+      background: #f0d9b5;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #concede-actions button:hover { background: #d4bc94; }
+    #concede-actions button.cancel { background: #555; color: #ccc; }
+    #concede-actions button.cancel:hover { background: #666; }
     #error-toast {
       position: fixed; bottom: 80px; left: 50%;
       transform: translateX(-50%);
@@ -252,6 +291,7 @@
       <h2>♔ 3D Chess ♚</h2>
       <button id="btn-resume">Resume Game</button>
       <button id="btn-restart">New Game</button>
+      <button id="btn-concede">Concede Game</button>
       <div id="sensitivity-row">
         <label for="sensitivity-slider">Mouse Sensitivity</label>
         <input type="range" id="sensitivity-slider" min="1" max="100" value="20">
@@ -269,6 +309,17 @@
         <button data-type="rook">♖</button>
         <button data-type="bishop">♗</button>
         <button data-type="knight">♘</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="concede-overlay">
+    <div id="concede-box">
+      <h3>Concede Game?</h3>
+      <p>Are you sure you want to concede? This cannot be undone.</p>
+      <div id="concede-actions">
+        <button id="btn-concede-cancel" class="cancel">Cancel</button>
+        <button id="btn-concede-confirm">Concede</button>
       </div>
     </div>
   </div>
@@ -404,6 +455,9 @@
         // Rebuild pieces from server state
         rebuildPieces();
 
+        // Hide concede confirmation on state update
+        hideConcedeConfirm();
+
         // Show game over overlay
         if (serverGameOver && serverGameResult) {
           document.getElementById('game-over-text').textContent = serverGameResult;
@@ -447,6 +501,7 @@
         selectedSquare = null;
         validMoves = [];
         hidePromotionPicker();
+        hideConcedeConfirm();
         document.getElementById('game-over-overlay').classList.remove('visible');
         // Force rebuild in case state message hasn't arrived yet
         if (serverBoard && modelsLoaded) rebuildPieces();
@@ -953,8 +1008,10 @@
   function showMenu() {
     menuOverlay.classList.add('visible');
     if (document.pointerLockElement) document.exitPointerLock();
-    // Disable restart for spectators
-    btnRestart.disabled = myRole === 'spectator';
+    // Disable restart and concede for spectators; disable both when game is over
+    const isSpectator = myRole === 'spectator';
+    btnRestart.disabled = isSpectator;
+    btnConcede.disabled = isSpectator || serverGameOver;
   }
 
   function hideMenu() {
@@ -992,6 +1049,30 @@
   promoButtons.forEach(btn => {
     btn.addEventListener('click', () => sendPromotion(btn.dataset.type));
   });
+
+  // ── Concede ────────────────────────────────────────────
+
+  function sendConcede() {
+    ws.send(JSON.stringify({ type: 'concede' }));
+  }
+
+  const concedeOverlay = document.getElementById('concede-overlay');
+  const btnConcede = document.getElementById('btn-concede');
+  const btnConcedeConfirm = document.getElementById('btn-concede-confirm');
+  const btnConcedeCancel = document.getElementById('btn-concede-cancel');
+
+  function showConcedeConfirm() {
+    hideMenu();
+    concedeOverlay.classList.add('visible');
+  }
+
+  function hideConcedeConfirm() {
+    concedeOverlay.classList.remove('visible');
+  }
+
+  btnConcede.addEventListener('click', () => showConcedeConfirm());
+  btnConcedeConfirm.addEventListener('click', () => { sendConcede(); hideConcedeConfirm(); });
+  btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
 
   // ═══════════════════════════════════════════════════════════
   //  FREECAM CONTROLS + MOUSE LOOK TOGGLE
