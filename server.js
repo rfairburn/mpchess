@@ -246,6 +246,7 @@ class Game {
     this.players = new Map(); // ws -> 'white' | 'black'
     this.spectators = new Set();
     this.moveHistory = [];
+    this.capturedPieces = { white: [], black: [] }; // pieces each side has captured
     this.gameOver = false;
     this.gameResult = null;
   }
@@ -296,6 +297,14 @@ class Game {
 
     const captured = this.board[toRank][toFile];
     const isEnPassant = move.enPassant === true;
+
+    // Track captured piece
+    if (captured !== 0) {
+      this.capturedPieces[color].push(pieceType(captured));
+    }
+    if (isEnPassant) {
+      this.capturedPieces[color].push('pawn');
+    }
 
     // En passant capture
     if (isEnPassant) {
@@ -438,6 +447,7 @@ class Game {
       gameOver: this.gameOver,
       gameResult: this.gameResult,
       moveHistory: [...this.moveHistory],
+      capturedPieces: { white: [...this.capturedPieces.white], black: [...this.capturedPieces.black] },
       playerCount: this.players.size,
       spectatorCount: this.spectators.size,
     };
@@ -450,6 +460,7 @@ class Game {
     this.enPassantTarget = null;
     this.promotingPiece = null;
     this.moveHistory = [];
+    this.capturedPieces = { white: [], black: [] };
     this.gameOver = false;
     this.gameResult = null;
   }

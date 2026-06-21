@@ -75,6 +75,50 @@
       pointer-events: none;
       z-index: 10;
     }
+    #captured-white {
+      position: fixed; top: 120px; left: 20px;
+      color: #f0e6d0;
+      font: 20px/1.4 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: rgba(20, 14, 8, 0.85);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(181, 136, 99, 0.2);
+      pointer-events: none;
+      z-index: 10;
+      min-width: 40px;
+      min-height: 28px;
+      letter-spacing: 1px;
+    }
+    #captured-white .cap-label {
+      display: block;
+      font: bold 11px/1.2 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #a08060;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    #captured-black {
+      position: fixed; top: 190px; left: 20px;
+      color: #ccc;
+      font: 20px/1.4 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: rgba(20, 14, 8, 0.85);
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(181, 136, 99, 0.2);
+      pointer-events: none;
+      z-index: 10;
+      min-width: 40px;
+      min-height: 28px;
+      letter-spacing: 1px;
+    }
+    #captured-black .cap-label {
+      display: block;
+      font: bold 11px/1.2 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #a08060;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
     #menu-overlay {
       position: fixed; inset: 0;
       background: rgba(10, 8, 5, 0.88);
@@ -284,6 +328,8 @@
   <div id="mouse-mode">🖱 Camera Mode</div>
   <div id="role-badge">Connecting...</div>
   <div id="player-count"></div>
+  <div id="captured-white"><span class="cap-label">White's Captures</span><span class="cap-pieces"></span></div>
+  <div id="captured-black"><span class="cap-label">Black's Captures</span><span class="cap-pieces"></span></div>
   <div id="move-log"></div>
 
   <div id="menu-overlay">
@@ -426,6 +472,30 @@
     el.innerHTML = pairs.slice(-6).join('');
   }
 
+  // ── Captured pieces display ────────────────────────────
+
+  const capturedWhitePieces = document.querySelector('#captured-white .cap-pieces');
+  const capturedBlackPieces = document.querySelector('#captured-black .cap-pieces');
+
+  const CAPTURE_SYMBOLS = {
+    queen: { white: '♕', black: '♛' },
+    rook: { white: '♖', black: '♜' },
+    bishop: { white: '♗', black: '♝' },
+    knight: { white: '♘', black: '♞' },
+    pawn: { white: '♙', black: '♟' }
+  };
+  const CAPTURE_ORDER = { queen: 0, rook: 1, bishop: 2, knight: 3, pawn: 4 };
+
+  function updateCapturedPieces(captured) {
+    if (!captured) { capturedWhitePieces.textContent = ''; capturedBlackPieces.textContent = ''; return; }
+    // Sort by value (queen first, pawn last)
+    const sortFn = (a, b) => (CAPTURE_ORDER[a] ?? 99) - (CAPTURE_ORDER[b] ?? 99);
+    // White captured black pieces → show black symbols
+    capturedWhitePieces.textContent = captured.white.slice().sort(sortFn).map(t => CAPTURE_SYMBOLS[t]?.black || '').join(' ');
+    // Black captured white pieces → show white symbols
+    capturedBlackPieces.textContent = captured.black.slice().sort(sortFn).map(t => CAPTURE_SYMBOLS[t]?.white || '').join(' ');
+  }
+
   ws.onopen = () => { console.log('Connected to server'); };
   ws.onclose = () => {
     console.log('Disconnected from server');
@@ -451,6 +521,7 @@
         updatePlayerCount(msg.playerCount, msg.spectatorCount);
         updateTurnIndicator();
         updateMoveLog();
+        updateCapturedPieces(msg.capturedPieces);
 
         // Rebuild pieces from server state
         rebuildPieces();
@@ -498,6 +569,7 @@
       case 'restart': {
         moveHistory = [];
         updateMoveLog();
+        updateCapturedPieces(null);
         selectedSquare = null;
         validMoves = [];
         hidePromotionPicker();
