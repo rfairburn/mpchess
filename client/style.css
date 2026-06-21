@@ -297,6 +297,7 @@
       transition: background 0.2s;
     }
     #game-over-box button:hover { background: #d4bc94; }
+    #game-over-box button:disabled { background: #666; color: #999; cursor: not-allowed; }
     #move-log {
       position: fixed; bottom: 20px; right: 20px;
       color: #c4a882;

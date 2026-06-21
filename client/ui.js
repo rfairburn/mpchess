@@ -133,7 +133,9 @@ export function hideMenu() {
 
 btnResume.addEventListener('click', () => { hideMenu(); });
 btnRestart.addEventListener('click', () => { sendRestart(); hideMenu(); });
-document.getElementById('btn-new-game').addEventListener('click', () => {
+const btnNewGame = document.getElementById('btn-new-game');
+btnNewGame.addEventListener('click', () => {
+  if (myRole === 'spectator') return;
   sendRestart();
   document.getElementById('game-over-overlay').classList.remove('visible');
 });
@@ -189,8 +191,10 @@ onStateUpdate((msg) => {
   // Show game over overlay
   if (serverGameOver && serverGameResult) {
     document.getElementById('game-over-text').textContent = serverGameResult;
+    btnNewGame.disabled = myRole === 'spectator';
     document.getElementById('game-over-overlay').classList.add('visible');
   } else {
+    btnNewGame.disabled = false;
     document.getElementById('game-over-overlay').classList.remove('visible');
   }
 
