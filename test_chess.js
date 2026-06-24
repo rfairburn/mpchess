@@ -771,6 +771,308 @@ describe('Input validation — WebSocket message bounds', () => {
   });
 });
 
+describe('Algebraic notation disambiguation', () => {
+  test('single knight move - no disambiguation needed', () => {
+    const { game, white } = makeGame();
+    // Move knight from b1 to c3 - only one knight can reach c3
+    game.tryMove(white, 1, 0, 2, 2);
+    const notation = game.moveHistory[0];
+    assert.strictEqual(notation, 'Nc3', 'single knight move should not need disambiguation');
+  });
+
+  test('two knights can reach same square - file disambiguation', () => {
+    // Set up two white knights that can both reach e5
+    // Knight at c3 and knight at g3 both can move to e4
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    // Clear board and set up knights
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[2][2] = W_KNIGHT;  // c3
+    g.board[2][6] = W_KNIGHT;  // g3
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move knight from c3 to e4
+    const result1 = g.tryMove(ws1, 2, 2, 4, 3);
+    assert.strictEqual(result1.ok, true);
+    // Should be Nce4# (c-file disambiguation, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Nce4#', `expected Nce4#: ${g.moveHistory[0]}`);
+
+    // Move knight from g3 to e4
+    g.reset();
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[2][2] = W_KNIGHT;  // c3
+    g.board[2][6] = W_KNIGHT;  // g3
+    g.turn = 'white';
+    const result2 = g.tryMove(ws1, 6, 2, 4, 3);
+    assert.strictEqual(result2.ok, true);
+    // Should be Nge4# (g-file disambiguation, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Nge4#', `expected Nge4#: ${g.moveHistory[0]}`);
+  });
+
+  test('two rooks on same file - rank disambiguation', () => {
+    // Two rooks on the same file (e.g., both on d-file) that can reach same square
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][3] = W_ROOK;  // d1
+    g.board[4][3] = W_ROOK;  // d5
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move rook from d1 to d4 (both rooks can reach d4)
+    const result = g.tryMove(ws1, 3, 0, 3, 3);
+    assert.strictEqual(result.ok, true);
+    // Should be R1d4# (rank disambiguation since both are on d-file, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'R1d4#', `expected R1d4#: ${g.moveHistory[0]}`);
+  });
+
+  test('two rooks on same rank - file disambiguation', () => {
+    // Two rooks on the same rank (e.g., both on 1st rank) that can reach same square
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][0] = W_ROOK;  // a1
+    g.board[0][3] = W_ROOK;  // d1
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move rook from a1 to c1 (both rooks can reach c1)
+    const result = g.tryMove(ws1, 0, 0, 2, 0);
+    assert.strictEqual(result.ok, true);
+    // Should be Rac1# (file disambiguation since both are on 1st rank, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Rac1#', `expected Rac1#: ${g.moveHistory[0]}`);
+  });
+
+  test('three knights - full disambiguation (file + rank)', () => {
+    // Three knights where one shares the file and another shares the rank
+    // with the moving piece — requires both file and rank.
+    // Knights on b2, b6, d2 — all can reach c4.
+    // b6 shares file b with b2, d2 shares rank 2 with b2.
+    // File alone (Nbc4) can't distinguish from b6.
+    // Rank alone (N2c4) can't distinguish from d2.
+    // Must use Nb2c4.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[1][1] = W_KNIGHT;  // b2
+    g.board[5][1] = W_KNIGHT;  // b6
+    g.board[1][3] = W_KNIGHT;  // d2
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move knight from b2 to c4
+    const result = g.tryMove(ws1, 1, 1, 2, 3);
+    assert.strictEqual(result.ok, true);
+    // Must use full disambiguation: Nb2c4# (checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Nb2c4#', `expected Nb2c4#: ${g.moveHistory[0]}`);
+  });
+
+  test('three bishops - full disambiguation (file + rank)', () => {
+    // Bishops on c1, g1, c5 — all can reach e3 via diagonals.
+    // g1 shares rank 1 with c1, c5 shares file c with c1.
+    // File alone (Bce3) can't distinguish from c5.
+    // Rank alone (B1e3) can't distinguish from g1.
+    // Must use Bc1e3.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][2] = W_BISHOP;  // c1
+    g.board[0][6] = W_BISHOP;  // g1
+    g.board[4][2] = W_BISHOP;  // c5
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move bishop from c1 to e3
+    const result = g.tryMove(ws1, 2, 0, 4, 2);
+    assert.strictEqual(result.ok, true);
+    // Must use Bc1e3# (checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Bc1e3#', `expected Bc1e3#: ${g.moveHistory[0]}`);
+  });
+
+  test('three queens - full disambiguation (file + rank)', () => {
+    // Queens on c1, g1, c5 — all can reach e3.
+    // g1 shares rank 1 with c1, c5 shares file c with c1.
+    // Must use Qc1e3.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][2] = W_QUEEN;  // c1
+    g.board[0][6] = W_QUEEN;  // g1
+    g.board[4][2] = W_QUEEN;  // c5
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move queen from c1 to e3
+    const result = g.tryMove(ws1, 2, 0, 4, 2);
+    assert.strictEqual(result.ok, true);
+    // Must use Qc1e3# (checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Qc1e3#', `expected Qc1e3#: ${g.moveHistory[0]}`);
+  });
+
+  test('bishop move with disambiguation', () => {
+    // Two bishops on different diagonals that can reach same square
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[2][2] = W_BISHOP;  // c3
+    g.board[2][6] = W_BISHOP;  // g3
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move bishop from c3 to e5
+    const result = g.tryMove(ws1, 2, 2, 4, 4);
+    assert.strictEqual(result.ok, true);
+    // Should be Bce5# (file disambiguation, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Bce5#', `expected Bce5#: ${g.moveHistory[0]}`);
+  });
+
+  test('queen move with disambiguation', () => {
+    // Two queens that can reach same square
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[3][3] = W_QUEEN;  // d3
+    g.board[3][5] = W_QUEEN;  // f3
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move queen from d3 to e5 (rank 4 in 0-indexed = rank 5 in 1-indexed)
+    const result = g.tryMove(ws1, 3, 3, 4, 4);
+    assert.strictEqual(result.ok, true);
+    // Should be Qde5# (file disambiguation, checkmate)
+    assert.strictEqual(g.moveHistory[0], 'Qde5#', `expected Qde5#: ${g.moveHistory[0]}`);
+  });
+
+  test('king move - no disambiguation needed (only one king)', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;  // e1
+    g.board[7][4] = B_KING;  // e8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move king from e1 to e2 (no check involved)
+    const result = g.tryMove(ws1, 4, 0, 4, 1);
+    assert.strictEqual(result.ok, true);
+    // King moves should not need disambiguation; Ke2 (no check — black king too far)
+    assert.strictEqual(g.moveHistory[0], 'Ke2', `expected Ke2: ${g.moveHistory[0]}`);
+  });
+
+  test('pawn capture notation includes departure file', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[3][4] = W_PAWN;  // e4 (for en passant)
+    g.board[4][3] = B_PAWN;  // d5 (the pawn to capture via en passant)
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Set up en passant: black pawn just moved d7-d5
+    g.enPassantTarget = { file: 3, rank: 4 };  // d5
+
+    // White pawn at e4 captures en passant on d5
+    const result = g.tryMove(ws1, 4, 3, 3, 4);
+    assert.strictEqual(result.ok, true);
+    // Pawn capture notation is always departure-file + x + destination (not disambiguation)
+    // exd5# (checkmate)
+    assert.strictEqual(g.moveHistory[0], 'exd5#', `expected exd5#: ${g.moveHistory[0]}`);
+  });
+
+  test('pinned piece excluded from disambiguation', () => {
+    // Two knights can geometrically reach the same square, but one
+    // is pinned and cannot legally move — only the unpinned knight
+    // should appear in the notation (no disambiguation needed).
+    // King on e1, knight on e2 (pinned by rook on e8), knight on c3.
+    // Both can reach d4, but e2 knight is pinned.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;    // e1
+    g.board[1][4] = W_KNIGHT;  // e2 — pinned by rook on e8
+    g.board[2][2] = W_KNIGHT;  // c3 — free
+    g.board[7][4] = B_ROOK;    // e8 — pins the e2 knight
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Move the free knight from c3 to d4 — no disambiguation needed
+    // because the pinned knight on e2 cannot legally move to d4.
+    // c3=(file=2,rank=2) → d4=(file=3,rank=3) is (±1,±1) — NOT a knight move!
+    // Fix: c3→d5 is (file=2→3, rank=2→4) = (±1,±2) — valid!
+    // e2→d4 is (file=4→3, rank=1→3) = (±1,±2) — valid but pinned.
+    // Both reach d5? e2→d5 is (file=4→3, rank=1→4) = (±1,±3) — NOT valid.
+    // Both reach c3? No, c3 is the source.
+    // e2 can reach: c1,c3,d4,f4,g1,g3. c3 can reach: a2,a4,b1,b5,d1,d5,e2,e4.
+    // No common square! Let me use knights on b1 and e2, both can reach c3.
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;    // e1
+    g.board[1][4] = W_KNIGHT;  // e2 — pinned by rook on e8
+    g.board[0][1] = W_KNIGHT;  // b1 — free
+    g.board[7][4] = B_ROOK;    // e8 — pins the e2 knight
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // b1=(file=1,rank=0) → c3=(file=2,rank=2) is (±1,±2) — valid!
+    // e2=(file=4,rank=1) → c3=(file=2,rank=2) is (±2,±1) — valid but pinned!
+    const result = g.tryMove(ws1, 1, 0, 2, 2);
+    assert.strictEqual(result.ok, true);
+    // Nc3 (no check — black rook on e8 doesn't give check to white king on e1 after Nc3)
+    assert.strictEqual(g.moveHistory[0], 'Nc3', `expected Nc3: ${g.moveHistory[0]}`);
+  });
+
+  test('pawn simple move — no departure file in notation', () => {
+    const { game, white } = makeGame();
+    // e2 → e4 is a simple pawn push; notation is just the destination
+    game.tryMove(white, 4, 1, 4, 3);
+    // e4 (no check)
+    assert.strictEqual(game.moveHistory[0], 'e4', `expected e4: ${game.moveHistory[0]}`);
+  });
+
+  test('pawn promotion notation includes piece suffix', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;  // e7
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Push pawn to e8 — triggers promotion
+    const result = g.tryMove(ws1, 4, 6, 4, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    // Complete promotion to queen
+    g.completePromotion(ws1, 'queen');
+    // Notation should be e8=Q# (checkmate)
+    assert.strictEqual(g.moveHistory[0], 'e8=Q#', `expected e8=Q#: ${g.moveHistory[0]}`);
+  });
+});
+
 // ── Summary ──────────────────────────────────────────────
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Results: ${passed}/${total} passed, ${failed} failed`);

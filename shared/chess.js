@@ -201,7 +201,25 @@ const FILES = 'abcdefgh';
 const RANKS = '12345678';
 const PIECE_LETTERS = { king:'K', queen:'Q', rook:'R', bishop:'B', knight:'N', pawn:'' };
 
-function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured, enPassant, castled, isPromotion) {
+// Find all pieces of the given type and color (excluding source) that can move to the target square
+function findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toRank, castlingRights, enPassantTarget) {
+  const ambiguous = [];
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const piece = board[r][f];
+      // Skip: empty square, wrong color, wrong type, or the source piece
+      if (piece === 0 || pieceColor(piece) !== color || pieceType(piece) !== type) continue;
+      if (f === fromFile && r === fromRank) continue;
+      const moves = getValidMoves(board, f, r, castlingRights, enPassantTarget);
+      if (moves.some(m => m.file === toFile && m.rank === toRank)) {
+        ambiguous.push({ file: f, rank: r });
+      }
+    }
+  }
+  return ambiguous;
+}
+
+function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured, enPassant, castled, isPromotion, castlingRights, enPassantTarget) {
   const sq = () => FILES[toFile] + RANKS[toRank];
 
   // Castling
@@ -220,8 +238,32 @@ function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured
       n = sq();
     }
   } else {
-    // Piece move: letter + optional capture x + destination
+    // Piece move: letter + optional disambiguation + optional capture x + destination
     n = PIECE_LETTERS[type];
+
+    // Check for disambiguation needed
+    const color = pieceColor(board[fromRank][fromFile]);
+    const ambiguous = findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toRank,
+      castlingRights || { wK:true, wQ:true, bK:true, bQ:true }, enPassantTarget);
+
+    if (ambiguous.length > 0) {
+      // Check if file disambiguation is sufficient
+      const sameFile = ambiguous.some(p => p.file === fromFile);
+      const sameRank = ambiguous.some(p => p.rank === fromRank);
+
+      if (!sameFile) {
+        // File alone disambiguates (e.g., Nce4)
+        n += FILES[fromFile];
+      } else if (!sameRank) {
+        // Rank alone disambiguates (e.g., R1d4)
+        n += RANKS[fromRank];
+      } else {
+        // Both needed — e.g. three knights on b2, b6, d2 all reaching c4:
+        // file alone can't distinguish from b6, rank alone can't from d2 → Nb2c4
+        n += FILES[fromFile] + RANKS[fromRank];
+      }
+    }
+
     if (captured) n += 'x';
     n += sq();
   }
@@ -303,6 +345,30 @@ class Game {
       this.capturedPieces[color].push('pawn');
     }
 
+    // Check for promotion BEFORE making the move (for disambiguation)
+    const isPromotion = type === 'pawn' && (toRank === 0 || toRank === 7);
+
+    // Calculate notation BEFORE making the move (board state needed for disambiguation)
+    let castled = null;
+    if (type === 'king' && Math.abs(toFile - fromFile) === 2) {
+      if (toFile > fromFile) {
+        castled = { from: 7, to: 5, rank: toRank };
+      } else {
+        castled = { from: 0, to: 3, rank: toRank };
+      }
+    }
+
+    // Calculate notation with current board state (before move)
+    const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, false, this.castlingRights, this.enPassantTarget);
+
+    if (isPromotion) {
+      this.promotingPiece = { file: toFile, rank: toRank, color, ws };
+      // Record the pawn move; promotion suffix added later
+      const promoNotation = notation + '=P';  // P for pawn (will be replaced with actual piece in completePromotion)
+      this.moveHistory.push(promoNotation);
+      return { ok: true, promotion: true, fromFile, fromRank, toFile, toRank, captured: !!captured, enPassant: isEnPassant, castled };
+    }
+
     // En passant capture
     if (isEnPassant) {
       const capturedRank = color === 'white' ? toRank - 1 : toRank + 1;
@@ -318,17 +384,14 @@ class Game {
       this.enPassantTarget = { file: fromFile, rank: (fromRank + toRank) / 2 };
     }
 
-    // Castling
-    let castled = null;
-    if (type === 'king' && Math.abs(toFile - fromFile) === 2) {
-      if (toFile > fromFile) {
+    // Castling - move the rook
+    if (castled) {
+      if (castled.to === 5) {
         this.board[toRank][5] = this.board[toRank][7];
         this.board[toRank][7] = 0;
-        castled = { from: 7, to: 5, rank: toRank };
       } else {
         this.board[toRank][3] = this.board[toRank][0];
         this.board[toRank][0] = 0;
-        castled = { from: 0, to: 3, rank: toRank };
       }
       if (color === 'white') { this.castlingRights.wK = false; this.castlingRights.wQ = false; }
       else { this.castlingRights.bK = false; this.castlingRights.bQ = false; }
@@ -359,21 +422,10 @@ class Game {
       if (captured === B_ROOK && toRank === 7 && toFile === 7) this.castlingRights.bK = false;
     }
 
-    // Check for promotion
-    const isPromotion = type === 'pawn' && (toRank === 0 || toRank === 7);
-    if (isPromotion) {
-      this.promotingPiece = { file: toFile, rank: toRank, color, ws };
-      // Record the pawn move; promotion suffix added later
-      const promoNotation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, true);
-      this.moveHistory.push(promoNotation);
-      return { ok: true, promotion: true, fromFile, fromRank, toFile, toRank, captured: !!captured, enPassant: isEnPassant, castled };
-    }
-
     // Switch turn
     this.turn = this.turn === 'white' ? 'black' : 'white';
 
     // Record move with proper algebraic notation
-    const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, false);
     this.moveHistory.push(notation);
 
     // Check game end and append check/mate symbol
@@ -399,11 +451,11 @@ class Game {
     // Switch turn
     this.turn = this.turn === 'white' ? 'black' : 'white';
 
-    // Record promotion move — find the pawn's departure file from move history context
-    // The promotion notation is appended to the last move entry (the pawn move)
+    // Replace the =P placeholder with the actual promotion piece
     const promoNotation = `=${pieceType[0].toUpperCase()}`;
     if (this.moveHistory.length > 0) {
-      this.moveHistory[this.moveHistory.length - 1] += promoNotation;
+      const last = this.moveHistory.length - 1;
+      this.moveHistory[last] = this.moveHistory[last].slice(0, -2) + promoNotation;
     }
 
     this.checkGameEnd();
