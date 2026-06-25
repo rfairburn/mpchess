@@ -1063,6 +1063,76 @@ describe('Algebraic notation disambiguation', () => {
     // e8=Q (no check — no black king on board)
     assert.strictEqual(g.moveHistory[0], 'e8=Q', `expected e8=Q: ${g.moveHistory[0]}`);
   });
+
+  test('promotion removes pawn from source square', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;  // e7
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Push pawn to e8 — triggers promotion
+    const result = g.tryMove(ws1, 4, 6, 4, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+    // Pawn should still be at source (server doesn't mutate board for promotions)
+    assert.strictEqual(g.board[6][4], W_PAWN, 'pawn still at source before completePromotion');
+    assert.strictEqual(g.board[7][4], 0, 'destination empty before completePromotion');
+
+    // Complete promotion
+    g.completePromotion(ws1, 'queen');
+    assert.strictEqual(g.board[6][4], 0, 'source square cleared after promotion');
+    assert.strictEqual(g.board[7][4], W_QUEEN, 'queen at destination');
+  });
+
+  test('promotion via en passant removes captured pawn (synthetic)', () => {
+    // Note: en passant promotion is impossible in real chess (geometry prevents
+    // en passant targets from landing on the promotion rank), but the code path
+    // exists and must be correct. Test with a synthetic board state.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][1] = W_PAWN;   // white pawn at source
+    g.board[6][0] = B_PAWN;   // black pawn to be captured (synthetic en passant)
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // Manually set up a promotion with enPassant flag (bypasses move validation)
+    g.promotingPiece = { file: 0, rank: 7, color: 'white', fromFile: 1, fromRank: 6, enPassant: true };
+
+    // Complete promotion — should clear source AND en passant captured pawn
+    g.completePromotion(ws1, 'rook');
+    assert.strictEqual(g.board[6][1], 0, 'source square cleared');
+    assert.strictEqual(g.board[6][0], 0, 'en passant captured pawn removed (rank-1 for white)');
+    assert.strictEqual(g.board[7][0], W_ROOK, 'rook at destination');
+  });
+
+  test('promotingPiece stores source coordinates for client sync', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][0] = W_PAWN;  // a7
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    g.tryMove(ws1, 0, 6, 0, 7);
+    assert.strictEqual(g.promotingPiece.fromFile, 0, 'fromFile stored');
+    assert.strictEqual(g.promotingPiece.fromRank, 6, 'fromRank stored');
+    assert.strictEqual(g.promotingPiece.file, 0, 'destination file stored');
+    assert.strictEqual(g.promotingPiece.rank, 7, 'destination rank stored');
+
+    // getState exposes fromFile/fromRank for client-side board update
+    const state = g.getState();
+    assert.strictEqual(state.promotingPiece.fromFile, 0, 'fromFile in state');
+    assert.strictEqual(state.promotingPiece.fromRank, 6, 'fromRank in state');
+  });
 });
 
 // ── Summary ──────────────────────────────────────────────

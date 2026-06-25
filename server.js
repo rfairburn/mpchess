@@ -264,7 +264,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           break;
         }
         case 'promotion': {
-          if (!game.promotingPiece || game.promotingPiece.ws !== ws) return;
+          if (!game.promotingPiece || game.players.get(ws) !== game.promotingPiece.color) return;
           if (!['queen','rook','bishop','knight'].includes(msg.pieceType)) return;
           const ok = game.completePromotion(ws, msg.pieceType);
           if (ok) {

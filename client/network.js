@@ -131,6 +131,17 @@ function connect() {
         break;
       }
       case 'move': {
+        // For promotion moves, update the local board immediately so
+        // rebuildPieces doesn't recreate the pawn at the source square
+        // (the server doesn't mutate the board until completePromotion).
+        if (msg.promotion && serverBoard) {
+          serverBoard[msg.fromRank][msg.fromFile] = 0;
+          if (msg.enPassant) {
+            const promoColor = serverTurn; // it's the moving side's turn
+            const capturedRank = promoColor === 'white' ? msg.toRank - 1 : msg.toRank + 1;
+            serverBoard[capturedRank][msg.toFile] = 0;
+          }
+        }
         fireCallbacks(onMoveCallbacks, msg);
         break;
       }

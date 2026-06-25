@@ -633,6 +633,160 @@ testBlock('Seat status in state message', () => {
   safeAssert(stateMsg2.seats.black.status === 'free', 'black seat still free');
 });
 
+// ── Promotion soft-lock regression tests (§11.1) ─────────
+
+testBlock('Promotion — promotingPiece does not store ws', () => {
+  const { game, wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+
+  // Set up a promotion scenario: white pawn on rank 6
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  game.board[6][4] = 1; // W_PAWN at e7
+  game.turn = 'white';
+  game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+  // Move pawn to back rank — triggers promotion
+  const result = game.tryMove(ws1, 4, 6, 4, 7);
+  safeAssert(result.ok === true, 'move ok');
+  safeAssert(result.promotion === true, 'promotion triggered');
+
+  // promotingPiece should NOT have a ws field
+  safeAssert(game.promotingPiece !== null, 'promotingPiece is set');
+  safeAssert(game.promotingPiece.ws === undefined, 'promotingPiece has no ws field');
+  safeAssert(game.promotingPiece.color === 'white', 'promotingPiece color is white');
+  safeAssert(game.promotingPiece.file === 4, 'promotingPiece file is 4');
+  safeAssert(game.promotingPiece.rank === 7, 'promotingPiece rank is 7');
+});
+
+testBlock('Promotion soft-lock fix — disconnect then reconnect completes promotion', () => {
+  const { game, wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+
+  // Set up promotion scenario
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  game.board[6][4] = 1; // W_PAWN at e7
+  game.turn = 'white';
+  game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+  // Trigger promotion
+  const result = game.tryMove(ws1, 4, 6, 4, 7);
+  safeAssert(result.ok === true, 'promotion move ok');
+  safeAssert(game.promotingPiece !== null, 'promotingPiece set');
+
+  // Disconnect the promoting player
+  wss.simulateDisconnect(ws1);
+  safeAssert(handlers.sessions.has(ws1) === false, 'old session deleted');
+  safeAssert(handlers.disconnectedPlayers.has(token1) === true, 'seat held');
+  safeAssert(game.promotingPiece !== null, 'promotingPiece survives disconnect');
+
+  // Reconnect with new socket
+  const ws1_new = wss.simulateConnection();
+  ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+  safeAssert(ws1_new.getSent('reconnected').length === 1, 'reconnected');
+  safeAssert(game.players.get(ws1_new) === 'white', 'new ws is white');
+
+  // Complete promotion with new socket — must succeed
+  ws1_new.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'knight' }));
+  safeAssert(game.promotingPiece === null, 'promotingPiece cleared');
+  safeAssert(game.board[7][4] === 2, 'knight placed on board (W_KNIGHT=2)');
+  safeAssert(game.turn === 'black', 'turn switched to black');
+});
+
+testBlock('Promotion blocked for wrong color', () => {
+  const { game, wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+
+  // Set up white promotion
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  game.board[6][4] = 1; // W_PAWN at e7
+  game.turn = 'white';
+  game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+  game.tryMove(ws1, 4, 6, 4, 7);
+  safeAssert(game.promotingPiece !== null, 'promotingPiece set');
+
+  // Black tries to complete white's promotion — must fail
+  const beforeBoard = game.board[7][4];
+  ws2.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'queen' }));
+  safeAssert(game.promotingPiece !== null, 'promotingPiece still set (not completed by wrong color)');
+  safeAssert(game.board[7][4] === beforeBoard, 'board unchanged');
+});
+
+testBlock('Promotion after drop + rejoin by new player', () => {
+  const { game, wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+  const ws3 = wss.simulateConnection(); // future replacement player
+
+  // Set up white promotion
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  game.board[6][4] = 1; // W_PAWN at e7
+  game.turn = 'white';
+  game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+  game.tryMove(ws1, 4, 6, 4, 7);
+  safeAssert(game.promotingPiece !== null, 'promotingPiece set');
+
+  // White disconnects
+  wss.simulateDisconnect(ws1);
+  safeAssert(game.promotingPiece !== null, 'promotingPiece survives disconnect');
+
+  // Black drops white's seat (needs the token, not the color)
+  ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
+  safeAssert(handlers.disconnectedPlayers.has(token1) === false, 'seat freed by drop');
+
+  // New player joins as white
+  ws3.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+  safeAssert(game.players.get(ws3) === 'white', 'new player is white');
+
+  // New player completes the promotion
+  ws3.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'bishop' }));
+  safeAssert(game.promotingPiece === null, 'promotingPiece cleared');
+  safeAssert(game.board[7][4] === 3, 'bishop placed on board (W_BISHOP=3)');
+});
+
+testBlock('Promotion state broadcast to reconnected client', () => {
+  const { game, wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+
+  // Set up promotion scenario
+  game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  game.board[6][4] = 1;
+  game.turn = 'white';
+  game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+  game.tryMove(ws1, 4, 6, 4, 7);
+  safeAssert(game.promotingPiece !== null, 'promotingPiece set');
+
+  // Disconnect
+  wss.simulateDisconnect(ws1);
+
+  // Reconnect
+  const ws1_new = wss.simulateConnection();
+  ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+
+  // The state broadcast after reconnect should include promotingPiece
+  const stateMsgs = ws1_new.getSent('state');
+  safeAssert(stateMsgs.length >= 1, 'received at least one state message');
+  const lastState = stateMsgs[stateMsgs.length - 1];
+  safeAssert(lastState.promotingPiece !== null, 'state includes promotingPiece');
+  safeAssert(lastState.promotingPiece.color === 'white', 'promotingPiece color is white');
+  safeAssert(lastState.promotingPiece.file === 4, 'promotingPiece file is 4');
+  safeAssert(lastState.promotingPiece.rank === 7, 'promotingPiece rank is 7');
+});
+
 // ── Results ───────────────────────────────────────────────
 
 function printResults() {

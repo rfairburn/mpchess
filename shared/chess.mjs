@@ -281,7 +281,7 @@ class Game {
     this.turn = 'white';
     this.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
     this.enPassantTarget = null;
-    this.promotingPiece = null; // {file, rank, color, ws} awaiting promotion
+    this.promotingPiece = null; // {file, rank, color} awaiting promotion
     this.players = new Map(); // ws -> 'white' | 'black'
     this.spectators = new Set();
     this.moveHistory = [];
@@ -310,10 +310,6 @@ class Game {
     if (this.players.has(ws)) {
       const color = this.players.get(ws);
       this.players.delete(ws);
-      // If a player leaves during their promotion, auto-promote to queen
-      if (this.promotingPiece && this.promotingPiece.ws === ws) {
-        this.completePromotion(ws, 'queen');
-      }
       return color;
     }
     this.spectators.delete(ws);
@@ -365,7 +361,7 @@ class Game {
     const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, this.castlingRights, this.enPassantTarget);
 
     if (isPromotion) {
-      this.promotingPiece = { file: toFile, rank: toRank, color, ws };
+      this.promotingPiece = { file: toFile, rank: toRank, color, fromFile, fromRank, enPassant: isEnPassant };
       // Record the pawn move; promotion suffix added later
       const promoNotation = notation + '=P';  // P for pawn (will be replaced with actual piece in completePromotion)
       this.moveHistory.push(promoNotation);
@@ -443,12 +439,19 @@ class Game {
   }
 
   completePromotion(ws, pieceType) {
-    if (!this.promotingPiece || this.promotingPiece.ws !== ws) return false;
-    const { file, rank, color } = this.promotingPiece;
+    if (!this.promotingPiece || this.players.get(ws) !== this.promotingPiece.color) return false;
+    const { file, rank, color, fromFile, fromRank, enPassant } = this.promotingPiece;
     const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
     if (!(pieceType in pieceMap)) return false;
     const val = color === 'white' ? pieceMap[pieceType] : pieceMap[pieceType] + 6;
+    // Place promoted piece at destination, remove pawn from source
     this.board[rank][file] = val;
+    this.board[fromRank][fromFile] = 0;
+    // Handle en passant capture during promotion
+    if (enPassant) {
+      const capturedRank = color === 'white' ? rank - 1 : rank + 1;
+      this.board[capturedRank][file] = 0;
+    }
     this.promotingPiece = null;
 
     // Switch turn
@@ -502,7 +505,7 @@ class Game {
       turn: this.turn,
       castlingRights: this.castlingRights,
       enPassantTarget: this.enPassantTarget,
-      promotingPiece: this.promotingPiece ? { file: this.promotingPiece.file, rank: this.promotingPiece.rank, color: this.promotingPiece.color } : null,
+      promotingPiece: this.promotingPiece ? { file: this.promotingPiece.file, rank: this.promotingPiece.rank, color: this.promotingPiece.color, fromFile: this.promotingPiece.fromFile, fromRank: this.promotingPiece.fromRank } : null,
       gameOver: this.gameOver,
       gameResult: this.gameResult,
       moveHistory: [...this.moveHistory],
