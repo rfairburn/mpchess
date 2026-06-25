@@ -156,11 +156,8 @@ function connect() {
       case 'joined': {
         if (msg.color === 'white' || msg.color === 'black') {
           localStorage.setItem(tokenKey(msg.color), msg.token);
-        } else if (!pendingToken) {
-          // Spectator — clear stale tokens
-          localStorage.removeItem(tokenKey('white'));
-          localStorage.removeItem(tokenKey('black'));
         }
+        // Spectator: leave session tokens untouched
         if (!pendingToken) pendingToken = null;
         joinPendingColor = null;
         reconnectAttempts = 0;
