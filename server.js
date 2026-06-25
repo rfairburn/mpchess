@@ -83,13 +83,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     return disconnectedPlayers.size >= 2 && game.players.size === 0;
   }
 
-  function hasSpectators() {
-    for (const c of wss.clients) {
-      if (c.readyState === 1 && game.spectators.has(c)) return true;
-    }
-    return false;
-  }
-
   function maybeStartBothDisconnectedTimer() {
     if (bothDisconnectedTimer) return;
     if (!bothDisconnected()) return;

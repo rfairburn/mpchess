@@ -112,10 +112,6 @@ function connect() {
     }
   };
 
-  ws.onerror = () => {
-    console.log('WebSocket error');
-  };
-
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     switch (msg.type) {
@@ -136,12 +132,6 @@ function connect() {
       }
       case 'move': {
         fireCallbacks(onMoveCallbacks, msg);
-        break;
-      }
-      case 'promotion': {
-        break;
-      }
-      case 'players': {
         break;
       }
       case 'error': {

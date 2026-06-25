@@ -219,7 +219,7 @@ function findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toR
   return ambiguous;
 }
 
-function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured, enPassant, castled, isPromotion, castlingRights, enPassantTarget) {
+function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured, enPassant, castled, castlingRights, enPassantTarget) {
   const sq = () => FILES[toFile] + RANKS[toRank];
 
   // Castling
@@ -362,7 +362,7 @@ class Game {
     }
 
     // Calculate notation with current board state (before move)
-    const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, false, this.castlingRights, this.enPassantTarget);
+    const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, this.castlingRights, this.enPassantTarget);
 
     if (isPromotion) {
       this.promotingPiece = { file: toFile, rank: toRank, color, ws };
@@ -433,9 +433,9 @@ class Game {
 
     // Check game end and append check/mate symbol
     this.checkGameEnd();
-    if (this.gameOver) {
+    if (this.gameOver && this.gameResult.includes('Checkmate')) {
       this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (isInCheck(this.board, this.turn)) {
+    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
       this.moveHistory[this.moveHistory.length - 1] += '+';
     }
 
@@ -462,9 +462,9 @@ class Game {
     }
 
     this.checkGameEnd();
-    if (this.gameOver) {
+    if (this.gameOver && this.gameResult.includes('Checkmate')) {
       this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (isInCheck(this.board, this.turn)) {
+    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
       this.moveHistory[this.moveHistory.length - 1] += '+';
     }
     return true;
