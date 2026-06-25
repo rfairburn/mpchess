@@ -475,6 +475,46 @@ asyncTest('Spectator connects while both disconnected — timer starts', (done) 
   }, 50);
 });
 
+asyncTest('Reconnect after both-disconnected timer expired — token invalidated, must join fresh', (done) => {
+  const { wss, handlers, game } = createTestEnv(10);
+
+  const ws1 = joinAs(wss, 'white');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+
+  const ws2 = joinAs(wss, 'black');
+
+  // Both disconnect
+  wss.simulateDisconnect(ws1);
+  wss.simulateDisconnect(ws2);
+
+  safeAssert(handlers.disconnectedPlayers.size === 2, 'both disconnected');
+
+  // Wait for timer to expire — seats freed, tokens invalidated
+  setTimeout(() => {
+    safeAssert(handlers.disconnectedPlayers.size === 0, 'seats freed after timer');
+    safeAssert(handlers.disconnectedPlayers.has(token1) === false, 'token1 invalidated');
+
+    // Try to reconnect with old token — must fail
+    const ws1_new = wss.simulateConnection();
+    ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+
+    safeAssert(ws1_new.getSent('reconnectFailed').length === 1, 'reconnect fails with expired token');
+    safeAssert(handlers.sessions.has(ws1_new) === false, 'no session after failed reconnect');
+
+    // Must join fresh to get a new token
+    ws1_new.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    const joinedMsgs = ws1_new.getSent('joined');
+    safeAssert(joinedMsgs.length >= 1, 'received joined message after fresh join');
+    const newToken = safeGet(joinedMsgs[joinedMsgs.length - 1], 'token');
+    assertDefined(newToken, 'fresh join assigns a new token');
+    safeAssert(newToken !== token1, 'new token differs from expired token');
+    safeAssert(safeGet(joinedMsgs[joinedMsgs.length - 1], 'color') === 'white', 'joined as white');
+    safeAssert(handlers.sessions.has(ws1_new), 'session created for fresh join');
+
+    done();
+  }, 50);
+});
+
 // ── Reconnect to active session (browser refresh) ──
 
 testBlock('Reconnect to active session — browser refresh', () => {
