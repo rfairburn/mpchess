@@ -126,7 +126,6 @@ export function rebuildPieces(scene) {
       const mesh = createPiece(desiredPiece.type, desiredPiece.color);
       mesh.position.set(f - 3.5, 0.01, 3.5 - r);
       mesh.rotation.y = desiredPiece.color === 'black' ? 0 : Math.PI;
-      if (desiredPiece.type === 'knight') mesh.rotation.y += Math.PI / 2;
       scene.add(mesh);
       pieceMeshes.push({ mesh, file: f, rank: r, type: desiredPiece.type, color: desiredPiece.color });
     }
