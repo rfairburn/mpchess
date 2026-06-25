@@ -433,9 +433,9 @@ class Game {
 
     // Check game end and append check/mate symbol
     this.checkGameEnd();
-    if (this.gameOver) {
+    if (this.gameOver && this.gameResult.includes('Checkmate')) {
       this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (isInCheck(this.board, this.turn)) {
+    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
       this.moveHistory[this.moveHistory.length - 1] += '+';
     }
 
@@ -462,9 +462,9 @@ class Game {
     }
 
     this.checkGameEnd();
-    if (this.gameOver) {
+    if (this.gameOver && this.gameResult.includes('Checkmate')) {
       this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (isInCheck(this.board, this.turn)) {
+    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
       this.moveHistory[this.moveHistory.length - 1] += '+';
     }
     return true;

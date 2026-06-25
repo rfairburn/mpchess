@@ -93,7 +93,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   function maybeStartBothDisconnectedTimer() {
     if (bothDisconnectedTimer) return;
     if (!bothDisconnected()) return;
-    // Always start the timer — don't require spectators
     bothDisconnectedTimer = setTimeout(() => {
       bothDisconnectedTimer = null;
       // Clear all disconnected player sessions
@@ -129,40 +128,35 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     }
   }
 
+  function finishReconnect(ws, color, token) {
+    game.players.set(ws, color);
+    sessions.set(ws, { token, color });
+    send(ws, { type: 'reconnected', color });
+    for (const c of wss.clients) {
+      if (c.readyState === 1) sendState(c);
+    }
+  }
+
   function handleReconnect(ws, data) {
-    // Always remove ws from spectators first (may have been auto-assigned as spectator)
     game.spectators.delete(ws);
 
-    // Try reconnecting to a disconnected (held) seat first
-    let entry = disconnectedPlayers.get(data.token);
-    if (entry) {
+    // 1) Reconnect to a held seat (player was disconnected)
+    const held = disconnectedPlayers.get(data.token);
+    if (held) {
       stopBothDisconnectedTimer();
       disconnectedPlayers.delete(data.token);
-      game.players.set(ws, entry.color);
-      sessions.set(ws, { token: data.token, color: entry.color });
-      send(ws, { type: 'reconnected', color: entry.color });
-      for (const c of wss.clients) {
-        if (c.readyState === 1) sendState(c);
-      }
+      finishReconnect(ws, held.color, data.token);
       return true;
     }
 
-    // Also try reconnecting to an active session (browser refresh while still connected)
+    // 2) Transfer active session (browser refresh while still connected)
     for (const [oldWs, session] of sessions) {
       if (session.token === data.token) {
-        // Transfer session from old socket to new one
-        const color = session.color;
         game.players.delete(oldWs);
-        game.spectators.delete(oldWs); // clean up old socket too
+        game.spectators.delete(oldWs);
         sessions.delete(oldWs);
-        // Close the old socket gracefully
         if (oldWs.readyState === 1) oldWs.close();
-        game.players.set(ws, color);
-        sessions.set(ws, { token: data.token, color });
-        send(ws, { type: 'reconnected', color });
-        for (const c of wss.clients) {
-          if (c.readyState === 1) sendState(c);
-        }
+        finishReconnect(ws, session.color, data.token);
         return true;
       }
     }
@@ -178,12 +172,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (!entry) return;
     freeDisconnectedSeat(data.token);
     send(ws, { type: 'playerDropped', color: entry.color });
-  }
-
-  function getDisconnectedColors() {
-    const colors = [];
-    for (const [, entry] of disconnectedPlayers) colors.push(entry.color);
-    return colors;
   }
 
   function isColorFree(color) {
@@ -229,28 +217,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     maybeStartBothDisconnectedTimer();
   }
 
-  function handleFirstMessage(ws, msg, joinTimeout) {
-    clearTimeout(joinTimeout);
-    // If it's a join request, handle it
-    if (msg.type === 'join') {
-      handleJoin(ws, msg);
-      return true;
-    }
-    // Legacy fallback: auto-assign
-    const role = game.addPlayer(ws, getDisconnectedColors());
-    if (role === 'white' || role === 'black') {
-      const token = crypto.randomUUID();
-      sessions.set(ws, { token, color: role });
-      send(ws, { type: 'joined', color: role, token });
-    }
-    sendState(ws);
-    for (const c of wss.clients) {
-      if (c !== ws && c.readyState === 1) sendState(c);
-    }
-    maybeStartBothDisconnectedTimer();
-    return true;
-  }
-
   function assignAndNotify(ws) {
     // Don't auto-assign players — just send state with seat info
     // Client will explicitly choose via 'join' message
@@ -287,12 +253,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         clearTimeout(joinTimeout);
         handleJoin(ws, msg);
         return;
-      }
-
-      // Legacy: auto-assign if no role yet
-      if (!getRole(ws)) {
-        const shouldFallThrough = handleFirstMessage(ws, msg, joinTimeout);
-        if (!shouldFallThrough) return;
       }
 
       switch (msg.type) {
@@ -345,10 +305,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         case 'dropPlayer': {
           handleDropPlayer(ws, msg);
-          break;
-        }
-        case 'join': {
-          handleJoin(ws, msg);
           break;
         }
       }

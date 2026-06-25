@@ -223,58 +223,39 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
     }
   }
 
-  // Remove captured piece with animation
-  if (captured && !enPassant) {
-    // Must exclude fromPiece — its file/rank was already updated to the
-    // destination, so a naive find would match the capturing piece instead
-    // of the captured piece sitting at the same square.
-    const capPiece = pieceMeshes.find(p => p !== fromPiece && p.file === toFile && p.rank === toRank);
-    if (capPiece) {
-      animatingPieces.add(capPiece);
-      const capStartY = capPiece.mesh.position.y;
-      animations.push({
-        update(time) {
-          const t = Math.min((time - startTime) / duration, 1);
-          capPiece.mesh.position.y = capStartY + t * 2;
-          capPiece.mesh.children[0].material.opacity = 1 - t;
-          capPiece.mesh.children[0].material.transparent = true;
-          if (t >= 1) {
-            scene.remove(capPiece.mesh);
-            const idx = pieceMeshes.indexOf(capPiece);
-            if (idx > -1) pieceMeshes.splice(idx, 1);
-            animatingPieces.delete(capPiece);
-            return true;
-          }
-          return false;
+  // Animate captured piece fading out
+  function animateCapture(target) {
+    if (!target) return;
+    animatingPieces.add(target);
+    const startY = target.mesh.position.y;
+    animations.push({
+      update(time) {
+        const t = Math.min((time - startTime) / duration, 1);
+        target.mesh.position.y = startY + t * 2;
+        target.mesh.children[0].material.opacity = 1 - t;
+        target.mesh.children[0].material.transparent = true;
+        if (t >= 1) {
+          scene.remove(target.mesh);
+          const idx = pieceMeshes.indexOf(target);
+          if (idx > -1) pieceMeshes.splice(idx, 1);
+          animatingPieces.delete(target);
+          return true;
         }
-      });
-    }
+        return false;
+      }
+    });
   }
 
-  // En passant: remove the captured pawn
+  if (captured && !enPassant) {
+    // Exclude fromPiece — its file/rank was already updated to destination
+    const capPiece = pieceMeshes.find(p => p !== fromPiece && p.file === toFile && p.rank === toRank);
+    animateCapture(capPiece);
+  }
+
   if (enPassant) {
     const epRank = fromPiece.color === 'white' ? toRank - 1 : toRank + 1;
     const epPawn = pieceMeshes.find(p => p.file === toFile && p.rank === epRank && p.type === 'pawn');
-    if (epPawn) {
-      animatingPieces.add(epPawn);
-      const epStartY = epPawn.mesh.position.y;
-      animations.push({
-        update(time) {
-          const t = Math.min((time - startTime) / duration, 1);
-          epPawn.mesh.position.y = epStartY + t * 2;
-          epPawn.mesh.children[0].material.opacity = 1 - t;
-          epPawn.mesh.children[0].material.transparent = true;
-          if (t >= 1) {
-            scene.remove(epPawn.mesh);
-            const idx = pieceMeshes.indexOf(epPawn);
-            if (idx > -1) pieceMeshes.splice(idx, 1);
-            animatingPieces.delete(epPawn);
-            return true;
-          }
-          return false;
-        }
-      });
-    }
+    animateCapture(epPawn);
   }
 }
 

@@ -377,7 +377,7 @@ testBlock('State includes disconnectedPlayers array', () => {
 // ── Async tests (require timers) ──────────────────────────
 
 asyncTest('Both disconnected — no spectators, timer still fires', (done) => {
-  const { wss, handlers } = createTestEnv(5);
+  const { wss, handlers, game } = createTestEnv(5);
 
   const ws1 = joinAs(wss, 'white');
   const ws2 = joinAs(wss, 'black');
@@ -388,9 +388,10 @@ asyncTest('Both disconnected — no spectators, timer still fires', (done) => {
 
   safeAssert(handlers.disconnectedPlayers.size === 2, 'both in disconnectedPlayers');
 
-  // Wait a bit — timer SHOULD fire even without spectators
+  // Timer fires even without spectators — seats freed, game reset
   setTimeout(() => {
-    safeAssert(handlers.disconnectedPlayers.size === 0, 'seats freed even without spectators');
+    safeAssert(handlers.disconnectedPlayers.size === 0, 'seats freed without spectators');
+    safeAssert(game.turn === 'white', 'game reset to initial state');
     done();
   }, 20);
 });
@@ -474,28 +475,7 @@ asyncTest('Spectator connects while both disconnected — timer starts', (done) 
   }, 50);
 });
 
-// ── Issue 1: Both disconnected auto-drops without spectators ──
-
-asyncTest('Both disconnected — no spectators, timer still fires', (done) => {
-  const { wss, handlers, game } = createTestEnv(10); // 10ms seat timeout
-
-  const ws1 = joinAs(wss, 'white');
-  const ws2 = joinAs(wss, 'black');
-
-  // Both disconnect — no spectators
-  wss.simulateDisconnect(ws1);
-  wss.simulateDisconnect(ws2);
-
-  safeAssert(handlers.disconnectedPlayers.size === 2, 'both disconnected');
-
-  // After timeout, seats should be freed even without spectators
-  setTimeout(() => {
-    safeAssert(handlers.disconnectedPlayers.size === 0, 'seats freed without spectators');
-    done();
-  }, 50);
-});
-
-// ── Issue 3: Reconnect to active session (browser refresh) ──
+// ── Reconnect to active session (browser refresh) ──
 
 testBlock('Reconnect to active session — browser refresh', () => {
   const { wss, handlers, game } = createTestEnv();

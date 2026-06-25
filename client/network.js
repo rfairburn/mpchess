@@ -154,49 +154,42 @@ function connect() {
         break;
       }
       case 'joined': {
-        // Server assigned us a role and token
         if (msg.color === 'white' || msg.color === 'black') {
           localStorage.setItem(tokenKey(msg.color), msg.token);
-        } else {
-          // Spectator — only clear stale tokens if NOT in the middle of a reconnect attempt
-          if (!pendingToken) {
-            localStorage.removeItem(tokenKey('white'));
-            localStorage.removeItem(tokenKey('black'));
-          }
+        } else if (!pendingToken) {
+          // Spectator — clear stale tokens
+          localStorage.removeItem(tokenKey('white'));
+          localStorage.removeItem(tokenKey('black'));
         }
-        reconnectAttempts = 0;
-        reconnecting = false;
-        // Don't clear pendingToken here — reconnect message may still be pending
         if (!pendingToken) pendingToken = null;
         joinPendingColor = null;
+        reconnectAttempts = 0;
+        reconnecting = false;
         fireCallbacks(onReconnectedCallbacks, msg);
         break;
       }
       case 'reconnected': {
-        // Successfully reconnected to our session
-        // Ensure token is saved under the correct color key
         if (msg.color === 'white' || msg.color === 'black') {
-          const existingToken = localStorage.getItem(tokenKey(msg.color));
-          if (existingToken !== pendingToken) {
+          const existing = localStorage.getItem(tokenKey(msg.color));
+          if (existing !== pendingToken) {
             localStorage.setItem(tokenKey(msg.color), pendingToken);
           }
         }
-        reconnectAttempts = 0;
-        reconnecting = false;
         pendingToken = null;
         joinPendingColor = null;
+        reconnectAttempts = 0;
+        reconnecting = false;
         fireCallbacks(onReconnectedCallbacks, msg);
         break;
       }
       case 'reconnectFailed': {
-        // Seat was dropped or expired — only clear the token we tried to reconnect with
         console.log('Reconnect failed:', msg.reason);
+        // Remove the stale token we tried to reconnect with
         if (pendingToken) {
-          if (localStorage.getItem(tokenKey('white')) === pendingToken) {
-            localStorage.removeItem(tokenKey('white'));
-          }
-          if (localStorage.getItem(tokenKey('black')) === pendingToken) {
-            localStorage.removeItem(tokenKey('black'));
+          for (const color of ['white', 'black']) {
+            if (localStorage.getItem(tokenKey(color)) === pendingToken) {
+              localStorage.removeItem(tokenKey(color));
+            }
           }
         }
         pendingToken = null;

@@ -169,8 +169,8 @@ export function hideMenu() {
 btnResume.addEventListener('click', () => { hideMenu(); });
 
 btnGiveUp.addEventListener('click', () => {
-  // Clear token and reload to start fresh
-  localStorage.removeItem('mpchess_session_token');
+  localStorage.removeItem(tokenKey('white'));
+  localStorage.removeItem(tokenKey('black'));
   window.location.reload();
 });
 
@@ -181,8 +181,8 @@ btnDropPlayer.addEventListener('click', () => {
 });
 
 btnJoinGame.addEventListener('click', () => {
-  // Clear any stale token and reload — server will assign a player seat
-  localStorage.removeItem('mpchess_session_token');
+  localStorage.removeItem(tokenKey('white'));
+  localStorage.removeItem(tokenKey('black'));
   window.location.reload();
 });
 
@@ -230,19 +230,60 @@ btnConcede.addEventListener('click', () => showConcedeConfirm());
 btnConcedeConfirm.addEventListener('click', () => { sendConcede(); hideConcedeConfirm(); });
 btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
 
-// ── State update handler ────────────────────────────────
+// ── Unified state update handler ────────────────────────
+
+function syncDisconnectedBanners() {
+  const dp = disconnectedPlayersInfo.filter(p => p.color === 'white' || p.color === 'black');
+
+  if (myRole === 'white' || myRole === 'black') {
+    const opp = dp.find(p => p.color !== myRole);
+    if (opp && (!disconnectedOpponentToken || disconnectedOpponentToken !== opp.token)) {
+      showOpponentDisconnectedBanner(opp.color, opp.token, opp.disconnectedAt);
+    } else if (!opp && disconnectedOpponentToken) {
+      hideOpponentDisconnectedBanner();
+    }
+  }
+
+  if (myRole === 'spectator') {
+    if (dp.length >= 1) {
+      const first = dp[0];
+      if (!disconnectedOpponentToken || disconnectedOpponentToken !== first.token) {
+        showOpponentDisconnectedBanner(first.color, first.token, first.disconnectedAt);
+      }
+      if (dp.length >= 2) {
+        const second = dp[1];
+        if (!secondDisconnectedToken || secondDisconnectedToken !== second.token) {
+          showSecondDisconnectedBanner(second.color, second.token);
+        }
+      } else {
+        hideSecondDisconnectedBanner();
+      }
+    } else {
+      hideOpponentDisconnectedBanner();
+    }
+    if (dp.length < 2) hideGameAvailableBanner();
+  }
+}
+
+function syncJoinOverlay() {
+  if (!myRole) {
+    showJoinOverlay();
+    updateJoinButtons();
+  } else {
+    hideJoinOverlay();
+  }
+}
 
 onStateUpdate((msg) => {
+  // HUD
   updateRoleBadge();
   updatePlayerCount(msg.playerCount, msg.spectatorCount);
   updateTurnIndicator();
   updateMoveLog();
   updateCapturedPieces(msg.capturedPieces);
-
-  // Hide concede confirmation on state update
   hideConcedeConfirm();
 
-  // Show game over overlay
+  // Game over
   if (serverGameOver && serverGameResult) {
     document.getElementById('game-over-text').textContent = serverGameResult;
     btnNewGame.disabled = myRole === 'spectator';
@@ -252,12 +293,18 @@ onStateUpdate((msg) => {
     document.getElementById('game-over-overlay').classList.remove('visible');
   }
 
-  // Show promotion picker if it's our turn
+  // Promotion picker
   if (serverPromotingPiece && serverPromotingPiece.color === myRole) {
     showPromotionPicker(serverPromotingPiece.file, serverPromotingPiece.rank, serverPromotingPiece.color);
   } else {
     hidePromotionPicker();
   }
+
+  // Disconnected player banners
+  syncDisconnectedBanners();
+
+  // Join overlay
+  syncJoinOverlay();
 });
 
 onRestart(() => {
@@ -404,58 +451,6 @@ onGameAvailable(() => {
   hideSecondDisconnectedBanner();
 });
 
-// ── Enhanced state update: sync disconnected banners ────
-onStateUpdate((msg) => {
-  // Collect all disconnected players
-  const disconnectedPlayers = disconnectedPlayersInfo.filter(
-    p => p.color === 'white' || p.color === 'black'
-  );
-
-  if (myRole === 'white' || myRole === 'black') {
-    // Player: show banner for disconnected opponent
-    const opp = disconnectedPlayers.find(p => p.color !== myRole);
-    if (opp && (!disconnectedOpponentToken || disconnectedOpponentToken !== opp.token)) {
-      showOpponentDisconnectedBanner(opp.color, opp.token, opp.disconnectedAt);
-    } else if (!opp && disconnectedOpponentToken) {
-      // Opponent reconnected
-      hideOpponentDisconnectedBanner();
-    }
-  }
-
-  // Spectator: show banners for all disconnected players
-  if (myRole === 'spectator') {
-    if (disconnectedPlayers.length >= 1) {
-      // Show first disconnected player
-      const first = disconnectedPlayers[0];
-      if (!disconnectedOpponentToken || disconnectedOpponentToken !== first.token) {
-        showOpponentDisconnectedBanner(first.color, first.token, first.disconnectedAt);
-      }
-      // Show second disconnected player
-      if (disconnectedPlayers.length >= 2) {
-        const second = disconnectedPlayers[1];
-        if (!secondDisconnectedToken || secondDisconnectedToken !== second.token) {
-          showSecondDisconnectedBanner(second.color, second.token);
-        }
-      } else {
-        hideSecondDisconnectedBanner();
-      }
-    } else {
-      hideOpponentDisconnectedBanner();
-    }
-
-    // Hide game-available banner if players are no longer both disconnected
-    if (disconnectedPlayers.length < 2) {
-      hideGameAvailableBanner();
-    }
-  }
-
-  // If not yet joined, show the join overlay
-  if (!myRole) {
-    showJoinOverlay();
-    updateJoinButtons();
-  }
-});
-
 // Show join overlay immediately on connection (before state arrives)
 // Buttons based on tokens; refined when seat status arrives
 onConnected(() => {
@@ -482,51 +477,33 @@ function hideJoinOverlay() {
 }
 
 function updateJoinButtons() {
-  const whiteSeat = seatStatus.white || { status: 'unknown' };
-  const blackSeat = seatStatus.black || { status: 'unknown' };
-
-  // Check for saved tokens
   const hasWhiteToken = !!localStorage.getItem(tokenKey('white'));
   const hasBlackToken = !!localStorage.getItem(tokenKey('black'));
 
-  // White button
-  if (hasWhiteToken) {
-    btnJoinWhite.disabled = false;
-    btnJoinWhite.querySelector('.join-status').textContent = 'Reconnect';
-  } else if (whiteSeat.status === 'free') {
-    btnJoinWhite.disabled = false;
-    btnJoinWhite.querySelector('.join-status').textContent = 'Available';
-  } else if (whiteSeat.status === 'occupied') {
-    btnJoinWhite.disabled = true;
-    btnJoinWhite.querySelector('.join-status').textContent = 'Occupied';
-  } else if (whiteSeat.status === 'held') {
-    btnJoinWhite.disabled = true;
-    updateSeatCountdown(btnJoinWhite, whiteSeat.freesAt, 'White');
-  } else {
-    btnJoinWhite.disabled = true;
-    btnJoinWhite.querySelector('.join-status').textContent = 'Checking...';
-  }
-
-  // Black button
-  if (hasBlackToken) {
-    btnJoinBlack.disabled = false;
-    btnJoinBlack.querySelector('.join-status').textContent = 'Reconnect';
-  } else if (blackSeat.status === 'free') {
-    btnJoinBlack.disabled = false;
-    btnJoinBlack.querySelector('.join-status').textContent = 'Available';
-  } else if (blackSeat.status === 'occupied') {
-    btnJoinBlack.disabled = true;
-    btnJoinBlack.querySelector('.join-status').textContent = 'Occupied';
-  } else if (blackSeat.status === 'held') {
-    btnJoinBlack.disabled = true;
-    updateSeatCountdown(btnJoinBlack, blackSeat.freesAt, 'Black');
-  } else {
-    btnJoinBlack.disabled = true;
-    btnJoinBlack.querySelector('.join-status').textContent = 'Checking...';
-  }
-
-  // Spectator always available
+  setJoinButton(btnJoinWhite, hasWhiteToken, seatStatus.white, 'White');
+  setJoinButton(btnJoinBlack, hasBlackToken, seatStatus.black, 'Black');
   btnJoinSpectator.disabled = false;
+}
+
+function setJoinButton(btn, hasToken, seat, colorName) {
+  const statusEl = btn.querySelector('.join-status');
+
+  if (hasToken) {
+    btn.disabled = false;
+    statusEl.textContent = 'Reconnect';
+  } else if (!seat || seat.status === 'unknown') {
+    btn.disabled = true;
+    statusEl.textContent = 'Checking...';
+  } else if (seat.status === 'free') {
+    btn.disabled = false;
+    statusEl.textContent = 'Available';
+  } else if (seat.status === 'occupied') {
+    btn.disabled = true;
+    statusEl.textContent = 'Occupied';
+  } else if (seat.status === 'held') {
+    btn.disabled = true;
+    updateSeatCountdown(btn, seat.freesAt, colorName);
+  }
 }
 
 function updateSeatCountdown(btn, freesAt, colorName) {
@@ -560,13 +537,6 @@ btnJoinBlack.addEventListener('click', () => {
 
 btnJoinSpectator.addEventListener('click', () => {
   sendJoin('spectator');
-});
-
-// Hide join overlay when joined
-onStateUpdate((msg) => {
-  if (myRole) {
-    hideJoinOverlay();
-  }
 });
 
 // Show join overlay when reconnect fails

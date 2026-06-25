@@ -292,9 +292,10 @@ describe('En passant', () => {
     const { game, white, black } = makeGame();
     game.tryMove(white, 4, 1, 4, 3); // e4
     assert.ok(game.enPassantTarget);
-    game.tryMove(black, 4, 6, 4, 5); // e5
+    game.tryMove(black, 4, 6, 4, 4); // e5 (double push: rank 6→4)
+    assert.ok(game.enPassantTarget, 'en passant target set after e5');
     // Now white moves a knight (not a double pawn push)
-    game.tryMove(white, 6, 0, 6, 2); // Nf1-d2 ... wait, f1 is knight
+    game.tryMove(white, 1, 0, 2, 2); // Nc3 (b1→c3: file 1→2, rank 0→2)
     // After a non-double-pawn move, en passant target should be cleared
     assert.strictEqual(game.enPassantTarget, null);
   });
@@ -506,7 +507,7 @@ describe('Game state management', () => {
   });
 });
 
-describe('Path traversal protection', () => {
+describe('Path resolution algorithm — verifies the fix logic', () => {
   test('stripping leading slash prevents absolute path escape', () => {
     const __dirname = '/home/robert/mpchess';
     const urlPath = '/client/index.html';
@@ -727,27 +728,30 @@ describe('Client-side capture — rebuildPieces regression', () => {
   });
 });
 
-describe('Input validation — WebSocket message bounds', () => {
-  test('move with out-of-bounds indices is rejected', () => {
+describe('Defense-in-depth — tryMove handles garbage input gracefully', () => {
+  // These test that the Game engine doesn't crash on bad input.
+  // The primary bounds check lives in the WebSocket message handler,
+  // but tryMove should also fail safely as a last line of defense.
+
+  test('out-of-bounds indices fail gracefully (no crash)', () => {
     const { game, white } = makeGame();
-    // fromFile = 9 is out of bounds — board[1][9] is undefined
     const result = game.tryMove(white, 9, 1, 4, 2);
     assert.strictEqual(result.ok, false);
   });
 
-  test('move with negative indices is rejected', () => {
+  test('negative indices fail gracefully (no crash)', () => {
     const { game, white } = makeGame();
     const result = game.tryMove(white, -1, 1, 4, 2);
     assert.strictEqual(result.ok, false);
   });
 
-  test('move with string indices is rejected', () => {
+  test('string indices fail gracefully (no crash)', () => {
     const { game, white } = makeGame();
     const result = game.tryMove(white, 'e', 1, 4, 2);
     assert.strictEqual(result.ok, false);
   });
 
-  test('server-side bounds validator rejects non-integer values', () => {
+  test('server-side WebSocket bounds validator rejects invalid values', () => {
     // Simulates the server-side validation:
     // ![fromFile, fromRank, toFile, toRank].every(v => Number.isInteger(v) && v >= 0 && v <= 7)
     const valid = (v) => Number.isInteger(v) && v >= 0 && v <= 7;
@@ -781,13 +785,11 @@ describe('Algebraic notation disambiguation', () => {
   });
 
   test('two knights can reach same square - file disambiguation', () => {
-    // Set up two white knights that can both reach e5
     // Knight at c3 and knight at g3 both can move to e4
     const g = new Game();
     const ws1 = {}; const ws2 = {};
     g.addPlayer(ws1); g.addPlayer(ws2);
 
-    // Clear board and set up knights
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[2][2] = W_KNIGHT;  // c3
     g.board[2][6] = W_KNIGHT;  // g3
@@ -797,8 +799,8 @@ describe('Algebraic notation disambiguation', () => {
     // Move knight from c3 to e4
     const result1 = g.tryMove(ws1, 2, 2, 4, 3);
     assert.strictEqual(result1.ok, true);
-    // Should be Nce4# (c-file disambiguation, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Nce4#', `expected Nce4#: ${g.moveHistory[0]}`);
+    // Nce4 (c-file disambiguation; stalemate — no black king on board)
+    assert.strictEqual(g.moveHistory[0], 'Nce4', `expected Nce4: ${g.moveHistory[0]}`);
 
     // Move knight from g3 to e4
     g.reset();
@@ -808,12 +810,12 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     const result2 = g.tryMove(ws1, 6, 2, 4, 3);
     assert.strictEqual(result2.ok, true);
-    // Should be Nge4# (g-file disambiguation, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Nge4#', `expected Nge4#: ${g.moveHistory[0]}`);
+    // Nge4 (g-file disambiguation; stalemate)
+    assert.strictEqual(g.moveHistory[0], 'Nge4', `expected Nge4: ${g.moveHistory[0]}`);
   });
 
   test('two rooks on same file - rank disambiguation', () => {
-    // Two rooks on the same file (e.g., both on d-file) that can reach same square
+    // Two rooks on the d-file, black king on d8 — Rd4 gives check
     const g = new Game();
     const ws1 = {}; const ws2 = {};
     g.addPlayer(ws1); g.addPlayer(ws2);
@@ -821,18 +823,18 @@ describe('Algebraic notation disambiguation', () => {
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[0][3] = W_ROOK;  // d1
     g.board[4][3] = W_ROOK;  // d5
+    g.board[7][3] = B_KING;  // d8
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move rook from d1 to d4 (both rooks can reach d4)
+    // R1d4+ — rank disambiguation since both rooks are on d-file
     const result = g.tryMove(ws1, 3, 0, 3, 3);
     assert.strictEqual(result.ok, true);
-    // Should be R1d4# (rank disambiguation since both are on d-file, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'R1d4#', `expected R1d4#: ${g.moveHistory[0]}`);
+    assert.strictEqual(g.moveHistory[0], 'R1d4+', `expected R1d4+: ${g.moveHistory[0]}`);
   });
 
   test('two rooks on same rank - file disambiguation', () => {
-    // Two rooks on the same rank (e.g., both on 1st rank) that can reach same square
+    // Two rooks on the 1st rank, black king on c8 — Rc1 gives check
     const g = new Game();
     const ws1 = {}; const ws2 = {};
     g.addPlayer(ws1); g.addPlayer(ws2);
@@ -840,19 +842,17 @@ describe('Algebraic notation disambiguation', () => {
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[0][0] = W_ROOK;  // a1
     g.board[0][3] = W_ROOK;  // d1
+    g.board[7][2] = B_KING;  // c8
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move rook from a1 to c1 (both rooks can reach c1)
+    // Rac1+ — file disambiguation since both rooks are on 1st rank
     const result = g.tryMove(ws1, 0, 0, 2, 0);
     assert.strictEqual(result.ok, true);
-    // Should be Rac1# (file disambiguation since both are on 1st rank, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Rac1#', `expected Rac1#: ${g.moveHistory[0]}`);
+    assert.strictEqual(g.moveHistory[0], 'Rac1+', `expected Rac1+: ${g.moveHistory[0]}`);
   });
 
   test('three knights - full disambiguation (file + rank)', () => {
-    // Three knights where one shares the file and another shares the rank
-    // with the moving piece — requires both file and rank.
     // Knights on b2, b6, d2 — all can reach c4.
     // b6 shares file b with b2, d2 shares rank 2 with b2.
     // File alone (Nbc4) can't distinguish from b6.
@@ -869,18 +869,15 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move knight from b2 to c4
     const result = g.tryMove(ws1, 1, 1, 2, 3);
     assert.strictEqual(result.ok, true);
-    // Must use full disambiguation: Nb2c4# (checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Nb2c4#', `expected Nb2c4#: ${g.moveHistory[0]}`);
+    // Nb2c4 (full disambiguation; stalemate — no black king)
+    assert.strictEqual(g.moveHistory[0], 'Nb2c4', `expected Nb2c4: ${g.moveHistory[0]}`);
   });
 
   test('three bishops - full disambiguation (file + rank)', () => {
-    // Bishops on c1, g1, c5 — all can reach e3 via diagonals.
+    // Bishops on c1, g1, c5 — all can reach e3.
     // g1 shares rank 1 with c1, c5 shares file c with c1.
-    // File alone (Bce3) can't distinguish from c5.
-    // Rank alone (B1e3) can't distinguish from g1.
     // Must use Bc1e3.
     const g = new Game();
     const ws1 = {}; const ws2 = {};
@@ -893,11 +890,10 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move bishop from c1 to e3
     const result = g.tryMove(ws1, 2, 0, 4, 2);
     assert.strictEqual(result.ok, true);
-    // Must use Bc1e3# (checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Bc1e3#', `expected Bc1e3#: ${g.moveHistory[0]}`);
+    // Bc1e3 (full disambiguation; stalemate)
+    assert.strictEqual(g.moveHistory[0], 'Bc1e3', `expected Bc1e3: ${g.moveHistory[0]}`);
   });
 
   test('three queens - full disambiguation (file + rank)', () => {
@@ -915,15 +911,14 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move queen from c1 to e3
     const result = g.tryMove(ws1, 2, 0, 4, 2);
     assert.strictEqual(result.ok, true);
-    // Must use Qc1e3# (checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Qc1e3#', `expected Qc1e3#: ${g.moveHistory[0]}`);
+    // Qc1e3 (full disambiguation; stalemate)
+    assert.strictEqual(g.moveHistory[0], 'Qc1e3', `expected Qc1e3: ${g.moveHistory[0]}`);
   });
 
   test('bishop move with disambiguation', () => {
-    // Two bishops on different diagonals that can reach same square
+    // Two bishops on c3 and g3, both can reach e5
     const g = new Game();
     const ws1 = {}; const ws2 = {};
     g.addPlayer(ws1); g.addPlayer(ws2);
@@ -934,15 +929,14 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move bishop from c3 to e5
     const result = g.tryMove(ws1, 2, 2, 4, 4);
     assert.strictEqual(result.ok, true);
-    // Should be Bce5# (file disambiguation, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Bce5#', `expected Bce5#: ${g.moveHistory[0]}`);
+    // Bce5 (file disambiguation; stalemate)
+    assert.strictEqual(g.moveHistory[0], 'Bce5', `expected Bce5: ${g.moveHistory[0]}`);
   });
 
   test('queen move with disambiguation', () => {
-    // Two queens that can reach same square
+    // Two queens on d3 and f3, both can reach e4
     const g = new Game();
     const ws1 = {}; const ws2 = {};
     g.addPlayer(ws1); g.addPlayer(ws2);
@@ -953,11 +947,10 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Move queen from d3 to e5 (rank 4 in 0-indexed = rank 5 in 1-indexed)
     const result = g.tryMove(ws1, 3, 3, 4, 4);
     assert.strictEqual(result.ok, true);
-    // Should be Qde5# (file disambiguation, checkmate)
-    assert.strictEqual(g.moveHistory[0], 'Qde5#', `expected Qde5#: ${g.moveHistory[0]}`);
+    // Qde5 (file disambiguation; stalemate)
+    assert.strictEqual(g.moveHistory[0], 'Qde5', `expected Qde5: ${g.moveHistory[0]}`);
   });
 
   test('king move - no disambiguation needed (only one king)', () => {
@@ -984,20 +977,19 @@ describe('Algebraic notation disambiguation', () => {
     g.addPlayer(ws1); g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[3][4] = W_PAWN;  // e4 (for en passant)
+    g.board[3][4] = W_PAWN;  // e4
     g.board[4][3] = B_PAWN;  // d5 (the pawn to capture via en passant)
     g.turn = 'white';
     g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
 
-    // Set up en passant: black pawn just moved d7-d5
+    // Black pawn just moved d7-d5
     g.enPassantTarget = { file: 3, rank: 4 };  // d5
 
     // White pawn at e4 captures en passant on d5
     const result = g.tryMove(ws1, 4, 3, 3, 4);
     assert.strictEqual(result.ok, true);
-    // Pawn capture notation is always departure-file + x + destination (not disambiguation)
-    // exd5# (checkmate)
-    assert.strictEqual(g.moveHistory[0], 'exd5#', `expected exd5#: ${g.moveHistory[0]}`);
+    // Pawn capture: departure-file + x + destination (no check — no black king)
+    assert.strictEqual(g.moveHistory[0], 'exd5', `expected exd5: ${g.moveHistory[0]}`);
   });
 
   test('pinned piece excluded from disambiguation', () => {
@@ -1068,8 +1060,8 @@ describe('Algebraic notation disambiguation', () => {
 
     // Complete promotion to queen
     g.completePromotion(ws1, 'queen');
-    // Notation should be e8=Q# (checkmate)
-    assert.strictEqual(g.moveHistory[0], 'e8=Q#', `expected e8=Q#: ${g.moveHistory[0]}`);
+    // e8=Q (no check — no black king on board)
+    assert.strictEqual(g.moveHistory[0], 'e8=Q', `expected e8=Q: ${g.moveHistory[0]}`);
   });
 });
 
