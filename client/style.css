@@ -314,3 +314,185 @@
       min-width: 140px;
     }
     #move-log b { color: #887766; }
+
+    /* ═══ Reconnecting overlay ═══ */
+    #reconnecting-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10, 8, 5, 0.88);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+    }
+    #reconnecting-overlay.visible { display: flex; }
+    #reconnecting-box {
+      background: rgba(30, 22, 14, 0.97);
+      border: 2px solid rgba(181, 136, 99, 0.6);
+      border-radius: 14px;
+      padding: 40px 50px;
+      text-align: center;
+      color: #f0d9b5;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #reconnecting-box h3 { font-size: 24px; margin-bottom: 16px; }
+    .spinner {
+      width: 40px; height: 40px;
+      margin: 0 auto 20px;
+      border: 4px solid rgba(181, 136, 99, 0.3);
+      border-top-color: #f0d9b5;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #reconnecting-status { font-size: 14px; color: #a08060; margin-bottom: 20px; }
+    #btn-give-up {
+      padding: 10px 28px;
+      font-size: 16px;
+      font-family: inherit;
+      color: #ccc;
+      background: #555;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #btn-give-up:hover { background: #666; }
+
+    /* ═══ Join selection overlay ═══ */
+    #join-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10, 8, 5, 0.92);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 600;
+    }
+    #join-overlay.visible { display: flex; }
+    #join-box {
+      background: rgba(30, 22, 14, 0.97);
+      border: 2px solid rgba(181, 136, 99, 0.6);
+      border-radius: 14px;
+      padding: 40px 50px;
+      text-align: center;
+      color: #f0d9b5;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #join-box h2 { font-size: 28px; margin-bottom: 6px; }
+    #join-subtitle { font-size: 14px; color: #a08060; margin-bottom: 30px; }
+    #join-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+    }
+    #join-buttons button {
+      width: 220px;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-family: inherit;
+      color: #f0d9b5;
+      background: rgba(60, 42, 28, 0.8);
+      border: 2px solid rgba(181, 136, 99, 0.4);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    #join-buttons button:hover:not(:disabled) {
+      background: rgba(80, 56, 38, 0.9);
+      border-color: rgba(240, 217, 181, 0.6);
+    }
+    #join-buttons button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .join-icon { font-size: 22px; }
+    .join-label { font-weight: bold; font-size: 16px; }
+    .join-status { font-size: 12px; color: #a08060; }
+    #btn-join-spectator .join-status { color: #6a6; }
+
+    /* ═══ Opponent disconnected banner ═══ */
+    #opponent-disconnected-banner {
+      position: fixed; top: 80px; left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 14px;
+      background: rgba(40, 20, 10, 0.95);
+      border: 1px solid rgba(255, 140, 50, 0.5);
+      border-radius: 10px;
+      padding: 10px 22px;
+      z-index: 50;
+      color: #f0d9b5;
+      font: 14px/1.4 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #opponent-disconnected-banner.visible { display: flex; }
+    #opponent-disconnected-text { color: #ff9832; font-weight: bold; }
+    #btn-drop-player {
+      padding: 6px 18px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #1a1410;
+      background: #f0d9b5;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    #btn-drop-player:hover:not(:disabled) { background: #d4bc94; }
+    #btn-drop-player:disabled {
+      background: #555;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    /* Second disconnected banner (spectators — both players gone) */
+    #second-disconnected-banner {
+      position: fixed; top: 145px; left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 14px;
+      background: rgba(40, 20, 10, 0.95);
+      border: 1px solid rgba(255, 140, 50, 0.5);
+      border-radius: 10px;
+      padding: 10px 22px;
+      z-index: 50;
+      color: #f0d9b5;
+      font: 14px/1.4 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #second-disconnected-banner.visible { display: flex; }
+    #second-disconnected-text { color: #ff9832; font-weight: bold; }
+
+    /* ═══ Game available banner (spectators) ═══ */
+    #game-available-banner {
+      position: fixed; top: 80px; left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 14px;
+      background: rgba(20, 40, 20, 0.95);
+      border: 1px solid rgba(68, 187, 68, 0.5);
+      border-radius: 10px;
+      padding: 10px 22px;
+      z-index: 50;
+      color: #f0d9b5;
+      font: 14px/1.4 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #game-available-banner.visible { display: flex; }
+    #btn-join-game {
+      padding: 6px 18px;
+      font-size: 14px;
+      font-family: inherit;
+      color: #1a1410;
+      background: #44bb44;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    #btn-join-game:hover { background: #3aa33a; }

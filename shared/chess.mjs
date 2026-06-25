@@ -252,13 +252,14 @@ function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured
       const sameRank = ambiguous.some(p => p.rank === fromRank);
 
       if (!sameFile) {
-        // File disambiguation (e.g., Naf4)
+        // File alone disambiguates (e.g., Nce4)
         n += FILES[fromFile];
       } else if (!sameRank) {
-        // Rank disambiguation (e.g., N5f4)
+        // Rank alone disambiguates (e.g., R1d4)
         n += RANKS[fromRank];
       } else {
-        // Full disambiguation (e.g., N5af4) - rare but possible
+        // Both needed — e.g. three knights on b2, b6, d2 all reaching c4:
+        // file alone can't distinguish from b6, rank alone can't from d2 → Nb2c4
         n += FILES[fromFile] + RANKS[fromRank];
       }
     }
@@ -289,9 +290,12 @@ class Game {
     this.gameResult = null;
   }
 
-  addPlayer(ws) {
+  addPlayer(ws, extraOccupied) {
     const colors = ['white', 'black'];
     const occupied = new Set([...this.players.values()]);
+    if (extraOccupied) {
+      for (const color of extraOccupied) occupied.add(color);
+    }
     for (const color of colors) {
       if (!occupied.has(color)) {
         this.players.set(ws, color);
@@ -450,11 +454,11 @@ class Game {
     // Switch turn
     this.turn = this.turn === 'white' ? 'black' : 'white';
 
-    // Record promotion move — find the pawn's departure file from move history context
-    // The promotion notation is appended to the last move entry (the pawn move)
+    // Replace the =P placeholder with the actual promotion piece
     const promoNotation = `=${pieceType[0].toUpperCase()}`;
     if (this.moveHistory.length > 0) {
-      this.moveHistory[this.moveHistory.length - 1] += promoNotation;
+      const last = this.moveHistory.length - 1;
+      this.moveHistory[last] = this.moveHistory[last].slice(0, -2) + promoNotation;
     }
 
     this.checkGameEnd();

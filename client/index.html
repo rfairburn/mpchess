@@ -65,6 +65,57 @@
 
   <div id="error-toast"></div>
 
+  <!-- Join selection overlay -->
+  <div id="join-overlay">
+    <div id="join-box">
+      <h2>♔ 3D Chess ♚</h2>
+      <p id="join-subtitle">Choose how to join</p>
+      <div id="join-buttons">
+        <button id="btn-join-white" disabled>
+          <span class="join-icon">♔</span>
+          <span class="join-label">White</span>
+          <span class="join-status"></span>
+        </button>
+        <button id="btn-join-black" disabled>
+          <span class="join-icon">♚</span>
+          <span class="join-label">Black</span>
+          <span class="join-status"></span>
+        </button>
+        <button id="btn-join-spectator">
+          <span class="join-icon">👁</span>
+          <span class="join-label">Spectate</span>
+          <span class="join-status">Always available</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reconnecting overlay -->
+  <div id="reconnecting-overlay">
+    <div id="reconnecting-box">
+      <h3>Reconnecting…</h3>
+      <div class="spinner"></div>
+      <p id="reconnecting-status">Attempting to reconnect…</p>
+      <button id="btn-give-up">Give Up</button>
+    </div>
+  </div>
+
+  <!-- Opponent disconnected banner -->
+  <div id="opponent-disconnected-banner">
+    <span id="opponent-disconnected-text"></span>
+    <button id="btn-drop-player" disabled>Drop Player</button>
+  </div>
+  <!-- Second disconnected player banner (spectators) -->
+  <div id="second-disconnected-banner">
+    <span id="second-disconnected-text"></span>
+  </div>
+
+  <!-- Game available banner (for spectators) -->
+  <div id="game-available-banner">
+    <span>Game available — both players disconnected</span>
+    <button id="btn-join-game">Join Game</button>
+  </div>
+
   <script type="importmap">
   {
     "imports": {

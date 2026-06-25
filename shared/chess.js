@@ -290,9 +290,12 @@ class Game {
     this.gameResult = null;
   }
 
-  addPlayer(ws) {
+  addPlayer(ws, extraOccupied) {
     const colors = ['white', 'black'];
     const occupied = new Set([...this.players.values()]);
+    if (extraOccupied) {
+      for (const color of extraOccupied) occupied.add(color);
+    }
     for (const color of colors) {
       if (!occupied.has(color)) {
         this.players.set(ws, color);
