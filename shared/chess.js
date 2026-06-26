@@ -193,6 +193,50 @@ function hasAnyMoves(board, color, castlingRights, enPassantTarget) {
   return false;
 }
 
+// Collect all pieces on the board as {type, color, file, rank}
+function collectPieces(board) {
+  const pieces = { white: [], black: [] };
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      const p = board[r][f];
+      if (p !== 0) {
+        pieces[pieceColor(p)].push({ type: pieceType(p), file: f, rank: r });
+      }
+    }
+  }
+  return pieces;
+}
+
+// Check if the board has insufficient material to deliver checkmate
+function isInsufficientMaterial(board) {
+  const pieces = collectPieces(board);
+  const wp = pieces.white;
+  const bp = pieces.black;
+
+  // K vs K
+  if (wp.length === 1 && bp.length === 1) return true;
+
+  // K+B vs K or K vs K+B
+  if (wp.length === 2 && bp.length === 1 && wp.some(p => p.type === 'bishop')) return true;
+  if (wp.length === 1 && bp.length === 2 && bp.some(p => p.type === 'bishop')) return true;
+
+  // K+N vs K or K vs K+N
+  if (wp.length === 2 && bp.length === 1 && wp.some(p => p.type === 'knight')) return true;
+  if (wp.length === 1 && bp.length === 2 && bp.some(p => p.type === 'knight')) return true;
+
+  // K+B vs K+B — same-colored bishops
+  if (wp.length === 2 && bp.length === 2) {
+    const wb = wp.find(p => p.type === 'bishop');
+    const bb = bp.find(p => p.type === 'bishop');
+    if (wb && bb) {
+      // Bishop color = (file + rank) % 2; same parity = same-colored squares
+      if ((wb.file + wb.rank) % 2 === (bb.file + bb.rank) % 2) return true;
+    }
+  }
+
+  return false;
+}
+
 // ═══════════════════════════════════════════════════════════
 //  ALGEBRAIC NOTATION
 // ═══════════════════════════════════════════════════════════
@@ -475,6 +519,14 @@ class Game {
 
   checkGameEnd() {
     if (this.gameOver) return;
+
+    // Insufficient material — draw
+    if (isInsufficientMaterial(this.board)) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — insufficient material.';
+      return;
+    }
+
     const inCheck = isInCheck(this.board, this.turn);
     const hasMoves = hasAnyMoves(this.board, this.turn, this.castlingRights, this.enPassantTarget);
 
@@ -537,6 +589,6 @@ module.exports = {
   B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
   pieceColor, pieceType, isOwn, isEnemy,
   startingBoard, cloneBoard, findKing,
-  isAttacked, isInCheck, getValidMoves, hasAnyMoves,
+  isAttacked, isInCheck, getValidMoves, hasAnyMoves, isInsufficientMaterial,
   buildNotation, Game,
 };

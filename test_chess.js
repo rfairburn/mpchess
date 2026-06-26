@@ -11,7 +11,7 @@ const {
   B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
   pieceColor, pieceType, isOwn, isEnemy,
   startingBoard, cloneBoard, findKing, isAttacked, isInCheck,
-  getValidMoves, hasAnyMoves, Game,
+  getValidMoves, hasAnyMoves, isInsufficientMaterial, Game,
 } = require('./shared/chess');
 
 // ── Minimal test runner ──────────────────────────────────
@@ -1132,6 +1132,144 @@ describe('Algebraic notation disambiguation', () => {
     const state = g.getState();
     assert.strictEqual(state.promotingPiece.fromFile, 0, 'fromFile in state');
     assert.strictEqual(state.promotingPiece.fromRank, 6, 'fromRank in state');
+  });
+});
+
+describe('Insufficient material — draw detection', () => {
+  function emptyBoard() { return Array.from({ length: 8 }, () => Array(8).fill(0)); }
+
+  test('K vs K is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[7][4] = B_KING;
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K+B vs K is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][2] = W_BISHOP;
+    b[7][4] = B_KING;
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K vs K+B is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[7][4] = B_KING;
+    b[7][2] = B_BISHOP;
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K+N vs K is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][3] = W_KNIGHT;
+    b[7][4] = B_KING;
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K vs K+N is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[7][4] = B_KING;
+    b[7][3] = B_KNIGHT;
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K+B vs K+B same-colored bishops is insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][0] = W_BISHOP;  // a1 — dark square (0+0=0, even)
+    b[7][4] = B_KING;
+    b[7][1] = B_BISHOP;  // b8 — dark square (1+7=8, even)
+    assert.strictEqual(isInsufficientMaterial(b), true);
+  });
+
+  test('K+B vs K+B opposite-colored bishops is NOT insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][0] = W_BISHOP;  // a1 — dark square (0+0=0, even)
+    b[7][4] = B_KING;
+    b[7][0] = B_BISHOP;  // a8 — light square (0+7=7, odd)
+    assert.strictEqual(isInsufficientMaterial(b), false);
+  });
+
+  test('K+R vs K is NOT insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][3] = W_ROOK;
+    b[7][4] = B_KING;
+    assert.strictEqual(isInsufficientMaterial(b), false);
+  });
+
+  test('K+P vs K is NOT insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[1][4] = W_PAWN;
+    b[7][4] = B_KING;
+    assert.strictEqual(isInsufficientMaterial(b), false);
+  });
+
+  test('K+N vs K+N is NOT insufficient material', () => {
+    const b = emptyBoard();
+    b[0][4] = W_KING;
+    b[0][3] = W_KNIGHT;
+    b[7][4] = B_KING;
+    b[7][3] = B_KNIGHT;
+    assert.strictEqual(isInsufficientMaterial(b), false);
+  });
+
+  test('starting position is NOT insufficient material', () => {
+    assert.strictEqual(isInsufficientMaterial(startingBoard()), false);
+  });
+
+  test('checkGameEnd detects insufficient material as draw', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    // K vs K
+    g.board = emptyBoard();
+    g.board[0][4] = W_KING;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('insufficient material'), `expected insufficient material draw: ${g.gameResult}`);
+  });
+
+  test('checkGameEnd detects K+B vs K as draw', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = emptyBoard();
+    g.board[0][4] = W_KING;
+    g.board[0][2] = W_BISHOP;
+    g.board[7][4] = B_KING;
+    g.turn = 'black';
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('insufficient material'), `expected insufficient material draw: ${g.gameResult}`);
+  });
+
+  test('checkGameEnd does NOT draw on K+B vs K+B opposite-colored bishops', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = emptyBoard();
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_BISHOP;  // a1 — dark
+    g.board[7][4] = B_KING;
+    g.board[7][0] = B_BISHOP;  // a8 — light
+    g.turn = 'white';
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, false, 'opposite-colored bishops should not be a draw');
   });
 });
 
