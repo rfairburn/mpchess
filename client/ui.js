@@ -4,7 +4,7 @@
 
 import {
   myRole, serverTurn, serverPromotingPiece, serverGameOver, serverGameResult,
-  moveHistory, disconnectedPlayersInfo, seatStatus, tokenKey,
+  moveHistory, disconnectedPlayersInfo, seatStatus, tokenKey, validatedTokens,
   sendPromotion, sendRestart, sendConcede, sendDropPlayer, sendJoin,
   onStateUpdate, onRestart, onError, onReconnecting, onReconnected,
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
@@ -477,18 +477,18 @@ function hideJoinOverlay() {
 }
 
 function updateJoinButtons() {
-  const hasWhiteToken = !!localStorage.getItem(tokenKey('white'));
-  const hasBlackToken = !!localStorage.getItem(tokenKey('black'));
-
-  setJoinButton(btnJoinWhite, hasWhiteToken, seatStatus.white, 'White');
-  setJoinButton(btnJoinBlack, hasBlackToken, seatStatus.black, 'Black');
+  setJoinButton(btnJoinWhite, seatStatus.white, 'White');
+  setJoinButton(btnJoinBlack, seatStatus.black, 'Black');
   btnJoinSpectator.disabled = false;
 }
 
-function setJoinButton(btn, hasToken, seat, colorName) {
+function setJoinButton(btn, seat, colorName) {
   const statusEl = btn.querySelector('.join-status');
+  const color = colorName.toLowerCase();
+  // Only offer "Reconnect" when the SERVER confirmed our stored token is valid
+  const canReconnect = validatedTokens[color] === true;
 
-  if (hasToken) {
+  if (canReconnect && seat && (seat.status === 'held' || seat.status === 'occupied')) {
     btn.disabled = false;
     statusEl.textContent = 'Reconnect';
   } else if (!seat || seat.status === 'unknown') {

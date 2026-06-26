@@ -185,9 +185,10 @@ testBlock('Session tokens and join flow', () => {
   // state[0] = initial (role=null), state[1] = after join (role=spectator)
   safeAssert(safeGet(ws3.getSent('state'), 1, 'role') === 'spectator', 'third player is spectator via state');
 
-  // Fourth player tries to join white — falls back to spectator
+  // Fourth player tries to join white — rejected with error, no fallback
   const ws4 = joinAs(wss, 'white');
-  safeAssert(safeGet(ws4.getSent('joined')[0], 'color') === 'spectator', 'falls back to spectator when seat taken');
+  safeAssert(ws4.getSent('joined').length === 0, 'no joined message when seat taken');
+  safeAssert(ws4.getSent('error').length === 1, 'receives error when seat taken');
 });
 
 testBlock('Disconnect — seat held with token', () => {
@@ -631,6 +632,120 @@ testBlock('Seat status in state message', () => {
   const stateMsg2 = ws2.getSent('state')[0];
   safeAssert(stateMsg2.seats.white.status === 'occupied', 'white seat is occupied');
   safeAssert(stateMsg2.seats.black.status === 'free', 'black seat still free');
+});
+
+// ── Token validation & canReconnect tests ──
+
+testBlock('validateToken — valid held seat token', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+  const ws2 = joinAs(wss, 'black');
+
+  // Disconnect ws1 (seat held)
+  wss.simulateDisconnect(ws1);
+
+  // New connection validates the token
+  const ws3 = wss.simulateConnection();
+  ws3.emit('message', JSON.stringify({ type: 'validateToken', token: token1, color: 'white' }));
+
+  safeAssert(ws3.getSent('tokenValid').length === 1, 'receives tokenValid response');
+  safeAssert(safeGet(ws3.getSent('tokenValid')[0], 'color') === 'white', 'correct color in response');
+  safeAssert(safeGet(ws3.getSent('tokenValid')[0], 'valid') === true, 'token is valid');
+});
+
+testBlock('validateToken — invalid (fake) token', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+
+  // New connection validates a fake token
+  const ws3 = wss.simulateConnection();
+  ws3.emit('message', JSON.stringify({ type: 'validateToken', token: 'fake-token-letmein', color: 'white' }));
+
+  safeAssert(ws3.getSent('tokenValid').length === 1, 'receives tokenValid response');
+  safeAssert(safeGet(ws3.getSent('tokenValid')[0], 'valid') === false, 'fake token is invalid');
+});
+
+testBlock('validateToken — valid token for active session (browser refresh)', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+
+  // New connection validates the active session token
+  const ws2 = wss.simulateConnection();
+  ws2.emit('message', JSON.stringify({ type: 'validateToken', token: token1, color: 'white' }));
+
+  safeAssert(ws2.getSent('tokenValid').length === 1, 'receives tokenValid response');
+  safeAssert(safeGet(ws2.getSent('tokenValid')[0], 'valid') === true, 'active session token is valid');
+});
+
+testBlock('validateToken — wrong color for token', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+
+  // Validate the white token as black — should be invalid
+  const ws2 = wss.simulateConnection();
+  ws2.emit('message', JSON.stringify({ type: 'validateToken', token: token1, color: 'black' }));
+
+  safeAssert(ws2.getSent('tokenValid').length === 1, 'receives tokenValid response');
+  safeAssert(safeGet(ws2.getSent('tokenValid')[0], 'valid') === false, 'token valid for wrong color is rejected');
+});
+
+testBlock('canReconnect in seat status — held seat with matching token', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+  const ws2 = joinAs(wss, 'black');
+
+  // Disconnect ws1
+  wss.simulateDisconnect(ws1);
+
+  // New connection reconnects with valid token — should see canReconnect: true
+  const ws3 = wss.simulateConnection();
+  ws3.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+  safeAssert(ws3.getSent('reconnected').length === 1, 'reconnected successfully');
+
+  // Another new connection — should see canReconnect: false (no matching token)
+  const ws4 = wss.simulateConnection();
+  const stateMsg = ws4.getSent('state')[0];
+  safeAssert(stateMsg.seats.white.status === 'occupied', 'white is now occupied by ws3');
+  safeAssert(stateMsg.seats.white.canReconnect === false, 'canReconnect false for non-matching client');
+});
+
+testBlock('canReconnect in seat status — free seat', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = wss.simulateConnection();
+  const stateMsg = ws1.getSent('state')[0];
+  safeAssert(stateMsg.seats.white.canReconnect === false, 'free seat has canReconnect false');
+  safeAssert(stateMsg.seats.black.canReconnect === false, 'free seat has canReconnect false');
+});
+
+testBlock('Join rejected when seat taken — no spectator fallback', () => {
+  const { wss, handlers } = createTestEnv();
+
+  const ws1 = joinAs(wss, 'white');
+  const ws2 = joinAs(wss, 'black');
+
+  // Third player tries to join white — should be rejected
+  const ws3 = wss.simulateConnection();
+  ws3.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+
+  safeAssert(ws3.getSent('joined').length === 0, 'no joined message');
+  safeAssert(ws3.getSent('error').length === 1, 'receives error');
+  safeAssert(safeGet(ws3.getSent('error')[0], 'reason').includes('white'), 'error mentions white');
+
+  // ws3 should not be assigned any role
+  const stateMsgs = ws3.getSent('state');
+  const lastState = stateMsgs[stateMsgs.length - 1];
+  safeAssert(lastState.role === null, 'rejected client has no role');
 });
 
 // ── Promotion soft-lock regression tests (§11.1) ─────────

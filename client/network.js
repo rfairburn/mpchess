@@ -26,6 +26,7 @@ export let castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
 export let enPassantTarget = null;
 export let disconnectedPlayersInfo = [];
 export let seatStatus = { white: { status: 'unknown' }, black: { status: 'unknown' } };
+export let validatedTokens = {}; // { white: true/false, black: true/false } — server-confirmed
 
 // Callbacks registered by other modules
 const onStateUpdateCallbacks = [];
@@ -85,6 +86,13 @@ function connect() {
         // No token for our color — fall through to join overlay
         reconnecting = false;
         reconnectColor = null;
+      }
+    }
+    // Validate any stored tokens so the UI knows whether to show "Reconnect"
+    for (const color of ['white', 'black']) {
+      const token = localStorage.getItem(tokenKey(color));
+      if (token) {
+        ws.send(JSON.stringify({ type: 'validateToken', token, color }));
       }
     }
     // Fire onConnected so UI can show join overlay immediately
@@ -187,21 +195,15 @@ function connect() {
           for (const color of ['white', 'black']) {
             if (localStorage.getItem(tokenKey(color)) === pendingToken) {
               localStorage.removeItem(tokenKey(color));
+              validatedTokens[color] = false;
             }
           }
         }
         pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
-
-        // If user clicked a button on the join overlay, auto-fall back to join
-        if (joinPendingColor) {
-          const color = joinPendingColor;
-          joinPendingColor = null;
-          ws.send(JSON.stringify({ type: 'join', color }));
-        } else {
-          fireCallbacks(onReconnectFailedCallbacks, msg);
-        }
+        joinPendingColor = null;
+        fireCallbacks(onReconnectFailedCallbacks, msg);
         break;
       }
       case 'playerDisconnected': {
@@ -214,6 +216,11 @@ function connect() {
       }
       case 'gameAvailable': {
         fireCallbacks(onGameAvailableCallbacks, msg);
+        break;
+      }
+      case 'tokenValid': {
+        validatedTokens[msg.color] = msg.valid;
+        fireCallbacks(onStateUpdateCallbacks, { seats: seatStatus });
         break;
       }
     }
@@ -277,12 +284,17 @@ export function sendDropPlayer(token) {
 export function sendJoin(color) {
   if (!ws || ws.readyState !== 1) return;
   joinPendingColor = color;
-  // If we have a saved token for this color, try to reconnect first
+  // Only attempt reconnect if we have a token AND the server confirmed it's valid
   const token = localStorage.getItem(tokenKey(color));
-  if (token && color !== 'spectator') {
+  if (token && color !== 'spectator' && validatedTokens[color] === true) {
     pendingToken = token;
     ws.send(JSON.stringify({ type: 'reconnect', token }));
   } else {
+    // Fresh join (no token, unvalidated token, or spectator)
+    if (token && color !== 'spectator' && validatedTokens[color] === false) {
+      // Token was validated as invalid — remove the stale token
+      localStorage.removeItem(tokenKey(color));
+    }
     ws.send(JSON.stringify({ type: 'join', color }));
     joinPendingColor = null;
   }

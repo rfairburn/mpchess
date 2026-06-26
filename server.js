@@ -46,7 +46,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     return arr;
   }
 
-  function buildSeatStatus() {
+  function buildSeatStatus(clientWs) {
     const seats = {};
     for (const color of ['white', 'black']) {
       // Check if actively occupied
@@ -55,18 +55,28 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         if (c === color) { occupiedWs = ws; break; }
       }
       if (occupiedWs) {
-        seats[color] = { status: 'occupied' };
+        // Check if this client holds the active session (browser refresh)
+        const clientSession = sessions.get(clientWs);
+        const occupiedSession = sessions.get(occupiedWs);
+        const clientToken = clientSession?.token;
+        const canReconnect = !!(clientToken && occupiedSession?.token === clientToken);
+        seats[color] = { status: 'occupied', canReconnect };
       } else {
         // Check if held by disconnected player
         let heldEntry = null;
-        for (const [, entry] of disconnectedPlayers) {
-          if (entry.color === color) { heldEntry = entry; break; }
+        let heldToken = null;
+        for (const [token, entry] of disconnectedPlayers) {
+          if (entry.color === color) { heldEntry = entry; heldToken = token; break; }
         }
         if (heldEntry) {
           const freesAt = heldEntry.disconnectedAt + seatTimeout;
-          seats[color] = { status: 'held', freesAt, remaining: Math.max(0, freesAt - Date.now()) };
+          // Check if this client's stored token matches the held seat
+          const clientSession = sessions.get(clientWs);
+          const clientToken = clientSession?.token;
+          const canReconnect = clientToken === heldToken;
+          seats[color] = { status: 'held', freesAt, remaining: Math.max(0, freesAt - Date.now()), canReconnect };
         } else {
-          seats[color] = { status: 'free' };
+          seats[color] = { status: 'free', canReconnect: false };
         }
       }
     }
@@ -76,7 +86,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   function sendState(ws) {
     const role = getRole(ws);
     const state = game.getState();
-    send(ws, { type: 'state', role, seats: buildSeatStatus(), disconnectedPlayers: buildDisconnectedPlayersArray(), ...state });
+    send(ws, { type: 'state', role, seats: buildSeatStatus(ws), disconnectedPlayers: buildDisconnectedPlayersArray(), ...state });
   }
 
   function bothDisconnected() {
@@ -198,9 +208,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       sessions.set(ws, { token, color });
       send(ws, { type: 'joined', color, token });
     } else {
-      // Seat not available — fall back to spectator
-      game.spectators.add(ws);
-      send(ws, { type: 'joined', color: 'spectator' });
+      // Seat not available — reject, do NOT fall back to spectator
+      send(ws, { type: 'error', reason: `${color} seat is not available` });
+      return;
     }
 
     sendState(ws);
@@ -238,6 +248,28 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         clearTimeout(joinTimeout);
         if (handleReconnect(ws, msg)) return; // successfully reconnected
         // Reconnect failed — client keeps its current role
+        return;
+      }
+
+      // Validate whether a client-stored token is still valid for reconnect
+      if (msg.type === 'validateToken') {
+        const { token: vToken, color: vColor } = msg;
+        let isValid = false;
+        // Check disconnected players (held seat)
+        const heldEntry = disconnectedPlayers.get(vToken);
+        if (heldEntry && heldEntry.color === vColor) {
+          isValid = true;
+        }
+        // Check active sessions (browser refresh — same token still active)
+        if (!isValid) {
+          for (const [, session] of sessions) {
+            if (session.token === vToken && session.color === vColor) {
+              isValid = true;
+              break;
+            }
+          }
+        }
+        send(ws, { type: 'tokenValid', color: vColor, valid: isValid });
         return;
       }
 
