@@ -17,7 +17,7 @@ export const keys = {};
 export let yaw = 0, pitch = 0;
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
-export let mouseLookOn = true;
+export let mouseLookOn = false;
 let _renderer = null;
 let _camera = null;
 let _hud = null;
@@ -26,9 +26,31 @@ export function setRenderer(renderer, camera) {
   _renderer = renderer;
   _camera = camera;
   _hud = document.getElementById('hud');
+  _hud.classList.remove('hidden');
 
   // Init yaw/pitch from camera quaternion
   euler.setFromQuaternion(camera.quaternion);
+  yaw = euler.y;
+  pitch = euler.x;
+}
+
+// Camera starting positions per role
+const CAM_POS = {
+  spectator: { x: -10, y: 7, z: 0 },   // west side, between ranks 4-5, rank labels visible
+  white:     { x:  0, y: 7, z: 10 },   // south side, between files d-e
+  black:     { x:  0, y: 7, z: -10 },  // north side, between files d-e
+};
+
+export function setCameraForRole(role) {
+  if (!_camera) return;
+  const p = CAM_POS[role];
+  if (!p) return;
+
+  _camera.position.set(p.x, p.y, p.z);
+  _camera.lookAt(0, 0, 0);
+
+  // Sync yaw/pitch from the new quaternion
+  euler.setFromQuaternion(_camera.quaternion);
   yaw = euler.y;
   pitch = euler.x;
 }
@@ -71,7 +93,6 @@ document.addEventListener('keyup', e => { keys[e.code] = false; });
 document.addEventListener('pointerlockchange', () => {
   if (!_renderer) return;
   const locked = document.pointerLockElement === _renderer.domElement;
-  _hud?.classList.toggle('hidden', locked);
   if (!locked && mouseLookOn) {
     mouseLookOn = false;
     updateMouseModeDisplay(mouseLookOn);

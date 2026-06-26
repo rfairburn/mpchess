@@ -10,6 +10,7 @@ import {
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
   onConnected
 } from './network.js';
+import { setCameraForRole } from './controls.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -57,6 +58,9 @@ const btnJoinSpectator = document.getElementById('btn-join-spectator');
 let errorTimeout = null;
 export let menuOpen = false;
 
+// Track previous role so we can reposition the camera on join/reconnect
+let prevRole = null;
+
 // Track disconnected opponent for drop button
 let disconnectedOpponentToken = null;
 let disconnectedOpponentColor = null;
@@ -86,12 +90,15 @@ sensitivitySlider.addEventListener('input', () => {
 // ── Display helpers ──────────────────────────────────────
 
 export function updateMouseModeDisplay(mouseLookOn) {
+  const hud = document.getElementById('hud');
   if (mouseLookOn) {
     mouseModeEl.textContent = '🖱 Camera Mode';
     mouseModeEl.style.borderColor = 'rgba(181, 136, 99, 0.3)';
+    hud.textContent = 'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu';
   } else {
     mouseModeEl.textContent = '♟ Piece Mode';
     mouseModeEl.style.borderColor = 'rgba(68, 187, 68, 0.6)';
+    hud.textContent = 'Click to move pieces · TAB toggle mouse-look · ESC menu';
   }
 }
 
@@ -275,6 +282,12 @@ function syncJoinOverlay() {
 }
 
 onStateUpdate((msg) => {
+  // Reposition camera when role changes (join, reconnect, etc.)
+  if (myRole && myRole !== prevRole) {
+    setCameraForRole(myRole);
+    prevRole = myRole;
+  }
+
   // HUD
   updateRoleBadge();
   updatePlayerCount(msg.playerCount, msg.spectatorCount);

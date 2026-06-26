@@ -58,7 +58,7 @@ scene.fog = new THREE.FogExp2(0x1a1410, 0.035);
 const camera = new THREE.PerspectiveCamera(
   50, window.innerWidth / window.innerHeight, 0.1, 100
 );
-camera.position.set(-4, 7, 10);
+camera.position.set(-10, 7, 0);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
