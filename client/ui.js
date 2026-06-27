@@ -8,7 +8,7 @@ import {
   halfmoveClock, threefoldCount, currentFen,
   sendPromotion, sendRestart, sendConcede, sendDropPlayer, sendJoin,
   sendExportFen, sendExportPgn, sendImportFen,
-  onStateUpdate, onRestart, onError, onReconnecting, onReconnected,
+  onStateUpdate, onRestart, onError, onInfo, onReconnecting, onReconnected,
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
   onConnected
 } from './network.js';
@@ -158,7 +158,8 @@ function updateDrawInfo() {
   }
 
   el.classList.add('visible');
-  el.innerHTML = `${repLabel}<br>${fiftyLabel}`;
+  const parts = [repLabel, fiftyLabel].filter(Boolean);
+  el.innerHTML = parts.join('<br>');
 }
 
 const CAPTURE_SYMBOLS = {
@@ -179,6 +180,17 @@ function updateCapturedPieces(captured) {
 
 export function showError(msg) {
   errorToast.textContent = msg;
+  errorToast.style.color = '#ff6b6b';
+  errorToast.style.borderColor = 'rgba(255, 80, 80, 0.4)';
+  errorToast.classList.add('visible');
+  clearTimeout(errorTimeout);
+  errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 2500);
+}
+
+export function showInfo(msg) {
+  errorToast.textContent = msg;
+  errorToast.style.color = '#6bff6b';
+  errorToast.style.borderColor = 'rgba(80, 255, 80, 0.4)';
   errorToast.classList.add('visible');
   clearTimeout(errorTimeout);
   errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 2500);
@@ -403,6 +415,10 @@ onRestart(() => {
 
 onError((msg) => {
   showError(msg.reason);
+});
+
+onInfo((msg) => {
+  showInfo(msg.reason);
 });
 
 // ── Reconnection callbacks ──────────────────────────────

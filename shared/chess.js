@@ -505,7 +505,7 @@ class Game {
     const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, this.castlingRights, this.enPassantTarget);
 
     if (isPromotion) {
-      this.promotingPiece = { file: toFile, rank: toRank, color, fromFile, fromRank, enPassant: isEnPassant };
+      this.promotingPiece = { file: toFile, rank: toRank, color, fromFile, fromRank, enPassant: isEnPassant, captured };
       // Record the pawn move; promotion suffix added later
       const promoNotation = notation + '=P';  // P for pawn (will be replaced with actual piece in completePromotion)
       this.moveHistory.push(promoNotation);
@@ -602,7 +602,7 @@ class Game {
 
   completePromotion(ws, pieceType) {
     if (!this.promotingPiece || this.players.get(ws) !== this.promotingPiece.color) return false;
-    const { file, rank, color, fromFile, fromRank, enPassant } = this.promotingPiece;
+    const { file, rank, color, fromFile, fromRank, enPassant, captured } = this.promotingPiece;
     const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
     if (!(pieceType in pieceMap)) return false;
     const val = color === 'white' ? pieceMap[pieceType] : pieceMap[pieceType] + 6;
@@ -614,6 +614,16 @@ class Game {
       const capturedRank = color === 'white' ? rank - 1 : rank + 1;
       this.board[capturedRank][file] = 0;
     }
+
+    // Revoke castling rights for captured rook on home square
+    // (tryMove returns early for promotions, so this is handled here)
+    if (captured) {
+      if (captured === W_ROOK && rank === 0 && file === 0) this.castlingRights.wQ = false;
+      if (captured === W_ROOK && rank === 0 && file === 7) this.castlingRights.wK = false;
+      if (captured === B_ROOK && rank === 7 && file === 0) this.castlingRights.bQ = false;
+      if (captured === B_ROOK && rank === 7 && file === 7) this.castlingRights.bK = false;
+    }
+
     this.promotingPiece = null;
 
     // Switch turn

@@ -408,6 +408,102 @@ describe('Promotion — P0 fix regression tests', () => {
     g.completePromotion(ws2, 'queen');
     assert.strictEqual(g.board[0][4], B_QUEEN);
   });
+
+  test('promotion via capture revokes captured rook castling rights (white pawn takes black rook on a8)', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][1] = W_PAWN;  // b7 — white pawn
+    g.board[7][0] = B_ROOK;  // a8 — black rook on home square
+    g.board[7][4] = B_KING;  // e8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+
+    // b7xa8 — promotion capture
+    const result = g.tryMove(ws1, 1, 6, 0, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws1, 'queen');
+    assert.strictEqual(g.board[7][0], W_QUEEN, 'queen at a8');
+    assert.strictEqual(g.castlingRights.bQ, false, 'bQ revoked after capturing rook on a8');
+    assert.strictEqual(g.castlingRights.bK, true, 'bK unchanged');
+  });
+
+  test('promotion via capture revokes captured rook castling rights (black pawn takes white rook on h1)', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[1][6] = B_PAWN;  // g2 — black pawn
+    g.board[0][7] = W_ROOK;  // h1 — white rook on home square
+    g.board[0][4] = W_KING;  // e1
+    g.turn = 'black';
+    g.castlingRights = { wK:true, wQ:true, bK:false, bQ:false };
+
+    // g2xh1 — promotion capture
+    const result = g.tryMove(ws2, 6, 1, 7, 0);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws2, 'knight');
+    assert.strictEqual(g.board[0][7], B_KNIGHT, 'knight at h1');
+    assert.strictEqual(g.castlingRights.wK, false, 'wK revoked after capturing rook on h1');
+    assert.strictEqual(g.castlingRights.wQ, true, 'wQ unchanged');
+  });
+
+  test('promotion via en passant does not revoke castling rights (synthetic)', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][1] = W_PAWN;  // b7 — white pawn
+    g.board[6][0] = B_PAWN;  // a7 — black pawn to be captured via en passant
+    g.board[7][4] = B_KING;  // e8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+
+    // Synthetic en passant promotion (bypasses move validation)
+    g.promotingPiece = { file: 0, rank: 7, color: 'white', fromFile: 1, fromRank: 6, enPassant: true, captured: 0 };
+
+    g.completePromotion(ws1, 'rook');
+    assert.strictEqual(g.board[7][0], W_ROOK, 'rook at a8');
+    assert.strictEqual(g.board[6][0], 0, 'en passant captured pawn removed');
+    assert.strictEqual(g.castlingRights.bK, true, 'bK unchanged for en passant');
+    assert.strictEqual(g.castlingRights.bQ, true, 'bQ unchanged for en passant');
+  });
+
+  test('promotion without capture does not affect castling rights', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;  // e7
+    g.board[7][4] = B_KING;  // e8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+
+    // Pawn pushes straight to e8 — but e8 has the king, so it's a capture.
+    // Use a different file for the promotion to avoid capturing.
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][3] = W_PAWN;  // d7
+    g.board[7][4] = B_KING;  // e8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+
+    const result = g.tryMove(ws1, 3, 6, 3, 7); // d7-d8, no capture
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws1, 'queen');
+    assert.strictEqual(g.castlingRights.bK, true, 'bK unchanged');
+    assert.strictEqual(g.castlingRights.bQ, true, 'bQ unchanged');
+  });
 });
 
 describe('Checkmate and stalemate', () => {

@@ -36,6 +36,7 @@ const onStateUpdateCallbacks = [];
 const onMoveCallbacks = [];
 const onRestartCallbacks = [];
 const onErrorCallbacks = [];
+const onInfoCallbacks = []; // info/success notifications (green toast)
 const onReconnectingCallbacks = [];
 const onReconnectedCallbacks = [];
 const onPlayerDisconnectedCallbacks = [];
@@ -48,6 +49,7 @@ export function onStateUpdate(fn) { onStateUpdateCallbacks.push(fn); }
 export function onMove(fn) { onMoveCallbacks.push(fn); }
 export function onRestart(fn) { onRestartCallbacks.push(fn); }
 export function onError(fn) { onErrorCallbacks.push(fn); }
+export function onInfo(fn) { onInfoCallbacks.push(fn); }
 export function onReconnecting(fn) { onReconnectingCallbacks.push(fn); }
 export function onReconnected(fn) { onReconnectedCallbacks.push(fn); }
 export function onPlayerDisconnected(fn) { onPlayerDisconnectedCallbacks.push(fn); }
@@ -232,28 +234,28 @@ function connect() {
       case 'fenExport': {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(msg.fen).then(() => {
-            fireCallbacks(onErrorCallbacks, { reason: 'FEN copied to clipboard' });
+            fireCallbacks(onInfoCallbacks, { reason: 'FEN copied to clipboard' });
           }).catch(() => {
             downloadText(msg.fen, 'position.fen', 'text/plain');
-            fireCallbacks(onErrorCallbacks, { reason: `FEN: ${msg.fen}` });
+            fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
           });
         } else {
           downloadText(msg.fen, 'position.fen', 'text/plain');
-          fireCallbacks(onErrorCallbacks, { reason: `FEN: ${msg.fen}` });
+          fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
         }
         break;
       }
       case 'pgnExport': {
         if (navigator.clipboard && navigator.clipboard.writeText) {
           navigator.clipboard.writeText(msg.pgn).then(() => {
-            fireCallbacks(onErrorCallbacks, { reason: 'PGN copied to clipboard' });
+            fireCallbacks(onInfoCallbacks, { reason: 'PGN copied to clipboard' });
           }).catch(() => {
             downloadText(msg.pgn, 'game.pgn', 'text/plain');
-            fireCallbacks(onErrorCallbacks, { reason: `PGN downloaded` });
+            fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
           });
         } else {
           downloadText(msg.pgn, 'game.pgn', 'text/plain');
-          fireCallbacks(onErrorCallbacks, { reason: `PGN downloaded` });
+          fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
         }
         break;
       }
@@ -266,7 +268,7 @@ function downloadText(text, filename, mimeType) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
 function startReconnection() {
