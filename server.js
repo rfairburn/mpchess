@@ -1,4 +1,5 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -429,7 +430,7 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
-const server = http.createServer((req, res) => {
+const requestHandler = (req, res) => {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/client/index.html';
 
@@ -457,7 +458,7 @@ const server = http.createServer((req, res) => {
     res.writeHead(404);
     res.end('Not found');
   }
-});
+}
 
 if (require.main === module) {
   // CLI help
@@ -470,9 +471,14 @@ Options:
   --fen=<fen_string>  Load a custom starting position (first game only;
                       restarts reset to standard setup)
   --port=<number>     Override PORT env var for the HTTP/WebSocket server
+  --cert=<path>       TLS certificate file (enables HTTPS)
+  --key=<path>        TLS private key file (required with --cert)
+  --chain=<path>      TLS certificate chain file (optional, PEM format)
 
 Examples:
   node server.js
+  node server.js --cert=server.crt --key=server.key
+  node server.js --cert=server.crt --key=server.key --chain=chain.pem
   node server.js --fen="4k3/8/8/8/8/8/8/4K2R w K - 0 1"
   PORT=8080 node server.js --fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 `);
@@ -483,6 +489,38 @@ Examples:
   const portArg = process.argv.find(a => a.startsWith('--port='));
   if (portArg) {
     process.env.PORT = portArg.slice(7);
+  }
+
+  // TLS support
+  const certArg = process.argv.find(a => a.startsWith('--cert='));
+  const keyArg = process.argv.find(a => a.startsWith('--key='));
+  const chainArg = process.argv.find(a => a.startsWith('--chain='));
+  let server;
+  let protocol = 'http';
+
+  if (certArg && keyArg) {
+    try {
+      const certPath = certArg.slice(certArg.indexOf('=') + 1);
+      const keyPath = keyArg.slice(keyArg.indexOf('=') + 1);
+      const tlsOptions = {
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath),
+      };
+      if (chainArg) {
+        tlsOptions.ca = fs.readFileSync(chainArg.slice(chainArg.indexOf('=') + 1));
+      }
+      server = https.createServer(tlsOptions, requestHandler);
+      protocol = 'https';
+    } catch (e) {
+      console.error(`TLS error: ${e.message}`);
+      console.error('Falling back to HTTP.');
+      server = http.createServer(requestHandler);
+    }
+  } else if (certArg || keyArg) {
+    console.error('Warning: both --cert and --key are required for TLS. Running in HTTP mode.');
+    server = http.createServer(requestHandler);
+  } else {
+    server = http.createServer(requestHandler);
   }
 
   const wss = new WebSocketServer({ server });
@@ -511,8 +549,8 @@ Examples:
         if (iface.family === 'IPv4' && !iface.internal) ips.push(iface.address);
       }
     }
-    console.log(`Chess server running on ${HOST}:${PORT}`);
-    console.log(`Local:   http://localhost:${PORT}`);
-    for (const ip of ips) console.log(`LAN:     http://${ip}:${PORT}`);
+    console.log(`Chess server running on ${HOST}:${PORT} (${protocol})`);
+    console.log(`Local:   ${protocol}://localhost:${PORT}`);
+    for (const ip of ips) console.log(`LAN:     ${protocol}://${ip}:${PORT}`);
   });
 }

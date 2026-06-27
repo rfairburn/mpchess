@@ -1896,6 +1896,109 @@ describe('Build regression — chess.mjs browser safety', () => {
   });
 });
 
+describe('TLS CLI arguments', () => {
+  const { execSync } = require('child_process');
+  const serverPath = path.join(__dirname, 'server.js');
+
+  // Each test gets a unique port to avoid EADDRINUSE / TIME_WAIT conflicts
+  let portCounter = 49000;
+  function nextPort() { return ++portCounter; }
+
+  function runServer(args, timeout) {
+    const t = timeout || 3000;
+    const port = nextPort();
+    try {
+      const output = execSync(`node "${serverPath}" ${args}`, {
+        timeout: t,
+        encoding: 'utf8',
+        env: { ...process.env, PORT: String(port) },
+      });
+      return { stdout: output, stderr: '', port };
+    } catch (e) {
+      return {
+        stdout: e.stdout ? e.stdout.toString() : '',
+        stderr: e.stderr ? e.stderr.toString() : '',
+        code: e.status,
+        port,
+      };
+    }
+  }
+
+  test('--help mentions TLS options', () => {
+    const result = runServer('--help', 5000);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes('--cert='), 'help should mention --cert');
+    assert.ok(output.includes('--key='), 'help should mention --key');
+    assert.ok(output.includes('--chain='), 'help should mention --chain');
+  });
+
+  test('no TLS args — starts in HTTP mode', () => {
+    const result = runServer('', 3000);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes('(http)'), 'should indicate HTTP mode');
+    assert.ok(output.includes(`http://localhost:${result.port}`), 'should show http:// URL');
+  });
+
+  test('--cert without --key — warns and falls back to HTTP', () => {
+    const result = runServer('--cert=/tmp/nonexistent.crt', 3000);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes('both --cert and --key'), 'should warn about missing --key');
+    assert.ok(output.includes('(http)'), 'should fall back to HTTP');
+  });
+
+  test('--key without --cert — warns and falls back to HTTP', () => {
+    const result = runServer('--key=/tmp/nonexistent.key', 3000);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes('both --cert and --key'), 'should warn about missing --cert');
+    assert.ok(output.includes('(http)'), 'should fall back to HTTP');
+  });
+
+  test('--cert + --key with nonexistent files — error logged, falls back to HTTP', () => {
+    const result = runServer('--cert=/tmp/no_such_cert.crt --key=/tmp/no_such_key.key', 3000);
+    const output = result.stdout + result.stderr;
+    assert.ok(output.includes('TLS error'), 'should log TLS error');
+    assert.ok(output.includes('Falling back to HTTP'), 'should log fallback');
+    assert.ok(output.includes('(http)'), 'should run in HTTP mode');
+  });
+
+  test('--cert + --key with valid self-signed cert — starts HTTPS', () => {
+    const { execSync: exec } = require('child_process');
+    const certPath = '/tmp/mpchess_test.crt';
+    const keyPath = '/tmp/mpchess_test.key';
+    try {
+      exec(`openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`);
+
+      const result = runServer(`--cert=${certPath} --key=${keyPath}`, 3000);
+      const output = result.stdout + result.stderr;
+      assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
+      assert.ok(output.includes(`https://localhost:${result.port}`), 'should show https:// URL');
+    } finally {
+      try { fs.unlinkSync(certPath); } catch {}
+      try { fs.unlinkSync(keyPath); } catch {}
+    }
+  });
+
+  test('--cert + --key + --chain with valid files — starts HTTPS', () => {
+    const { execSync: exec } = require('child_process');
+    const certPath = '/tmp/mpchess_test2.crt';
+    const keyPath = '/tmp/mpchess_test2.key';
+    const chainPath = '/tmp/mpchess_test2.chain.pem';
+    try {
+      exec(`openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`);
+      // Use the cert itself as the chain (valid PEM)
+      fs.copyFileSync(certPath, chainPath);
+
+      const result = runServer(`--cert=${certPath} --key=${keyPath} --chain=${chainPath}`, 3000);
+      const output = result.stdout + result.stderr;
+      assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
+    } finally {
+      try { fs.unlinkSync(certPath); } catch {}
+      try { fs.unlinkSync(keyPath); } catch {}
+      try { fs.unlinkSync(chainPath); } catch {}
+    }
+  });
+});
+
 // ── Summary ──────────────────────────────────────────────
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Results: ${passed}/${total} passed, ${failed} failed`);
