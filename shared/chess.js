@@ -4,6 +4,10 @@
 //  via `node build_chess_mjs.js`
 // ═══════════════════════════════════════════════════════════
 
+// crypto is Node-only; browser build (chess.mjs) never uses Zobrist
+let crypto;
+try { crypto = require('crypto'); } catch { /* browser — no crypto */ }
+
 const EMPTY = 0;
 const W_PAWN=1, W_KNIGHT=2, W_BISHOP=3, W_ROOK=4, W_QUEEN=5, W_KING=6;
 const B_PAWN=7, B_KNIGHT=8, B_BISHOP=9, B_ROOK=10, B_QUEEN=11, B_KING=12;
@@ -332,6 +336,15 @@ class Game {
     this.capturedPieces = { white: [], black: [] }; // pieces each side has captured
     this.gameOver = false;
     this.gameResult = null;
+
+    // Position history for threefold repetition, 50-move rule, FEN/PGN export
+    this.halfmoveClock = 0;
+    this.fullmoveNumber = 1;
+    this.positionHistory = []; // [{ zobrist, halfmoveClock, fullmoveNumber, move }]
+    this.positionCounts = new Map(); // zobrist (string) → occurrence count
+
+    // Record the starting position
+    this._recordPosition(null);
   }
 
   addPlayer(ws, extraOccupied) {
@@ -358,6 +371,93 @@ class Game {
     }
     this.spectators.delete(ws);
     return null;
+  }
+
+  // ── Position history ──────────────────────────────────
+
+  _computeZobrist() {
+    if (!ZOBRIST) return 0n; // browser — never called client-side
+    return ZOBRIST.compute(this.board, this.turn, this.castlingRights, this.enPassantTarget);
+  }
+
+  _recordPosition(moveData) {
+    const zobrist = this._computeZobrist();
+    const key = zobrist.toString(); // BigInt → string for Map keys
+    this.positionHistory.push({
+      zobrist: key,
+      halfmoveClock: this.halfmoveClock,
+      fullmoveNumber: this.fullmoveNumber,
+      move: moveData,
+    });
+    this.positionCounts.set(key, (this.positionCounts.get(key) || 0) + 1);
+  }
+
+  isThreefoldRepetition() {
+    return [...this.positionCounts.values()].some(c => c >= 3);
+  }
+
+  isFiftyMoveRule() {
+    return this.halfmoveClock >= 100;
+  }
+
+  // Get the max repetition count for the current position (for UI display)
+  getCurrentRepetitionCount() {
+    if (this.positionHistory.length === 0) return 0;
+    const last = this.positionHistory[this.positionHistory.length - 1];
+    return this.positionCounts.get(last.zobrist) || 0;
+  }
+
+  // ── FEN / PGN export ──────────────────────────────────
+
+  currentFen() {
+    return toFen(this.board, this.turn, this.castlingRights, this.enPassantTarget,
+      this.halfmoveClock, this.fullmoveNumber);
+  }
+
+  loadFromFen(fen) {
+    const state = fromFen(fen);
+    this.board = state.board;
+    this.turn = state.turn;
+    this.castlingRights = state.castlingRights;
+    this.enPassantTarget = state.enPassantTarget;
+    this.halfmoveClock = state.halfmoveClock;
+    this.fullmoveNumber = state.fullmoveNumber;
+    this.promotingPiece = null;
+    this.moveHistory = [];
+    this.capturedPieces = { white: [], black: [] };
+    this.gameOver = false;
+    this.gameResult = null;
+    this.positionHistory = [];
+    this.positionCounts = new Map();
+    // Record the loaded position as the first entry
+    this._recordPosition(null);
+  }
+
+  exportPgn() {
+    const result = this.gameResult ? this._pgnResult() : '*';
+    let tags = '';
+    tags += `[Event "3D Chess Game"]\n`;
+    tags += `[Site "mpchess"]\n`;
+    tags += `[Date "${new Date().toISOString().slice(0, 10)}"]\n`;
+    tags += `[Result "${result}"]\n\n`;
+
+    // Build move list
+    let moves = '';
+    for (let i = 0; i < this.moveHistory.length; i++) {
+      if (i % 2 === 0) moves += `${Math.floor(i / 2) + 1}. `;
+      moves += this.moveHistory[i] + ' ';
+    }
+    moves += result;
+
+    return tags + moves;
+  }
+
+  _pgnResult() {
+    if (!this.gameResult) return '*';
+    if (this.gameResult.includes('Draw') || this.gameResult.includes('stalemate') || this.gameResult.includes('insufficient')) return '1/2-1/2';
+    if (this.gameResult.includes('White wins') || this.gameResult.includes('white wins') || this.gameResult.includes('Black conceded')) return '1-0';
+    if (this.gameResult.includes('Black wins') || this.gameResult.includes('black wins') || this.gameResult.includes('White conceded')) return '0-1';
+    return '*';
   }
 
   tryMove(ws, fromFile, fromRank, toFile, toRank) {
@@ -409,6 +509,8 @@ class Game {
       // Record the pawn move; promotion suffix added later
       const promoNotation = notation + '=P';  // P for pawn (will be replaced with actual piece in completePromotion)
       this.moveHistory.push(promoNotation);
+      // Pawn move resets half-move clock (position recorded in completePromotion)
+      this.halfmoveClock = 0;
       return { ok: true, promotion: true, fromFile, fromRank, toFile, toRank, captured: !!captured, enPassant: isEnPassant, castled };
     }
 
@@ -465,11 +567,27 @@ class Game {
       if (captured === B_ROOK && toRank === 7 && toFile === 7) this.castlingRights.bK = false;
     }
 
+    // Update half-move clock: reset on pawn move or capture, increment otherwise
+    const isCapture = captured !== 0 || isEnPassant;
+    if (type === 'pawn' || isCapture) {
+      this.halfmoveClock = 0;
+    } else {
+      this.halfmoveClock++;
+    }
+
     // Switch turn
     this.turn = this.turn === 'white' ? 'black' : 'white';
 
+    // Increment full-move number after Black's move
+    if (this.turn === 'white') {
+      this.fullmoveNumber++;
+    }
+
     // Record move with proper algebraic notation
     this.moveHistory.push(notation);
+
+    // Record position in history (for threefold, 50-move, FEN export)
+    this._recordPosition({ fromFile, fromRank, toFile, toRank, notation });
 
     // Check game end and append check/mate symbol
     this.checkGameEnd();
@@ -501,12 +619,20 @@ class Game {
     // Switch turn
     this.turn = this.turn === 'white' ? 'black' : 'white';
 
+    // Increment full-move number after Black's move
+    if (this.turn === 'white') {
+      this.fullmoveNumber++;
+    }
+
     // Replace the =P placeholder with the actual promotion piece
     const promoNotation = `=${pieceType[0].toUpperCase()}`;
     if (this.moveHistory.length > 0) {
       const last = this.moveHistory.length - 1;
       this.moveHistory[last] = this.moveHistory[last].slice(0, -2) + promoNotation;
     }
+
+    // Record position in history (halfmoveClock was reset in tryMove for pawn move)
+    this._recordPosition({ fromFile, fromRank, toFile: file, toRank: rank, notation: this.moveHistory[this.moveHistory.length - 1] });
 
     this.checkGameEnd();
     if (this.gameOver && this.gameResult.includes('Checkmate')) {
@@ -519,6 +645,20 @@ class Game {
 
   checkGameEnd() {
     if (this.gameOver) return;
+
+    // Threefold repetition — draw
+    if (this.isThreefoldRepetition()) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — threefold repetition.';
+      return;
+    }
+
+    // Fifty-move rule — draw
+    if (this.isFiftyMoveRule()) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — 50-move rule.';
+      return;
+    }
 
     // Insufficient material — draw
     if (isInsufficientMaterial(this.board)) {
@@ -564,6 +704,9 @@ class Game {
       capturedPieces: { white: [...this.capturedPieces.white], black: [...this.capturedPieces.black] },
       playerCount: this.players.size,
       spectatorCount: this.spectators.size,
+      halfmoveClock: this.halfmoveClock,
+      threefoldCount: this.getCurrentRepetitionCount(),
+      fen: this.currentFen(),
     };
   }
 
@@ -577,7 +720,194 @@ class Game {
     this.capturedPieces = { white: [], black: [] };
     this.gameOver = false;
     this.gameResult = null;
+    this.halfmoveClock = 0;
+    this.fullmoveNumber = 1;
+    this.positionHistory = [];
+    this.positionCounts = new Map();
+    // Record the starting position
+    this._recordPosition(null);
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ZOBRIST HASHING — position identity for threefold repetition
+// ═══════════════════════════════════════════════════════════
+
+class Zobrist {
+  constructor() {
+    // pieceTable[pieceValue][square] — 12 piece values × 64 squares
+    this.pieceTable = Array.from({ length: 13 }, () =>
+      Array.from({ length: 64 }, () => this._rand())
+    );
+    // turnTable[color] — side to move
+    this.turnTable = { white: this._rand(), black: this._rand() };
+    // castlingTable[right] — one entry per castling right
+    this.castlingTable = {
+      wK: this._rand(), wQ: this._rand(),
+      bK: this._rand(), bQ: this._rand(),
+    };
+    // epTable[square] — en passant target (64 squares)
+    this.epTable = Array.from({ length: 64 }, () => this._rand());
+  }
+
+  _rand() {
+    // Cryptographic-quality 64-bit random BigInt
+    const buf = crypto.randomBytes(8);
+    return buf.readBigUInt64LE(0);
+  }
+
+  // Compute Zobrist hash for a given board state
+  compute(board, turn, castlingRights, enPassantTarget) {
+    let hash = 0n;
+
+    // XOR in every piece on the board
+    for (let r = 0; r < 8; r++) {
+      for (let f = 0; f < 8; f++) {
+        const p = board[r][f];
+        if (p !== 0) {
+          const sq = r * 8 + f;
+          hash ^= this.pieceTable[p][sq];
+        }
+      }
+    }
+
+    // XOR in side to move
+    hash ^= this.turnTable[turn];
+
+    // XOR in castling rights (only the ones that are true)
+    for (const right of ['wK', 'wQ', 'bK', 'bQ']) {
+      if (castlingRights[right]) {
+        hash ^= this.castlingTable[right];
+      }
+    }
+
+    // XOR in en passant target square
+    if (enPassantTarget) {
+      const sq = enPassantTarget.rank * 8 + enPassantTarget.file;
+      hash ^= this.epTable[sq];
+    }
+
+    return hash;
+  }
+}
+
+// Single static Zobrist table — shared across all Game instances
+// In browser (chess.mjs), crypto is undefined → ZOBRIST is null (never used by client)
+const ZOBRIST = crypto ? new Zobrist() : null;
+
+// ═══════════════════════════════════════════════════════════
+//  FEN — Forsyth-Edwards Notation
+// ═══════════════════════════════════════════════════════════
+
+const FEN_PIECE_CHARS = {
+  1: 'P', 2: 'N', 3: 'B', 4: 'R', 5: 'Q', 6: 'K',
+  7: 'p', 8: 'n', 9: 'b', 10: 'r', 11: 'q', 12: 'k',
+};
+
+const FEN_CHAR_TO_PIECE = {
+  'P': W_PAWN, 'N': W_KNIGHT, 'B': W_BISHOP, 'R': W_ROOK, 'Q': W_QUEEN, 'K': W_KING,
+  'p': B_PAWN, 'n': B_KNIGHT, 'b': B_BISHOP, 'r': B_ROOK, 'q': B_QUEEN, 'k': B_KING,
+};
+
+function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber) {
+  // Piece placement: rank 8 first, empty squares counted
+  let placement = '';
+  for (let r = 7; r >= 0; r--) {
+    let empty = 0;
+    for (let f = 0; f < 8; f++) {
+      if (board[r][f] === 0) {
+        empty++;
+      } else {
+        if (empty > 0) { placement += empty; empty = 0; }
+        placement += FEN_PIECE_CHARS[board[r][f]];
+      }
+    }
+    if (empty > 0) placement += empty;
+    if (r > 0) placement += '/';
+  }
+
+  // Castling availability
+  let castling = '';
+  if (castlingRights.wK) castling += 'K';
+  if (castlingRights.wQ) castling += 'Q';
+  if (castlingRights.bK) castling += 'k';
+  if (castlingRights.bQ) castling += 'q';
+  if (castling === '') castling = '-';
+
+  // En passant target square
+  let ep = '-';
+  if (enPassantTarget) {
+    ep = FILES[enPassantTarget.file] + RANKS[enPassantTarget.rank];
+  }
+
+  // Turn: FEN uses 'w'/'b', not 'white'/'black'
+  const turnChar = turn === 'white' ? 'w' : 'b';
+
+  return `${placement} ${turnChar} ${castling} ${ep} ${halfmoveClock} ${fullmoveNumber}`;
+}
+
+function fromFen(fen) {
+  const parts = fen.trim().split(/\s+/);
+  if (parts.length < 6) throw new Error('Invalid FEN: too few parts');
+
+  const [placementStr, turn, castlingStr, epStr, hmStr, fmStr] = parts;
+
+  // Parse piece placement (rank 8 first)
+  const board = Array.from({ length: 8 }, () => Array(8).fill(0));
+  const ranks = placementStr.split('/');
+  if (ranks.length !== 8) throw new Error('Invalid FEN: must have 8 ranks');
+
+  for (let ri = 0; ri < 8; ri++) {
+    let file = 0;
+    for (const ch of ranks[ri]) {
+      if (ch >= '1' && ch <= '8') {
+        file += parseInt(ch, 10);
+      } else if (ch in FEN_CHAR_TO_PIECE) {
+        if (file >= 8) throw new Error('Invalid FEN: rank too long');
+        board[7 - ri][file] = FEN_CHAR_TO_PIECE[ch];
+        file++;
+      } else {
+        throw new Error(`Invalid FEN character: ${ch}`);
+      }
+    }
+    if (file !== 8) throw new Error('Invalid FEN: rank must have 8 squares');
+  }
+
+  // Validate turn
+  if (turn !== 'w' && turn !== 'b') throw new Error('Invalid FEN: turn must be w or b');
+
+  // Parse castling rights
+  const castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+  for (const ch of castlingStr) {
+    if (ch === 'K') castlingRights.wK = true;
+    else if (ch === 'Q') castlingRights.wQ = true;
+    else if (ch === 'k') castlingRights.bK = true;
+    else if (ch === 'q') castlingRights.bQ = true;
+    else if (ch !== '-') throw new Error(`Invalid castling character: ${ch}`);
+  }
+
+  // Parse en passant target
+  let enPassantTarget = null;
+  if (epStr !== '-') {
+    if (epStr.length !== 2) throw new Error('Invalid FEN: en passant must be 2 chars');
+    const ef = epStr.charCodeAt(0) - 'a'.charCodeAt(0);
+    const er = epStr.charCodeAt(1) - '1'.charCodeAt(0);
+    if (ef < 0 || ef > 7 || er < 0 || er > 7) throw new Error('Invalid FEN: en passant out of range');
+    enPassantTarget = { file: ef, rank: er };
+  }
+
+  const halfmoveClock = parseInt(hmStr, 10);
+  const fullmoveNumber = parseInt(fmStr, 10);
+  if (isNaN(halfmoveClock) || isNaN(fullmoveNumber)) throw new Error('Invalid FEN: clocks must be numbers');
+
+  return {
+    board,
+    turn: turn === 'w' ? 'white' : 'black',
+    castlingRights,
+    enPassantTarget,
+    halfmoveClock,
+    fullmoveNumber,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -591,4 +921,5 @@ module.exports = {
   startingBoard, cloneBoard, findKing,
   isAttacked, isInCheck, getValidMoves, hasAnyMoves, isInsufficientMaterial,
   buildNotation, Game,
+  Zobrist, ZOBRIST, toFen, fromFen,
 };

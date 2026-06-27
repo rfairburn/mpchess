@@ -27,6 +27,9 @@ export let enPassantTarget = null;
 export let disconnectedPlayersInfo = [];
 export let seatStatus = { white: { status: 'unknown' }, black: { status: 'unknown' } };
 export let validatedTokens = {}; // { white: true/false, black: true/false } — server-confirmed
+export let halfmoveClock = 0;
+export let threefoldCount = 0;
+export let currentFen = '';
 
 // Callbacks registered by other modules
 const onStateUpdateCallbacks = [];
@@ -135,6 +138,9 @@ function connect() {
         enPassantTarget = msg.enPassantTarget;
         disconnectedPlayersInfo = msg.disconnectedPlayers || [];
         if (msg.seats) seatStatus = msg.seats;
+        halfmoveClock = msg.halfmoveClock ?? 0;
+        threefoldCount = msg.threefoldCount ?? 0;
+        currentFen = msg.fen || '';
         fireCallbacks(onStateUpdateCallbacks, msg);
         break;
       }
@@ -223,8 +229,44 @@ function connect() {
         fireCallbacks(onStateUpdateCallbacks, { seats: seatStatus });
         break;
       }
+      case 'fenExport': {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msg.fen).then(() => {
+            fireCallbacks(onErrorCallbacks, { reason: 'FEN copied to clipboard' });
+          }).catch(() => {
+            downloadText(msg.fen, 'position.fen', 'text/plain');
+            fireCallbacks(onErrorCallbacks, { reason: `FEN: ${msg.fen}` });
+          });
+        } else {
+          downloadText(msg.fen, 'position.fen', 'text/plain');
+          fireCallbacks(onErrorCallbacks, { reason: `FEN: ${msg.fen}` });
+        }
+        break;
+      }
+      case 'pgnExport': {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(msg.pgn).then(() => {
+            fireCallbacks(onErrorCallbacks, { reason: 'PGN copied to clipboard' });
+          }).catch(() => {
+            downloadText(msg.pgn, 'game.pgn', 'text/plain');
+            fireCallbacks(onErrorCallbacks, { reason: `PGN downloaded` });
+          });
+        } else {
+          downloadText(msg.pgn, 'game.pgn', 'text/plain');
+          fireCallbacks(onErrorCallbacks, { reason: `PGN downloaded` });
+        }
+        break;
+      }
     }
   };
+}
+
+function downloadText(text, filename, mimeType) {
+  const blob = new Blob([text], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
 }
 
 function startReconnection() {
@@ -297,6 +339,18 @@ export function sendJoin(color) {
     }
     ws.send(JSON.stringify({ type: 'join', color }));
     joinPendingColor = null;
+  }
+}
+
+export function sendExportFen() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'exportFen' }));
+  }
+}
+
+export function sendExportPgn() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'exportPgn' }));
   }
 }
 

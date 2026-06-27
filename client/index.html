@@ -16,6 +16,7 @@
   <div id="captured-white"><span class="cap-label">White's Captures</span><span class="cap-pieces"></span></div>
   <div id="captured-black"><span class="cap-label">Black's Captures</span><span class="cap-pieces"></span></div>
   <div id="move-log"></div>
+  <div id="draw-info"></div>
 
   <div id="menu-overlay">
     <div id="menu-box">
@@ -23,6 +24,10 @@
       <button id="btn-resume">Resume Game</button>
       <button id="btn-restart">New Game</button>
       <button id="btn-concede">Concede Game</button>
+      <div id="export-row">
+        <button id="btn-export-fen">Export FEN</button>
+        <button id="btn-export-pgn">Export PGN</button>
+      </div>
       <div id="sensitivity-row">
         <label for="sensitivity-slider">Mouse Sensitivity</label>
         <input type="range" id="sensitivity-slider" min="1" max="100" value="20">

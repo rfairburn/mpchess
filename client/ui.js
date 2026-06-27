@@ -5,7 +5,9 @@
 import {
   myRole, serverTurn, serverPromotingPiece, serverGameOver, serverGameResult,
   moveHistory, disconnectedPlayersInfo, seatStatus, tokenKey, validatedTokens,
+  halfmoveClock, threefoldCount, currentFen,
   sendPromotion, sendRestart, sendConcede, sendDropPlayer, sendJoin,
+  sendExportFen, sendExportPgn,
   onStateUpdate, onRestart, onError, onReconnecting, onReconnected,
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
   onConnected
@@ -131,7 +133,25 @@ function updateMoveLog() {
     const b = moveHistory[i + 1] || '';
     pairs.push(`<div><b>${num}.</b> ${w} ${b}</div>`);
   }
-  el.innerHTML = pairs.slice(-6).join('');
+  el.innerHTML = pairs.join('');
+  // Auto-scroll to bottom
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateDrawInfo() {
+  const el = document.getElementById('draw-info');
+  if (!el) return;
+
+  const repLabel = threefoldCount > 0 ? `Repetition: ${threefoldCount}/3` : '';
+  const fiftyLabel = halfmoveClock > 0 ? `50-move: ${halfmoveClock}/100` : '';
+
+  if (!repLabel && !fiftyLabel) {
+    el.classList.remove('visible');
+    return;
+  }
+
+  el.classList.add('visible');
+  el.innerHTML = `${repLabel}<br>${fiftyLabel}`;
 }
 
 const CAPTURE_SYMBOLS = {
@@ -194,6 +214,19 @@ btnJoinGame.addEventListener('click', () => {
 });
 
 btnRestart.addEventListener('click', () => { sendRestart(); hideMenu(); });
+
+// Export buttons
+const btnExportFen = document.getElementById('btn-export-fen');
+const btnExportPgn = document.getElementById('btn-export-pgn');
+
+btnExportFen.addEventListener('click', () => {
+  sendExportFen();
+});
+
+btnExportPgn.addEventListener('click', () => {
+  sendExportPgn();
+});
+
 const btnNewGame = document.getElementById('btn-new-game');
 btnNewGame.addEventListener('click', () => {
   if (myRole === 'spectator') return;
@@ -293,6 +326,7 @@ onStateUpdate((msg) => {
   updatePlayerCount(msg.playerCount, msg.spectatorCount);
   updateTurnIndicator();
   updateMoveLog();
+  updateDrawInfo();
   updateCapturedPieces(msg.capturedPieces);
   hideConcedeConfirm();
 

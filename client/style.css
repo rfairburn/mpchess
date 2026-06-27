@@ -299,7 +299,7 @@
     #game-over-box button:hover { background: #d4bc94; }
     #game-over-box button:disabled { background: #666; color: #999; cursor: not-allowed; }
     #move-log {
-      position: fixed; bottom: 20px; right: 20px;
+      position: fixed; bottom: 80px; right: 20px;
       color: #c4a882;
       font: 13px/2 'Courier New', Courier, monospace;
       background: rgba(20, 14, 8, 0.9);
@@ -308,12 +308,49 @@
       border: 1px solid rgba(181, 136, 99, 0.25);
       pointer-events: none;
       z-index: 10;
-      max-height: 220px;
-      overflow: hidden;
+      max-height: 300px;
+      overflow-y: auto;
       text-align: right;
       min-width: 140px;
     }
+    #move-log::-webkit-scrollbar { width: 4px; }
+    #move-log::-webkit-scrollbar-track { background: transparent; }
+    #move-log::-webkit-scrollbar-thumb { background: rgba(181, 136, 99, 0.3); border-radius: 2px; }
     #move-log b { color: #887766; }
+
+    /* ═══ Draw info panel ═══ */
+    #draw-info {
+      position: fixed; bottom: 20px; right: 20px;
+      color: #a08060;
+      font: 12px/1.8 'Courier New', Courier, monospace;
+      background: rgba(20, 14, 8, 0.85);
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(181, 136, 99, 0.2);
+      pointer-events: none;
+      z-index: 9;
+      text-align: right;
+      min-width: 120px;
+      display: none;
+    }
+    #draw-info.visible { display: block; }
+
+    /* ═══ Export row in menu ═══ */
+    #export-row {
+      display: flex; gap: 8px; margin-top: 8px;
+    }
+    #export-row button {
+      flex: 1; padding: 8px 0;
+      font-size: 13px;
+      font-family: inherit;
+      color: #887766;
+      background: rgba(40, 30, 20, 0.8);
+      border: 1px solid rgba(181, 136, 99, 0.3);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #export-row button:hover { background: rgba(60, 45, 30, 0.9); }
 
     /* ═══ Reconnecting overlay ═══ */
     #reconnecting-overlay {

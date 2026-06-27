@@ -332,6 +332,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           handleDropPlayer(ws, msg);
           break;
         }
+        case 'exportFen': {
+          send(ws, { type: 'fenExport', fen: game.currentFen() });
+          break;
+        }
+        case 'exportPgn': {
+          send(ws, { type: 'pgnExport', pgn: game.exportPgn() });
+          break;
+        }
       }
     });
 
@@ -433,6 +441,19 @@ const server = http.createServer((req, res) => {
 if (require.main === module) {
   const wss = new WebSocketServer({ server });
   const game = new Game();
+
+  // Optional: load a custom starting position from FEN
+  const fenArg = process.argv.find(a => a.startsWith('--fen='));
+  if (fenArg) {
+    try {
+      game.loadFromFen(fenArg.slice(6));
+      console.log(`Loaded starting position from FEN: ${game.currentFen()}`);
+    } catch (e) {
+      console.error(`Invalid FEN: ${e.message}`);
+      process.exit(1);
+    }
+  }
+
   setupWebSocketHandlers(wss, game);
 
   server.listen(PORT, HOST, () => {

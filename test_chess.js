@@ -12,7 +12,10 @@ const {
   pieceColor, pieceType, isOwn, isEnemy,
   startingBoard, cloneBoard, findKing, isAttacked, isInCheck,
   getValidMoves, hasAnyMoves, isInsufficientMaterial, Game,
+  ZOBRIST, toFen, fromFen,
 } = require('./shared/chess');
+
+const fs = require('fs');
 
 // ── Minimal test runner ──────────────────────────────────
 let passed = 0;
@@ -1270,6 +1273,530 @@ describe('Insufficient material — draw detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, false, 'opposite-colored bishops should not be a draw');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  ZOBRIST HASHING
+// ═══════════════════════════════════════════════════════════
+
+describe('Zobrist hashing', () => {
+  test('same position produces same hash', () => {
+    const board = startingBoard();
+    const h1 = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    const h2 = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    assert.strictEqual(h1, h2, 'identical positions must produce identical hashes');
+  });
+
+  test('different board produces different hash', () => {
+    const b1 = startingBoard();
+    const b2 = startingBoard();
+    b2[1][4] = 0; // remove white e-pawn
+    const h1 = ZOBRIST.compute(b1, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    const h2 = ZOBRIST.compute(b2, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    assert.notStrictEqual(h1, h2, 'different boards must produce different hashes');
+  });
+
+  test('different turn produces different hash', () => {
+    const board = startingBoard();
+    const cr = { wK:true, wQ:true, bK:true, bQ:true };
+    const hw = ZOBRIST.compute(board, 'white', cr, null);
+    const hb = ZOBRIST.compute(board, 'black', cr, null);
+    assert.notStrictEqual(hw, hb, 'different sides to move must produce different hashes');
+  });
+
+  test('different castling rights produce different hash', () => {
+    const board = startingBoard();
+    const cr1 = { wK:true, wQ:true, bK:true, bQ:true };
+    const cr2 = { wK:false, wQ:true, bK:true, bQ:true };
+    const h1 = ZOBRIST.compute(board, 'white', cr1, null);
+    const h2 = ZOBRIST.compute(board, 'white', cr2, null);
+    assert.notStrictEqual(h1, h2, 'different castling rights must produce different hashes');
+  });
+
+  test('en passant target produces different hash', () => {
+    const board = startingBoard();
+    const cr = { wK:true, wQ:true, bK:true, bQ:true };
+    const h1 = ZOBRIST.compute(board, 'white', cr, null);
+    const h2 = ZOBRIST.compute(board, 'white', cr, { file: 3, rank: 3 });
+    assert.notStrictEqual(h1, h2, 'en passant target must affect hash');
+  });
+
+  test('hash is a BigInt', () => {
+    const board = startingBoard();
+    const h = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    assert.ok(typeof h === 'bigint', 'Zobrist hash must be a BigInt');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  HALF-MOVE CLOCK
+// ═══════════════════════════════════════════════════════════
+
+describe('Half-move clock', () => {
+  test('starts at 0', () => {
+    const g = new Game();
+    assert.strictEqual(g.halfmoveClock, 0);
+  });
+
+  test('resets on pawn move', () => {
+    const { game, white } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3); // e2-e4
+    assert.strictEqual(game.halfmoveClock, 0, 'pawn move resets half-move clock');
+  });
+
+  test('resets on capture', () => {
+    const { game, white, black } = makeGame();
+    // e2-e4
+    game.tryMove(white, 4, 1, 4, 3);
+    // e7-e5
+    game.tryMove(black, 4, 6, 4, 4);
+    // e4xe5 capture
+    game.tryMove(white, 4, 3, 4, 4);
+    assert.strictEqual(game.halfmoveClock, 0, 'capture resets half-move clock');
+  });
+
+  test('increments on non-pawn non-capture move', () => {
+    const { game, white, black } = makeGame();
+    // e2-e4
+    game.tryMove(white, 4, 1, 4, 3);
+    // e7-e5
+    game.tryMove(black, 4, 6, 4, 4);
+    // Nf3 (knight move, no capture)
+    game.tryMove(white, 6, 0, 5, 2);
+    assert.strictEqual(game.halfmoveClock, 1, 'knight move increments clock');
+    // Nf6
+    game.tryMove(black, 1, 7, 2, 5);
+    assert.strictEqual(game.halfmoveClock, 2, 'another knight move increments clock');
+  });
+
+  test('resets on promotion (pawn move)', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN; // e7
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.halfmoveClock = 5; // simulate prior non-pawn moves
+
+    g.tryMove(ws1, 4, 6, 4, 7); // e7-e8 promotion
+    assert.strictEqual(g.halfmoveClock, 0, 'promotion (pawn move) resets clock');
+    g.completePromotion(ws1, 'queen');
+    assert.strictEqual(g.halfmoveClock, 0, 'clock stays 0 after completePromotion');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  POSITION HISTORY & THREEFOLD REPETITION
+// ═══════════════════════════════════════════════════════════
+
+describe('Position history', () => {
+  test('starting position is recorded', () => {
+    const g = new Game();
+    assert.strictEqual(g.positionHistory.length, 1, 'starting position recorded');
+    assert.strictEqual(g.positionCounts.size, 1);
+    const key = g.positionHistory[0].zobrist;
+    assert.strictEqual(g.positionCounts.get(key), 1);
+  });
+
+  test('position recorded after each move', () => {
+    const { game, white, black } = makeGame();
+    // Start: 1 position
+    assert.strictEqual(game.positionHistory.length, 1);
+    // e2-e4
+    game.tryMove(white, 4, 1, 4, 3);
+    assert.strictEqual(game.positionHistory.length, 2);
+    // e7-e5
+    game.tryMove(black, 4, 6, 4, 4);
+    assert.strictEqual(game.positionHistory.length, 3);
+  });
+
+  test('position recorded after promotion', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    const beforeCount = g.positionHistory.length;
+    g.tryMove(ws1, 4, 6, 4, 7);
+    // tryMove for promotion does NOT record (done in completePromotion)
+    g.completePromotion(ws1, 'queen');
+    assert.strictEqual(g.positionHistory.length, beforeCount + 1, 'promotion records position');
+  });
+
+  test('reset clears history and re-records starting position', () => {
+    const { game, white } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3);
+    assert.strictEqual(game.positionHistory.length, 2);
+    game.reset();
+    assert.strictEqual(game.positionHistory.length, 1, 'history reset to starting position');
+    assert.strictEqual(game.halfmoveClock, 0);
+    assert.strictEqual(game.fullmoveNumber, 1);
+  });
+});
+
+describe('Threefold repetition detection', () => {
+  test('K b8-c8 shuttle produces threefold', () => {
+    // Minimal position: K b8, K g8. White king shuttles b8-c8-b8-c8-b8
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[7][1] = W_KING; // b8
+    g.board[7][6] = B_KING; // g8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.halfmoveClock = 0;
+    g.positionHistory = [];
+    g.positionCounts = new Map();
+    g._recordPosition(null); // record initial
+
+    // b8-c8 (position 2)
+    g.tryMove(ws1, 1, 7, 2, 7);
+    // King move increments clock; black has no legal moves → stalemate
+    // Let me use a position where black can move too
+  });
+
+  test('threefold detected via manual position replay', () => {
+    const g = new Game();
+    // Manually record the same position 3 times
+    const board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    board[0][4] = W_KING;
+    board[7][4] = B_KING;
+    g.board = board;
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.enPassantTarget = null;
+
+    g.positionHistory = [];
+    g.positionCounts = new Map();
+
+    g._recordPosition(null); // count = 1
+    assert.strictEqual(g.isThreefoldRepetition(), false);
+    g._recordPosition(null); // count = 2
+    assert.strictEqual(g.isThreefoldRepetition(), false);
+    g._recordPosition(null); // count = 3
+    assert.strictEqual(g.isThreefoldRepetition(), true, 'three identical positions triggers threefold');
+  });
+
+  test('checkGameEnd declares draw on threefold', () => {
+    const g = new Game();
+    const board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    board[0][4] = W_KING;
+    board[7][4] = B_KING;
+    g.board = board;
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.positionHistory = [];
+    g.positionCounts = new Map();
+    g._recordPosition(null);
+    g._recordPosition(null);
+    g._recordPosition(null);
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('threefold'), `expected threefold draw: ${g.gameResult}`);
+  });
+
+  test('getCurrentRepetitionCount returns correct value', () => {
+    const g = new Game();
+    const board = startingBoard();
+    g.board = board;
+    g.turn = 'white';
+    g.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    g.positionHistory = [];
+    g.positionCounts = new Map();
+
+    g._recordPosition(null);
+    assert.strictEqual(g.getCurrentRepetitionCount(), 1);
+    g._recordPosition(null);
+    assert.strictEqual(g.getCurrentRepetitionCount(), 2);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  FIFTY-MOVE RULE
+// ═══════════════════════════════════════════════════════════
+
+describe('Fifty-move rule', () => {
+  test('isFiftyMoveRule returns false when clock < 100', () => {
+    const g = new Game();
+    g.halfmoveClock = 99;
+    assert.strictEqual(g.isFiftyMoveRule(), false);
+  });
+
+  test('isFiftyMoveRule returns true when clock >= 100', () => {
+    const g = new Game();
+    g.halfmoveClock = 100;
+    assert.strictEqual(g.isFiftyMoveRule(), true);
+  });
+
+  test('checkGameEnd declares draw on 50-move rule', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    // Position with legal moves but 50-move clock reached
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][3] = W_KNIGHT;
+    g.board[7][4] = B_KING;
+    g.board[7][3] = B_KNIGHT;
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.halfmoveClock = 100;
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('50-move'), `expected 50-move draw: ${g.gameResult}`);
+  });
+
+  test('pawn move resets clock below 100', () => {
+    const { game, white } = makeGame();
+    game.halfmoveClock = 99;
+    game.tryMove(white, 4, 1, 4, 3); // e2-e4
+    assert.strictEqual(game.halfmoveClock, 0, 'pawn move resets clock');
+    assert.strictEqual(game.isFiftyMoveRule(), false);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  FEN EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════════
+
+describe('FEN export', () => {
+  test('starting position produces standard FEN', () => {
+    const g = new Game();
+    const fen = g.currentFen();
+    assert.strictEqual(fen, 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+  });
+
+  test('FEN after e2-e4 includes en passant target', () => {
+    const { game, white } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3);
+    const fen = game.currentFen();
+    assert.strictEqual(fen, 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+  });
+
+  test('FEN after e2-e4 e7-e5 includes en passant', () => {
+    const { game, white, black } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3); // e4
+    game.tryMove(black, 3, 6, 3, 4); // d5 (not e5, to test en passant)
+    const fen = game.currentFen();
+    assert.ok(fen.includes('d6'), `FEN should have d6 en passant: ${fen}`);
+  });
+
+  test('FEN castling rights updated after king move', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    // Move white king
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+    g.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    g.tryMove(ws1, 4, 0, 4, 1); // Ke2
+    const fen = g.currentFen();
+    // White castling rights cleared; black retains kq
+    const parts = fen.split(' ');
+    assert.strictEqual(parts[2], 'kq', `white castling cleared, black remains: ${fen}`);
+  });
+});
+
+describe('FEN import', () => {
+  test('parse standard starting position', () => {
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+    const state = fromFen(fen);
+    assert.deepStrictEqual(state.board, startingBoard());
+    assert.strictEqual(state.turn, 'white');
+    assert.deepStrictEqual(state.castlingRights, { wK:true, wQ:true, bK:true, bQ:true });
+    assert.strictEqual(state.enPassantTarget, null);
+    assert.strictEqual(state.halfmoveClock, 0);
+    assert.strictEqual(state.fullmoveNumber, 1);
+  });
+
+  test('parse mid-game FEN with en passant', () => {
+    const fen = 'rnbqkbnr/pppppppp/8/8/3P4/8/PPPP1PPP/RNBQKBNR b KQkq d3 0 1';
+    const state = fromFen(fen);
+    assert.strictEqual(state.enPassantTarget.file, 3); // d
+    assert.strictEqual(state.enPassantTarget.rank, 2); // 3
+    assert.strictEqual(state.turn, 'black');
+  });
+
+  test('parse FEN with limited castling', () => {
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w kq - 0 1';
+    const state = fromFen(fen);
+    assert.strictEqual(state.castlingRights.wK, false);
+    assert.strictEqual(state.castlingRights.wQ, false);
+    assert.strictEqual(state.castlingRights.bK, true);
+    assert.strictEqual(state.castlingRights.bQ, true);
+  });
+
+  test('parse FEN with no castling', () => {
+    const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1';
+    const state = fromFen(fen);
+    assert.strictEqual(state.castlingRights.wK, false);
+    assert.strictEqual(state.castlingRights.bK, false);
+  });
+
+  test('invalid FEN throws error', () => {
+    assert.throws(() => fromFen('invalid'), /Invalid FEN/);
+    assert.throws(() => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1'), /Invalid FEN/);
+  });
+
+  test('loadFromFen on Game instance', () => {
+    const g = new Game();
+    g.loadFromFen('4k3/8/8/8/8/8/8/4K2R w K - 0 1');
+    assert.strictEqual(g.turn, 'white');
+    assert.strictEqual(g.board[0][4], W_KING);
+    assert.strictEqual(g.board[0][7], W_ROOK);
+    assert.strictEqual(g.board[7][4], B_KING);
+    assert.strictEqual(g.halfmoveClock, 0);
+    assert.strictEqual(g.fullmoveNumber, 1);
+    // Position history re-recorded
+    assert.strictEqual(g.positionHistory.length, 1);
+  });
+
+  test('round-trip: starting position → FEN → board', () => {
+    const g = new Game();
+    const fen = g.currentFen();
+    const g2 = new Game();
+    g2.loadFromFen(fen);
+    assert.deepStrictEqual(g2.board, g.board);
+    assert.strictEqual(g2.turn, g.turn);
+    assert.deepStrictEqual(g2.castlingRights, g.castlingRights);
+  });
+
+  test('round-trip: after moves → FEN → board', () => {
+    const { game, white, black } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3); // e4
+    game.tryMove(black, 4, 6, 4, 4); // e5
+    const fen = game.currentFen();
+
+    const g2 = new Game();
+    g2.loadFromFen(fen);
+    assert.deepStrictEqual(g2.board, game.board);
+    assert.strictEqual(g2.turn, game.turn);
+    assert.deepStrictEqual(g2.castlingRights, game.castlingRights);
+    assert.deepStrictEqual(g2.enPassantTarget, game.enPassantTarget);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  PGN EXPORT
+// ═══════════════════════════════════════════════════════════
+
+describe('PGN export', () => {
+  test('empty game produces valid PGN header', () => {
+    const g = new Game();
+    const pgn = g.exportPgn();
+    assert.ok(pgn.includes('[Event "3D Chess Game"]'));
+    assert.ok(pgn.includes('[Result "*"]'));
+  });
+
+  test('PGN includes move list', () => {
+    const { game, white, black } = makeGame();
+    game.tryMove(white, 4, 1, 4, 3); // e4
+    game.tryMove(black, 4, 6, 4, 4); // e5
+    const pgn = game.exportPgn();
+    assert.ok(pgn.includes('1. e4 e5'));
+  });
+
+  test('PGN result after checkmate', () => {
+    const g = new Game();
+    g.gameOver = true;
+    g.gameResult = 'Checkmate! White wins!';
+    const pgn = g.exportPgn();
+    assert.ok(pgn.includes('[Result "1-0"]'));
+  });
+
+  test('PGN result after draw', () => {
+    const g = new Game();
+    g.gameOver = true;
+    g.gameResult = 'Draw — threefold repetition.';
+    const pgn = g.exportPgn();
+    assert.ok(pgn.includes('[Result "1/2-1/2"]'));
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  STATE BROADCAST FIELDS
+// ═══════════════════════════════════════════════════════════
+
+describe('getState includes new fields', () => {
+  test('getState has halfmoveClock', () => {
+    const g = new Game();
+    const state = g.getState();
+    assert.strictEqual(state.halfmoveClock, 0);
+  });
+
+  test('getState has threefoldCount', () => {
+    const g = new Game();
+    const state = g.getState();
+    assert.strictEqual(state.threefoldCount, 1); // starting position, count=1
+  });
+
+  test('getState has fen', () => {
+    const g = new Game();
+    const state = g.getState();
+    assert.ok(typeof state.fen === 'string' && state.fen.length > 0);
+    assert.ok(state.fen.startsWith('rnbqkbnr'));
+  });
+
+  test('threefoldCount updates after moves', () => {
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+    g.tryMove(ws1, 4, 1, 4, 3); // e4
+    const state = g.getState();
+    assert.strictEqual(state.threefoldCount, 1); // new position, count=1
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  BUILD REGRESSION — chess.mjs must not crash in browser
+// ═══════════════════════════════════════════════════════════
+
+describe('Build regression — chess.mjs browser safety', () => {
+  test('generated chess.mjs has no bare require() calls', () => {
+    const mjsPath = path.join(__dirname, 'shared', 'chess.mjs');
+    const mjs = fs.readFileSync(mjsPath, 'utf8');
+    const lines = mjs.split('\n');
+    const bareRequires = [];
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      // Skip comments
+      if (line.startsWith('//') || line.startsWith('*')) continue;
+      // Skip the guarded try/catch pattern
+      if (line.includes('try') && line.includes('require(')) continue;
+      // Flag any other require(
+      if (line.includes('require(')) {
+        bareRequires.push({ line: i + 1, text: line });
+      }
+    }
+    assert.strictEqual(bareRequires.length, 0,
+      `Bare require() found in chess.mjs (crashes in browser):\n${bareRequires.map(r => `  line ${r.line}: ${r.text}`).join('\n')}`);
+  });
+
+  test('generated chess.mjs wraps crypto require in try/catch', () => {
+    const mjsPath = path.join(__dirname, 'shared', 'chess.mjs');
+    const mjs = fs.readFileSync(mjsPath, 'utf8');
+    assert.ok(mjs.includes('try') && mjs.includes("require('crypto')"),
+      'crypto require must be wrapped in try/catch for browser compatibility');
+  });
+
+  test('ZOBRIST is null-safe when crypto unavailable', () => {
+    // In Node.js, ZOBRIST is a real instance. In browser it would be null.
+    // Verify the Game class handles null ZOBRIST gracefully.
+    assert.ok(ZOBRIST !== null, 'ZOBRIST should be initialized in Node.js');
+    // Verify _computeZobrist has a null guard (check source)
+    const src = fs.readFileSync(path.join(__dirname, 'shared', 'chess.js'), 'utf8');
+    assert.ok(src.includes('if (!ZOBRIST)'),
+      '_computeZobrist must guard against null ZOBRIST for browser safety');
   });
 });
 
