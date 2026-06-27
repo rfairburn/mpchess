@@ -28,6 +28,7 @@
         <button id="btn-export-fen">Export FEN</button>
         <button id="btn-export-pgn">Export PGN</button>
       </div>
+      <button id="btn-import-fen">Import FEN</button>
       <div id="sensitivity-row">
         <label for="sensitivity-slider">Mouse Sensitivity</label>
         <input type="range" id="sensitivity-slider" min="1" max="100" value="20">
@@ -56,6 +57,18 @@
       <div id="concede-actions">
         <button id="btn-concede-cancel" class="cancel">Cancel</button>
         <button id="btn-concede-confirm">Concede</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="import-fen-overlay">
+    <div id="import-fen-box">
+      <h3>Import FEN</h3>
+      <p>Paste a FEN string to load a position</p>
+      <textarea id="fen-input" placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" rows="3"></textarea>
+      <div id="import-fen-actions">
+        <button id="btn-import-fen-cancel" class="cancel">Cancel</button>
+        <button id="btn-import-fen-confirm">Import</button>
       </div>
     </div>
   </div>

@@ -340,6 +340,27 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           send(ws, { type: 'pgnExport', pgn: game.exportPgn() });
           break;
         }
+        case 'importFen': {
+          if (!game.players.has(ws)) {
+            send(ws, { type: 'error', reason: 'Only players can import FEN' });
+            break;
+          }
+          const fen = msg.fen;
+          if (typeof fen !== 'string' || !fen.trim()) {
+            send(ws, { type: 'error', reason: 'Invalid FEN string' });
+            break;
+          }
+          try {
+            game.loadFromFen(fen.trim());
+            for (const c of wss.clients) {
+              if (c.readyState === 1) sendState(c);
+            }
+            broadcast({ type: 'restart' });
+          } catch (e) {
+            send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });
+          }
+          break;
+        }
       }
     });
 
@@ -439,6 +460,31 @@ const server = http.createServer((req, res) => {
 });
 
 if (require.main === module) {
+  // CLI help
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+Usage: node server.js [options]
+
+Options:
+  --help, -h          Show this help message
+  --fen=<fen_string>  Load a custom starting position (first game only;
+                      restarts reset to standard setup)
+  --port=<number>     Override PORT env var for the HTTP/WebSocket server
+
+Examples:
+  node server.js
+  node server.js --fen="4k3/8/8/8/8/8/8/4K2R w K - 0 1"
+  PORT=8080 node server.js --fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+`);
+    process.exit(0);
+  }
+
+  // Optional: override PORT from CLI
+  const portArg = process.argv.find(a => a.startsWith('--port='));
+  if (portArg) {
+    process.env.PORT = portArg.slice(7);
+  }
+
   const wss = new WebSocketServer({ server });
   const game = new Game();
 

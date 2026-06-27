@@ -354,6 +354,12 @@ export function sendExportPgn() {
   }
 }
 
+export function sendImportFen(fen) {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'importFen', fen }));
+  }
+}
+
 export function isReconnecting() {
   return reconnecting;
 }

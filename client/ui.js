@@ -7,7 +7,7 @@ import {
   moveHistory, disconnectedPlayersInfo, seatStatus, tokenKey, validatedTokens,
   halfmoveClock, threefoldCount, currentFen,
   sendPromotion, sendRestart, sendConcede, sendDropPlayer, sendJoin,
-  sendExportFen, sendExportPgn,
+  sendExportFen, sendExportPgn, sendImportFen,
   onStateUpdate, onRestart, onError, onReconnecting, onReconnected,
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
   onConnected
@@ -32,6 +32,13 @@ const btnConcedeConfirm = document.getElementById('btn-concede-confirm');
 const btnConcedeCancel = document.getElementById('btn-concede-cancel');
 const capturedWhitePieces = document.querySelector('#captured-white .cap-pieces');
 const capturedBlackPieces = document.querySelector('#captured-black .cap-pieces');
+
+// Import FEN overlay
+const importFenOverlay = document.getElementById('import-fen-overlay');
+const fenInput = document.getElementById('fen-input');
+const btnImportFen = document.getElementById('btn-import-fen');
+const btnImportFenConfirm = document.getElementById('btn-import-fen-confirm');
+const btnImportFenCancel = document.getElementById('btn-import-fen-cancel');
 
 // Reconnection UI
 const reconnectingOverlay = document.getElementById('reconnecting-overlay');
@@ -186,6 +193,7 @@ export function showMenu() {
   const isSpectator = myRole === 'spectator';
   btnRestart.disabled = isSpectator;
   btnConcede.disabled = isSpectator || serverGameOver;
+  btnImportFen.disabled = isSpectator;
 }
 
 export function hideMenu() {
@@ -269,6 +277,37 @@ export function hideConcedeConfirm() {
 btnConcede.addEventListener('click', () => showConcedeConfirm());
 btnConcedeConfirm.addEventListener('click', () => { sendConcede(); hideConcedeConfirm(); });
 btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
+
+// ── Import FEN ───────────────────────────────────────────
+
+export function showImportFenDialog() {
+  hideMenu();
+  fenInput.value = '';
+  importFenOverlay.classList.add('visible');
+  setTimeout(() => fenInput.focus(), 50);
+}
+
+export function hideImportFenDialog() {
+  importFenOverlay.classList.remove('visible');
+}
+
+btnImportFen.addEventListener('click', () => showImportFenDialog());
+btnImportFenConfirm.addEventListener('click', () => {
+  const fen = fenInput.value.trim();
+  if (fen) {
+    sendImportFen(fen);
+    hideImportFenDialog();
+  }
+});
+btnImportFenCancel.addEventListener('click', () => hideImportFenDialog());
+
+// Allow Enter to submit FEN from the textarea
+fenInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    btnImportFenConfirm.click();
+  }
+});
 
 // ── Unified state update handler ────────────────────────
 
