@@ -612,8 +612,20 @@ Examples:
         cb(true);
         return;
       }
-      const ok = allowedOrigins.some((allowed) => origin.includes(allowed));
-      cb(ok, ok ? 200 : 403);
+      try {
+        const url = new URL(origin);
+        const ok = allowedOrigins.some((allowed) => {
+          // Exact origin match (e.g. "https://chess.example.com")
+          if (url.origin === allowed) return true;
+          // Exact hostname match (e.g. "chess.example.com")
+          if (url.hostname === allowed) return true;
+          return false;
+        });
+        cb(ok, ok ? 200 : 403);
+      } catch {
+        // Malformed origin header — reject
+        cb(false, 403);
+      }
     };
   }
 

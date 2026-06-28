@@ -41,44 +41,39 @@ const {
 
 const fs = require('fs');
 
-// ── Minimal test runner ──────────────────────────────────
+// ── Test runner — buffered output, prints in declaration order ──
 let passed = 0;
 let failed = 0;
 let total = 0;
-const pendingPromises = []; // collect async test promises
+const pendingPromises = [];
+const results = []; // { label | null, name, ok, err }
 
 function test(name, fn) {
   total++;
+  const idx = results.length;
+  results.push({ label: null, name, ok: null, err: null });
   try {
     const result = fn();
     if (result && typeof result.then === 'function') {
-      // Async test — collect the promise for later resolution
       pendingPromises.push(
         result.then(
-          () => {
-            passed++;
-            console.log(`  ✓ ${name}`);
-          },
-          (e) => {
-            failed++;
-            console.log(`  ✗ ${name}`);
-            console.log(`    ${e.message}`);
-          }
+          () => { passed++; results[idx].ok = true; },
+          (e) => { failed++; results[idx].ok = false; results[idx].err = e.message; }
         )
       );
     } else {
       passed++;
-      console.log(`  ✓ ${name}`);
+      results[idx].ok = true;
     }
   } catch (e) {
     failed++;
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${e.message}`);
+    results[idx].ok = false;
+    results[idx].err = e.message;
   }
 }
 
 function describe(label, fn) {
-  console.log(`\n${label}`);
+  results.push({ label, name: null, ok: null, err: null });
   fn();
 }
 
@@ -2352,13 +2347,25 @@ describe('TLS CLI arguments', () => {
 
   // Each test gets a unique port to avoid EADDRINUSE / TIME_WAIT conflicts
   let portCounter = 49000;
+
+  // Track all child processes so we can kill them on exit
+  const childProcesses = [];
+  const killAllChildren = () => {
+    for (const child of childProcesses) {
+      try { child.kill('SIGKILL'); } catch {}
+    }
+    childProcesses.length = 0;
+  };
+  process.on('exit', killAllChildren);
+  process.on('SIGINT', killAllChildren);
+  process.on('SIGTERM', killAllChildren);
   function nextPort() {
     return ++portCounter;
   }
 
   function runServer(args, timeout) {
     const t = timeout || 3000;
-    const port = nextPort();
+    let port = nextPort();
 
     // Use spawn so we can explicitly kill the child after capturing output.
     // execSync with a timeout leaves the process in an undefined state,
@@ -2372,19 +2379,25 @@ describe('TLS CLI arguments', () => {
         stdio: ['pipe', 'pipe', 'pipe'],
       }
     );
+    childProcesses.push(child);
+    child.on('close', () => {
+      const idx = childProcesses.indexOf(child);
+      if (idx >= 0) childProcesses.splice(idx, 1);
+    });
 
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (d) => {
-      stdout += d.toString();
-    });
-    child.stderr.on('data', (d) => {
-      stderr += d.toString();
-    });
 
     // Wait for the startup banner (or TLS warning/fallback) then kill immediately
     return new Promise((resolve) => {
       let killed = false;
+      let resolved = false;
+      const resolveOnce = (result) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(result);
+        }
+      };
       const tryKill = () => {
         if (!killed) {
           killed = true;
@@ -2401,6 +2414,11 @@ describe('TLS CLI arguments', () => {
         stderr += data.toString();
         if (stderr.includes('Falling back to HTTP') || stderr.includes('Running in HTTP mode'))
           tryKill();
+        // If the port was already in use, the child crashes with EADDRINUSE.
+        // Resolve immediately so the test can report the error.
+        if (stderr.includes('EADDRINUSE')) {
+          tryKill();
+        }
       };
       child.stdout.on('data', handleStdout);
       child.stderr.on('data', handleStderr);
@@ -2410,16 +2428,16 @@ describe('TLS CLI arguments', () => {
         try {
           child.kill('SIGKILL');
         } catch {}
-        resolve({ stdout, stderr, port });
+        resolveOnce({ stdout, stderr, port });
       }, t);
 
       child.on('close', () => {
         clearTimeout(safety);
-        resolve({ stdout, stderr, port });
+        resolveOnce({ stdout, stderr, port });
       });
       child.on('error', () => {
         clearTimeout(safety);
-        resolve({ stdout, stderr, port });
+        resolveOnce({ stdout, stderr, port });
       });
     });
   }
@@ -2516,11 +2534,22 @@ describe('TLS CLI arguments', () => {
   });
 });
 
-// ── Summary ──────────────────────────────────────────────
+// ── Summary — print everything in declaration order ──────
 async function printResults() {
-  // Wait for any async tests to settle before printing
   if (pendingPromises.length > 0) {
     await Promise.all(pendingPromises);
+  }
+  for (const r of results) {
+    if (r.label) {
+      console.log(`\n${r.label}`);
+    } else {
+      if (r.ok) {
+        console.log(`  ✓ ${r.name}`);
+      } else {
+        console.log(`  ✗ ${r.name}`);
+        console.log(`    ${r.err}`);
+      }
+    }
   }
   console.log(`\n${'='.repeat(50)}`);
   console.log(`Results: ${passed}/${total} passed, ${failed} failed`);

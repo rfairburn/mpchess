@@ -70,57 +70,41 @@ class MockWebSocketServer {
   }
 }
 
-// ── Test runner (matches test_chess.js format) ────────────
+// ── Test runner — buffered output, prints in declaration order ──
 
 let passed = 0;
 let failed = 0;
 let total = 0;
-let asyncTestsPending = 0;
-let resultsPrinted = false;
+const pendingPromises = [];
+const results = []; // { label | null, name, ok, err } — one entry per describe header + per test
 
 function test(name, fn) {
   total++;
+  const idx = results.length;
+  results.push({ label: null, name, ok: null, err: null });
   try {
-    fn();
-    passed++;
-    console.log(`  ✓ ${name}`);
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      pendingPromises.push(
+        result.then(
+          () => { passed++; results[idx].ok = true; },
+          (e) => { failed++; results[idx].ok = false; results[idx].err = e.message; }
+        )
+      );
+    } else {
+      passed++;
+      results[idx].ok = true;
+    }
   } catch (e) {
     failed++;
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${e.message}`);
+    results[idx].ok = false;
+    results[idx].err = e.message;
   }
 }
 
 function describe(label, fn) {
-  console.log(`\n${label}`);
+  results.push({ label, name: null, ok: null, err: null });
   fn();
-}
-
-// Async test that waits for done() callback
-function asyncTest(name, fn) {
-  total++;
-  console.log(`  ${name}`);
-  asyncTestsPending++;
-  try {
-    fn(() => {
-      passed++;
-      console.log(`    ✓ passed`);
-      asyncTestsPending--;
-      checkAllDone();
-    });
-  } catch (e) {
-    failed++;
-    console.log(`    ✗ ${e.message}`);
-    asyncTestsPending--;
-    checkAllDone();
-  }
-}
-
-function checkAllDone() {
-  if (asyncTestsPending <= 0 && !resultsPrinted) {
-    resultsPrinted = true;
-    printResults();
-  }
 }
 
 // ── Helpers ───────────────────────────────────────────────
@@ -358,40 +342,36 @@ describe('State includes disconnectedPlayers array', () => {
 // ── Async tests (require timers) ──────────────────────────
 
 describe('Both disconnected — no spectators, timer still fires', () => {
-  asyncTest('seats freed and game reset', (done) => {
+  test('seats freed and game reset', async () => {
     const { wss, handlers, game } = createTestEnv(5);
     const ws1 = joinAs(wss, 'white');
     const ws2 = joinAs(wss, 'black');
     wss.simulateDisconnect(ws1);
     wss.simulateDisconnect(ws2);
     assert.strictEqual(handlers.disconnectedPlayers.size, 2);
-    setTimeout(() => {
-      assert.strictEqual(handlers.disconnectedPlayers.size, 0);
-      assert.strictEqual(game.turn, 'white');
-      done();
-    }, 20);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(game.turn, 'white');
   });
 });
 
 describe('Both disconnected — with spectator, auto-free', () => {
-  asyncTest('spectator receives gameAvailable after timeout', (done) => {
+  test('spectator receives gameAvailable after timeout', async () => {
     const { wss, handlers, game } = createTestEnv(5);
     const ws1 = joinAs(wss, 'white');
     const ws2 = joinAs(wss, 'black');
     const ws3 = joinAs(wss, 'spectator');
     wss.simulateDisconnect(ws1);
     wss.simulateDisconnect(ws2);
-    setTimeout(() => {
-      assert.strictEqual(handlers.disconnectedPlayers.size, 0);
-      assert.strictEqual(ws3.getSent('gameAvailable').length, 1);
-      assert.strictEqual(game.turn, 'white');
-      done();
-    }, 20);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(ws3.getSent('gameAvailable').length, 1);
+    assert.strictEqual(game.turn, 'white');
   });
 });
 
 describe('One reconnects during both-disconnected — timer stops', () => {
-  asyncTest('timer stopped — remaining seat still held', (done) => {
+  test('timer stopped — remaining seat still held', async () => {
     const { wss, handlers } = createTestEnv(500);
     const ws1 = joinAs(wss, 'white');
     const token1 = safeGet(ws1.getSent('joined')[0], 'token');
@@ -406,15 +386,13 @@ describe('One reconnects during both-disconnected — timer stops', () => {
     assert.strictEqual(ws1_new.getSent('reconnected').length, 1);
     assert.strictEqual(handlers.disconnectedPlayers.size, 1);
     assert.ok(handlers.disconnectedPlayers.has(token2));
-    setTimeout(() => {
-      assert.strictEqual(handlers.disconnectedPlayers.size, 1);
-      done();
-    }, 20);
+    await new Promise((r) => setTimeout(r, 20));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 1);
   });
 });
 
 describe('Spectator connects while both disconnected — timer starts', () => {
-  asyncTest('seats freed after spectator joined', (done) => {
+  test('seats freed after spectator joined', async () => {
     const { wss, handlers } = createTestEnv(10);
     const ws1 = joinAs(wss, 'white');
     const ws2 = joinAs(wss, 'black');
@@ -423,16 +401,14 @@ describe('Spectator connects while both disconnected — timer starts', () => {
     assert.strictEqual(handlers.disconnectedPlayers.size, 2);
     const ws3 = joinAs(wss, 'spectator');
     assert.strictEqual(handlers.disconnectedPlayers.size, 2);
-    setTimeout(() => {
-      assert.strictEqual(handlers.disconnectedPlayers.size, 0);
-      assert.strictEqual(ws3.getSent('gameAvailable').length, 1);
-      done();
-    }, 50);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(ws3.getSent('gameAvailable').length, 1);
   });
 });
 
 describe('Reconnect after both-disconnected timer expired', () => {
-  asyncTest('token invalidated, must join fresh', (done) => {
+  test('token invalidated, must join fresh', async () => {
     const { wss, handlers, game } = createTestEnv(10);
     const ws1 = joinAs(wss, 'white');
     const token1 = safeGet(ws1.getSent('joined')[0], 'token');
@@ -440,23 +416,21 @@ describe('Reconnect after both-disconnected timer expired', () => {
     wss.simulateDisconnect(ws1);
     wss.simulateDisconnect(ws2);
     assert.strictEqual(handlers.disconnectedPlayers.size, 2);
-    setTimeout(() => {
-      assert.strictEqual(handlers.disconnectedPlayers.size, 0);
-      assert.strictEqual(handlers.disconnectedPlayers.has(token1), false);
-      const ws1_new = wss.simulateConnection();
-      ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
-      assert.strictEqual(ws1_new.getSent('reconnectFailed').length, 1);
-      assert.strictEqual(handlers.sessions.has(ws1_new), false);
-      ws1_new.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
-      const joinedMsgs = ws1_new.getSent('joined');
-      assert.ok(joinedMsgs.length >= 1);
-      const newToken = safeGet(joinedMsgs[joinedMsgs.length - 1], 'token');
-      assert.ok(newToken);
-      assert.notStrictEqual(newToken, token1);
-      assert.strictEqual(safeGet(joinedMsgs[joinedMsgs.length - 1], 'color'), 'white');
-      assert.ok(handlers.sessions.has(ws1_new));
-      done();
-    }, 50);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(handlers.disconnectedPlayers.has(token1), false);
+    const ws1_new = wss.simulateConnection();
+    ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+    assert.strictEqual(ws1_new.getSent('reconnectFailed').length, 1);
+    assert.strictEqual(handlers.sessions.has(ws1_new), false);
+    ws1_new.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    const joinedMsgs = ws1_new.getSent('joined');
+    assert.ok(joinedMsgs.length >= 1);
+    const newToken = safeGet(joinedMsgs[joinedMsgs.length - 1], 'token');
+    assert.ok(newToken);
+    assert.notStrictEqual(newToken, token1);
+    assert.strictEqual(safeGet(joinedMsgs[joinedMsgs.length - 1], 'color'), 'white');
+    assert.ok(handlers.sessions.has(ws1_new));
   });
 });
 
@@ -1029,7 +1003,7 @@ describe('Rate limiter — configurable limits', () => {
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
   });
 
-  test('window resets after rateLimitWindow expires', () => {
+  test('window resets after rateLimitWindow expires', async () => {
     const game = new Game();
     const wss = new MockWebSocketServer();
     const handlers = setupWebSocketHandlers(wss, game, {
@@ -1057,18 +1031,14 @@ describe('Rate limiter — configurable limits', () => {
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
 
     // Wait for window to expire
-    asyncTest('window resets after rateLimitWindow expires', (done) => {
-      setTimeout(() => {
-        // After window expires, new messages should be allowed
-        ws.emit(
-          'message',
-          JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
-        );
-        // Should not be rate limited anymore
-        assert.strictEqual(ws.getSent('rateLimited').length, 1); // still just the original one
-        done();
-      }, 60);
-    });
+    await new Promise((r) => setTimeout(r, 60));
+    // After window expires, new messages should be allowed
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
+    // Should not be rate limited anymore
+    assert.strictEqual(ws.getSent('rateLimited').length, 1); // still just the original one
   });
 });
 
@@ -1203,19 +1173,28 @@ describe('Rate limiter — malformed messages count toward limit', () => {
   });
 });
 
-// ── Results ───────────────────────────────────────────────
+// ── Results — print everything in declaration order ──────
 
-function printResults() {
+async function printResults() {
+  if (pendingPromises.length > 0) {
+    await Promise.all(pendingPromises);
+  }
+  // Now print all results in declaration order
+  for (const r of results) {
+    if (r.label) {
+      console.log(`\n${r.label}`);
+    } else {
+      if (r.ok) {
+        console.log(`  ✓ ${r.name}`);
+      } else {
+        console.log(`  ✗ ${r.name}`);
+        console.log(`    ${r.err}`);
+      }
+    }
+  }
   console.log(`\n${'='.repeat(50)}`);
   console.log(`Results: ${passed}/${total} passed, ${failed} failed`);
   if (failed > 0) process.exit(1);
 }
 
-// Safety net: if async tests hang, print results after 3s
-setTimeout(() => {
-  if (!resultsPrinted) {
-    resultsPrinted = true;
-    console.log('\n[WARNING: async tests did not complete in time]');
-    printResults();
-  }
-}, 3000);
+printResults();

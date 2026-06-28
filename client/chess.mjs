@@ -645,6 +645,13 @@ class Game {
   }
 
   tryMove(ws, fromFile, fromRank, toFile, toRank) {
+    // Validate coordinates are integers in [0, 7]
+    for (const v of [fromFile, fromRank, toFile, toRank]) {
+      if (!Number.isInteger(v) || v < 0 || v > 7) {
+        return { ok: false, reason: 'Invalid move' };
+      }
+    }
+
     const piece = this.board[fromRank][fromFile];
     if (piece === 0) return { ok: false, reason: 'No piece there' };
     const color = pieceColor(piece);
