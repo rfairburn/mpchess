@@ -21,17 +21,26 @@ const fs = require('fs');
 let passed = 0;
 let failed = 0;
 let total = 0;
+const pendingPromises = []; // collect async test promises
 
 function test(name, fn) {
   total++;
-  try {
-    fn();
-    passed++;
-    console.log(`  ✓ ${name}`);
-  } catch (e) {
-    failed++;
-    console.log(`  ✗ ${name}`);
-    console.log(`    ${e.message}`);
+  const result = fn();
+  if (result && typeof result.then === 'function') {
+    // Async test — collect the promise for later resolution
+    pendingPromises.push(result.then(
+      () => { passed++; console.log(`  ✓ ${name}`); },
+      (e) => { failed++; console.log(`  ✗ ${name}`); console.log(`    ${e.message}`); }
+    ));
+  } else {
+    try {
+      passed++;
+      console.log(`  ✓ ${name}`);
+    } catch (e) {
+      failed++;
+      console.log(`  ✗ ${name}`);
+      console.log(`    ${e.message}`);
+    }
   }
 }
 
@@ -1897,7 +1906,7 @@ describe('Build regression — chess.mjs browser safety', () => {
 });
 
 describe('TLS CLI arguments', () => {
-  const { execSync } = require('child_process');
+  const { execSync, spawn } = require('child_process');
   const serverPath = path.join(__dirname, 'server.js');
 
   // Each test gets a unique port to avoid EADDRINUSE / TIME_WAIT conflicts
@@ -1907,68 +1916,101 @@ describe('TLS CLI arguments', () => {
   function runServer(args, timeout) {
     const t = timeout || 3000;
     const port = nextPort();
-    try {
-      const output = execSync(`node "${serverPath}" ${args}`, {
-        timeout: t,
-        encoding: 'utf8',
-        env: { ...process.env, PORT: String(port) },
-      });
-      return { stdout: output, stderr: '', port };
-    } catch (e) {
-      return {
-        stdout: e.stdout ? e.stdout.toString() : '',
-        stderr: e.stderr ? e.stderr.toString() : '',
-        code: e.status,
-        port,
+
+    // Use spawn so we can explicitly kill the child after capturing output.
+    // execSync with a timeout leaves the process in an undefined state,
+    // causing EADDRINUSE on subsequent test runs.
+    const child = spawn('node', [serverPath, ...args.split(/\s+/).filter(Boolean)], {
+      env: { ...process.env, PORT: String(port) },
+      timeout: t,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', d => { stdout += d.toString(); });
+    child.stderr.on('data', d => { stderr += d.toString(); });
+
+    // Wait for the startup banner (or TLS warning/fallback) then kill immediately
+    return new Promise((resolve) => {
+      let killed = false;
+      const tryKill = () => {
+        if (!killed) { killed = true; try { child.kill('SIGTERM'); } catch {} }
       };
-    }
+      const handleStdout = (data) => {
+        stdout += data.toString();
+        if (stdout.includes('Chess server running on')) tryKill();
+      };
+      const handleStderr = (data) => {
+        stderr += data.toString();
+        if (stderr.includes('Falling back to HTTP') ||
+            stderr.includes('Running in HTTP mode')) tryKill();
+      };
+      child.stdout.on('data', handleStdout);
+      child.stderr.on('data', handleStderr);
+
+      // Safety net: kill after timeout regardless
+      const safety = setTimeout(() => {
+        try { child.kill('SIGKILL'); } catch {}
+        resolve({ stdout, stderr, port });
+      }, t);
+
+      child.on('close', () => {
+        clearTimeout(safety);
+        resolve({ stdout, stderr, port });
+      });
+      child.on('error', () => {
+        clearTimeout(safety);
+        resolve({ stdout, stderr, port });
+      });
+    });
   }
 
   test('--help mentions TLS options', () => {
-    const result = runServer('--help', 5000);
-    const output = result.stdout + result.stderr;
-    assert.ok(output.includes('--cert='), 'help should mention --cert');
-    assert.ok(output.includes('--key='), 'help should mention --key');
-    assert.ok(output.includes('--chain='), 'help should mention --chain');
+    const { execSync: exec } = require('child_process');
+    const result = exec(`node "${serverPath}" --help`, { encoding: 'utf8', timeout: 5000 });
+    assert.ok(result.includes('--cert='), 'help should mention --cert');
+    assert.ok(result.includes('--key='), 'help should mention --key');
+    assert.ok(result.includes('--chain='), 'help should mention --chain');
   });
 
-  test('no TLS args — starts in HTTP mode', () => {
-    const result = runServer('', 3000);
+  test('no TLS args — starts in HTTP mode', async () => {
+    const result = await runServer('', 3000);
     const output = result.stdout + result.stderr;
     assert.ok(output.includes('(http)'), 'should indicate HTTP mode');
     assert.ok(output.includes(`http://localhost:${result.port}`), 'should show http:// URL');
   });
 
-  test('--cert without --key — warns and falls back to HTTP', () => {
-    const result = runServer('--cert=/tmp/nonexistent.crt', 3000);
+  test('--cert without --key — warns and falls back to HTTP', async () => {
+    const result = await runServer('--cert=/tmp/nonexistent.crt', 3000);
     const output = result.stdout + result.stderr;
     assert.ok(output.includes('both --cert and --key'), 'should warn about missing --key');
     assert.ok(output.includes('(http)'), 'should fall back to HTTP');
   });
 
-  test('--key without --cert — warns and falls back to HTTP', () => {
-    const result = runServer('--key=/tmp/nonexistent.key', 3000);
+  test('--key without --cert — warns and falls back to HTTP', async () => {
+    const result = await runServer('--key=/tmp/nonexistent.key', 3000);
     const output = result.stdout + result.stderr;
     assert.ok(output.includes('both --cert and --key'), 'should warn about missing --cert');
     assert.ok(output.includes('(http)'), 'should fall back to HTTP');
   });
 
-  test('--cert + --key with nonexistent files — error logged, falls back to HTTP', () => {
-    const result = runServer('--cert=/tmp/no_such_cert.crt --key=/tmp/no_such_key.key', 3000);
+  test('--cert + --key with nonexistent files — error logged, falls back to HTTP', async () => {
+    const result = await runServer('--cert=/tmp/no_such_cert.crt --key=/tmp/no_such_key.key', 3000);
     const output = result.stdout + result.stderr;
     assert.ok(output.includes('TLS error'), 'should log TLS error');
     assert.ok(output.includes('Falling back to HTTP'), 'should log fallback');
     assert.ok(output.includes('(http)'), 'should run in HTTP mode');
   });
 
-  test('--cert + --key with valid self-signed cert — starts HTTPS', () => {
+  test('--cert + --key with valid self-signed cert — starts HTTPS', async () => {
     const { execSync: exec } = require('child_process');
     const certPath = '/tmp/mpchess_test.crt';
     const keyPath = '/tmp/mpchess_test.key';
     try {
       exec(`openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`);
 
-      const result = runServer(`--cert=${certPath} --key=${keyPath}`, 3000);
+      const result = await runServer(`--cert=${certPath} --key=${keyPath}`, 3000);
       const output = result.stdout + result.stderr;
       assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
       assert.ok(output.includes(`https://localhost:${result.port}`), 'should show https:// URL');
@@ -1978,7 +2020,7 @@ describe('TLS CLI arguments', () => {
     }
   });
 
-  test('--cert + --key + --chain with valid files — starts HTTPS', () => {
+  test('--cert + --key + --chain with valid files — starts HTTPS', async () => {
     const { execSync: exec } = require('child_process');
     const certPath = '/tmp/mpchess_test2.crt';
     const keyPath = '/tmp/mpchess_test2.key';
@@ -1988,7 +2030,7 @@ describe('TLS CLI arguments', () => {
       // Use the cert itself as the chain (valid PEM)
       fs.copyFileSync(certPath, chainPath);
 
-      const result = runServer(`--cert=${certPath} --key=${keyPath} --chain=${chainPath}`, 3000);
+      const result = await runServer(`--cert=${certPath} --key=${keyPath} --chain=${chainPath}`, 3000);
       const output = result.stdout + result.stderr;
       assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
     } finally {
@@ -2000,8 +2042,15 @@ describe('TLS CLI arguments', () => {
 });
 
 // ── Summary ──────────────────────────────────────────────
-console.log(`\n${'='.repeat(50)}`);
-console.log(`Results: ${passed}/${total} passed, ${failed} failed`);
-if (failed > 0) {
-  process.exit(1);
+async function printResults() {
+  // Wait for any async tests to settle before printing
+  if (pendingPromises.length > 0) {
+    await Promise.all(pendingPromises);
+  }
+  console.log(`\n${'='.repeat(50)}`);
+  console.log(`Results: ${passed}/${total} passed, ${failed} failed`);
+  if (failed > 0) {
+    process.exit(1);
+  }
 }
+printResults();

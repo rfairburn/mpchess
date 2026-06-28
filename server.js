@@ -436,13 +436,9 @@ const requestHandler = (req, res) => {
 
   const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
   const safePath = path.normalize(relativePath);
-  if (safePath.startsWith('..')) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
-  }
   const filePath = path.resolve(__dirname, safePath);
-  if (!filePath.startsWith(path.resolve(__dirname) + path.sep) && filePath !== path.resolve(__dirname)) {
+  const rootDir = path.resolve(__dirname);
+  if (filePath !== rootDir && !filePath.startsWith(rootDir + path.sep)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;

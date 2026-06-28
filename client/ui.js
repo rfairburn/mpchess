@@ -595,7 +595,7 @@ function setJoinButton(btn, seat, colorName) {
     statusEl.textContent = 'Reconnect';
   } else if (!seat || seat.status === 'unknown') {
     btn.disabled = true;
-    statusEl.textContent = 'Checking...';
+    statusEl.textContent = 'Loading...';
   } else if (seat.status === 'free') {
     btn.disabled = false;
     statusEl.textContent = 'Available';

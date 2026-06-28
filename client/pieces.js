@@ -16,7 +16,7 @@ export function setMaterials(white, black) {
   matBlack = black;
 }
 
-const PIECE_TYPES = ['pawn', 'rook', 'knight', 'bishop', 'queen', 'king'];
+const PIECE_TYPES = ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
 const PIECE_CACHE = {};
 export const pieceMeshes = [];
 export let modelsLoaded = false;
@@ -234,6 +234,12 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
         target.mesh.children[0].material.opacity = 1 - t;
         target.mesh.children[0].material.transparent = true;
         if (t >= 1) {
+          // Dispose Three.js resources to avoid memory leaks
+          const child = target.mesh.children[0];
+          if (child) {
+            child.geometry?.dispose();
+            child.material?.dispose();
+          }
           scene.remove(target.mesh);
           const idx = pieceMeshes.indexOf(target);
           if (idx > -1) pieceMeshes.splice(idx, 1);

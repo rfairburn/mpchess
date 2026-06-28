@@ -79,7 +79,6 @@ function connect() {
   try { ws = new WebSocket(getConnectionUrl()); } catch (e) { return; }
 
   ws.onopen = () => {
-    console.log('Connected to server');
     // Only auto-reconnect if we were actively playing and got disconnected
     // Fresh page loads / new windows NEVER auto-pick — join overlay always shows
     if (reconnecting && reconnectColor) {
@@ -106,7 +105,6 @@ function connect() {
   };
 
   ws.onclose = () => {
-    console.log('Disconnected from server');
     ws = null;
 
     // Don't auto-reconnect if we're intentionally closing (e.g., page unload)
@@ -126,7 +124,8 @@ function connect() {
   };
 
   ws.onmessage = (event) => {
-    const msg = JSON.parse(event.data);
+    let msg;
+    try { msg = JSON.parse(event.data); } catch { return; }
     switch (msg.type) {
       case 'state': {
         myRole = msg.role;
@@ -197,7 +196,6 @@ function connect() {
         break;
       }
       case 'reconnectFailed': {
-        console.log('Reconnect failed:', msg.reason);
         // Remove the stale token we tried to reconnect with
         if (pendingToken) {
           for (const color of ['white', 'black']) {
@@ -283,13 +281,11 @@ function startReconnection() {
 function scheduleReconnect() {
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     reconnecting = false;
-    console.log('Max reconnection attempts reached');
     fireCallbacks(onReconnectingCallbacks, { maxAttemptsReached: true });
     return;
   }
   const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
   reconnectAttempts++;
-  console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
   reconnectTimer = setTimeout(() => {
     connect();
   }, delay);
@@ -326,6 +322,7 @@ export function sendDropPlayer(token) {
 }
 
 export function sendJoin(color) {
+  if (color !== 'white' && color !== 'black' && color !== 'spectator') return;
   if (!ws || ws.readyState !== 1) return;
   joinPendingColor = color;
   // Only attempt reconnect if we have a token AND the server confirmed it's valid

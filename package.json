@@ -2,7 +2,7 @@
   "name": "chess",
   "version": "1.0.0",
   "description": "",
-  "main": "test_chess.js",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "test": "node test_chess.js && node test_reconnect.js",
