@@ -703,7 +703,7 @@ class Game {
 
   getState() {
     return {
-      board: this.board,
+      board: cloneBoard(this.board),
       turn: this.turn,
       castlingRights: this.castlingRights,
       enPassantTarget: this.enPassantTarget,
