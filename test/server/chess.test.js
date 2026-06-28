@@ -26,22 +26,22 @@ const pendingPromises = []; // collect async test promises
 
 function test(name, fn) {
   total++;
-  const result = fn();
-  if (result && typeof result.then === 'function') {
-    // Async test — collect the promise for later resolution
-    pendingPromises.push(result.then(
-      () => { passed++; console.log(`  ✓ ${name}`); },
-      (e) => { failed++; console.log(`  ✗ ${name}`); console.log(`    ${e.message}`); }
-    ));
-  } else {
-    try {
+  try {
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      // Async test — collect the promise for later resolution
+      pendingPromises.push(result.then(
+        () => { passed++; console.log(`  ✓ ${name}`); },
+        (e) => { failed++; console.log(`  ✗ ${name}`); console.log(`    ${e.message}`); }
+      ));
+    } else {
       passed++;
       console.log(`  ✓ ${name}`);
-    } catch (e) {
-      failed++;
-      console.log(`  ✗ ${name}`);
-      console.log(`    ${e.message}`);
     }
+  } catch (e) {
+    failed++;
+    console.log(`  ✗ ${name}`);
+    console.log(`    ${e.message}`);
   }
 }
 
@@ -1241,6 +1241,140 @@ describe('Algebraic notation disambiguation', () => {
     const state = g.getState();
     assert.strictEqual(state.promotingPiece.fromFile, 0, 'fromFile in state');
     assert.strictEqual(state.promotingPiece.fromRank, 6, 'fromRank in state');
+  });
+
+  test('discovered check — notation includes + suffix', () => {
+    // White bishop on a2, white knight on f7, white king on e1, black king on g8.
+    // Knight moves f7→h6, revealing the bishop's diagonal a2–g8 → discovered check.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[1][0] = W_BISHOP;  // a2
+    g.board[6][5] = W_KNIGHT;  // f7
+    g.board[0][4] = W_KING;    // e1
+    g.board[7][6] = B_KING;    // g8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // f7=(file=5,rank=6) → h6=(file=7,rank=5) is (±2,±1) — valid knight move
+    const result = g.tryMove(ws1, 5, 6, 7, 5);
+    assert.strictEqual(result.ok, true);
+    // Nh6+ — discovered check from bishop on a2
+    assert.strictEqual(g.moveHistory[0], 'Nh6+', `expected Nh6+: ${g.moveHistory[0]}`);
+  });
+
+  test('discovered checkmate — notation includes # suffix', () => {
+    // White bishop on a3, white knight on e7 (blocks bishop), white knight on c6,
+    // white rook on a8, white king on g1. Black king on e8, black pawns on d7, f7.
+    // Knight moves e7→g6, revealing bishop's diagonal a3–f8 → discovered check.
+    // Rook on a8 covers d8,f8; knight on c6 covers d8; knight on g6 covers f8.
+    // Bishop diagonal covers e7. Pawns block d7,f7. King has no escape → checkmate.
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[2][0] = W_BISHOP;  // a3 — checks f8 along a3-f8 diagonal
+    g.board[6][4] = W_KNIGHT;  // e7 — blocks bishop, will move to g6
+    g.board[5][2] = W_KNIGHT;  // c6 — covers d8 escape
+    g.board[7][0] = W_ROOK;    // a8 — covers d8,f8 on back rank
+    g.board[0][6] = W_KING;    // g1
+    g.board[7][4] = B_KING;    // e8
+    g.board[6][3] = B_PAWN;    // d7 — blocks Ke8→d7
+    g.board[6][5] = B_PAWN;    // f7 — blocks Ke8→f7
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    // e7=(file=4,rank=6) → g6=(file=6,rank=5) is (±2,±1) — valid knight move
+    const result = g.tryMove(ws1, 4, 6, 6, 5);
+    assert.strictEqual(result.ok, true);
+    // Ng6# — discovered checkmate from bishop on a3
+    assert.strictEqual(g.moveHistory[0], 'Ng6#', `expected Ng6#: ${g.moveHistory[0]}`);
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate result: ${g.gameResult}`);
+  });
+
+  test('promotion capture — notation includes capture x and promotion suffix', () => {
+    // White pawn on e7 captures black rook on d8, promotes to queen.
+    // Queen on d8 checks king on g8 along the 8th rank.
+    // Notation: exd8=Q+
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;   // e7
+    g.board[7][3] = B_ROOK;   // d8
+    g.board[0][4] = W_KING;   // e1
+    g.board[7][6] = B_KING;   // g8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    const result = g.tryMove(ws1, 4, 6, 3, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws1, 'queen');
+    // exd8=Q+ — pawn capture + promotion + check
+    assert.strictEqual(g.moveHistory[0], 'exd8=Q+', `expected exd8=Q+: ${g.moveHistory[0]}`);
+  });
+
+  test('promotion capture with check — notation includes x, promotion suffix, and +', () => {
+    // White pawn on e7 captures black piece on d8, promotes to queen, delivers check.
+    // Notation: exd8=Q+
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;   // e7
+    g.board[7][3] = B_PAWN;   // d8
+    g.board[0][4] = W_KING;   // e1
+    g.board[7][4] = B_KING;   // e8 — on same file as promotion square
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    const result = g.tryMove(ws1, 4, 6, 3, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws1, 'queen');
+    // exd8=Q+ — pawn capture + promotion + check (queen on d8 attacks king on e8)
+    assert.strictEqual(g.moveHistory[0], 'exd8=Q+', `expected exd8=Q+: ${g.moveHistory[0]}`);
+  });
+
+  test('promotion capture with checkmate — notation includes x, promotion suffix, and #', () => {
+    // White pawn on e7 captures on d8, promotes to queen, delivers checkmate.
+    // White knight on c6 defends the promoted queen on d8 (king cannot capture).
+    // Black king on e8, pawns on d7, f7, f8 block all escapes.
+    // Notation: exd8=Q#
+    const g = new Game();
+    const ws1 = {}; const ws2 = {};
+    g.addPlayer(ws1); g.addPlayer(ws2);
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[6][4] = W_PAWN;   // e7
+    g.board[7][3] = B_PAWN;   // d8 — captured by promoting pawn
+    g.board[5][2] = W_KNIGHT;  // c6 — defends d8 (queen cannot be captured)
+    g.board[0][4] = W_KING;   // e1
+    g.board[7][4] = B_KING;   // e8
+    g.board[6][3] = B_PAWN;   // d7 — blocks Ke8→d7
+    g.board[6][5] = B_PAWN;   // f7 — blocks Ke8→f7
+    g.board[7][5] = B_PAWN;   // f8 — blocks Ke8→f8
+    g.turn = 'white';
+    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+
+    const result = g.tryMove(ws1, 4, 6, 3, 7);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(result.promotion, true);
+
+    g.completePromotion(ws1, 'queen');
+    // exd8=Q# — pawn capture + promotion + checkmate (queen defended by knight)
+    assert.strictEqual(g.moveHistory[0], 'exd8=Q#', `expected exd8=Q#: ${g.moveHistory[0]}`);
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate: ${g.gameResult}`);
   });
 });
 
