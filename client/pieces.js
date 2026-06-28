@@ -24,10 +24,10 @@ export let modelsLoaded = false;
 export function loadPieceModels(scene, onReady) {
   const loader = new STLLoader();
   let loaded = 0;
-  PIECE_TYPES.forEach(type => {
+  PIECE_TYPES.forEach((type) => {
     loader.load(
       `../files/${type}.stl`,
-      geometry => {
+      (geometry) => {
         geometry.rotateX(-Math.PI / 2);
         geometry.computeBoundingBox();
         const size = geometry.boundingBox.getSize(new THREE.Vector3());
@@ -48,7 +48,7 @@ export function loadPieceModels(scene, onReady) {
         }
       },
       undefined,
-      err => console.error(`Failed to load ${type}.stl`, err)
+      (err) => console.error(`Failed to load ${type}.stl`, err)
     );
   });
 }
@@ -127,7 +127,13 @@ export function rebuildPieces(scene) {
       mesh.position.set(f - 3.5, 0.01, 3.5 - r);
       mesh.rotation.y = desiredPiece.color === 'black' ? 0 : Math.PI;
       scene.add(mesh);
-      pieceMeshes.push({ mesh, file: f, rank: r, type: desiredPiece.type, color: desiredPiece.color });
+      pieceMeshes.push({
+        mesh,
+        file: f,
+        rank: r,
+        type: desiredPiece.type,
+        color: desiredPiece.color,
+      });
     }
   }
 
@@ -162,8 +168,17 @@ export const animations = [];
 // which would cause duplicate pieces or kill capture fade-out animations.
 const animatingPieces = new Set();
 
-export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, enPassant, captured) {
-  const fromPiece = pieceMeshes.find(p => p.file === fromFile && p.rank === fromRank);
+export function animateMove(
+  scene,
+  fromFile,
+  fromRank,
+  toFile,
+  toRank,
+  castled,
+  enPassant,
+  captured
+) {
+  const fromPiece = pieceMeshes.find((p) => p.file === fromFile && p.rank === fromRank);
   if (!fromPiece) return;
 
   // Update logical position immediately so rebuildPieces sees the piece at
@@ -172,8 +187,12 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
   fromPiece.rank = toRank;
   animatingPieces.add(fromPiece);
 
-  const startX = fromFile - 3.5, startY = 0.01, startZ = 3.5 - fromRank;
-  const endX = toFile - 3.5, endY = 0.01, endZ = 3.5 - toRank;
+  const startX = fromFile - 3.5,
+    startY = 0.01,
+    startZ = 3.5 - fromRank;
+  const endX = toFile - 3.5,
+    endY = 0.01,
+    endZ = 3.5 - toRank;
   const duration = 300;
   const startTime = performance.now();
 
@@ -191,18 +210,24 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
         return true;
       }
       return false;
-    }
+    },
   });
 
   // Animate castled rook
   if (castled) {
-    const rook = pieceMeshes.find(p => p.file === castled.from && p.rank === castled.rank && p.type === 'rook');
+    const rook = pieceMeshes.find(
+      (p) => p.file === castled.from && p.rank === castled.rank && p.type === 'rook'
+    );
     if (rook) {
       rook.file = castled.to;
       rook.rank = castled.rank;
       animatingPieces.add(rook);
-      const rookStartX = castled.from - 3.5, rookStartY = 0.01, rookStartZ = 3.5 - castled.rank;
-      const rookEndX = castled.to - 3.5, rookEndY = 0.01, rookEndZ = 3.5 - castled.rank;
+      const rookStartX = castled.from - 3.5,
+        rookStartY = 0.01,
+        rookStartZ = 3.5 - castled.rank;
+      const rookEndX = castled.to - 3.5,
+        rookEndY = 0.01,
+        rookEndZ = 3.5 - castled.rank;
       animations.push({
         update(time) {
           const t = Math.min((time - startTime) / duration, 1);
@@ -217,7 +242,7 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
             return true;
           }
           return false;
-        }
+        },
       });
     }
   }
@@ -248,19 +273,23 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
           return true;
         }
         return false;
-      }
+      },
     });
   }
 
   if (captured && !enPassant) {
     // Exclude fromPiece — its file/rank was already updated to destination
-    const capPiece = pieceMeshes.find(p => p !== fromPiece && p.file === toFile && p.rank === toRank);
+    const capPiece = pieceMeshes.find(
+      (p) => p !== fromPiece && p.file === toFile && p.rank === toRank
+    );
     animateCapture(capPiece);
   }
 
   if (enPassant) {
     const epRank = fromPiece.color === 'white' ? toRank - 1 : toRank + 1;
-    const epPawn = pieceMeshes.find(p => p.file === toFile && p.rank === epRank && p.type === 'pawn');
+    const epPawn = pieceMeshes.find(
+      (p) => p.file === toFile && p.rank === epRank && p.type === 'pawn'
+    );
     animateCapture(epPawn);
   }
 }

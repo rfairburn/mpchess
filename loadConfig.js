@@ -41,7 +41,11 @@ function convertType(key, value) {
   }
   if (key === 'allowedOrigins') {
     if (Array.isArray(value)) return value.filter(Boolean);
-    if (typeof value === 'string') return value.split(',').map(s => s.trim()).filter(Boolean);
+    if (typeof value === 'string')
+      return value
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
     return [];
   }
   return value;
@@ -73,22 +77,28 @@ function loadFromCli(argv) {
 }
 
 function mergeLayers(layers) {
-  return layers.reduce((acc, layer) => {
-    if (!layer) return acc;
-    for (const [key, value] of Object.entries(layer)) {
-      if (value !== undefined && value !== null) acc[key] = value;
-    }
-    return acc;
-  }, { ...DEFAULTS });
+  return layers.reduce(
+    (acc, layer) => {
+      if (!layer) return acc;
+      for (const [key, value] of Object.entries(layer)) {
+        if (value !== undefined && value !== null) acc[key] = value;
+      }
+      return acc;
+    },
+    { ...DEFAULTS }
+  );
 }
 
 function stripComments(content) {
   // Remove // and /* */ comments while preserving strings.
   // The regex matches strings, line comments, or block comments in order.
   // Strings are kept as-is; comments are removed.
-  return content.replace(/("(?:[^"\\]|\\.)*")|(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)/g, (match, captured) => {
-    return captured !== undefined ? captured : '';
-  });
+  return content.replace(
+    /("(?:[^"\\]|\\.)*")|(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)/g,
+    (match, captured) => {
+      return captured !== undefined ? captured : '';
+    }
+  );
 }
 
 function loadFromFile(filePath) {
@@ -114,10 +124,8 @@ function loadFromFile(filePath) {
 }
 
 function loadConfig(argv = process.argv) {
-  const configArg = argv.find(a => a.startsWith('--config='));
-  const configPath = configArg
-    ? path.resolve(configArg.slice(9))
-    : defaultConfigPath();
+  const configArg = argv.find((a) => a.startsWith('--config='));
+  const configPath = configArg ? path.resolve(configArg.slice(9)) : defaultConfigPath();
 
   const fileConfig = loadFromFile(configPath);
   const envConfig = loadFromEnv();
@@ -126,4 +134,15 @@ function loadConfig(argv = process.argv) {
   return mergeLayers([DEFAULTS, fileConfig, envConfig, cliConfig]);
 }
 
-module.exports = { loadConfig, defaultConfigPath, DEFAULTS, ENV_MAP, CLI_FLAG_MAP, convertType, loadFromEnv, loadFromCli, mergeLayers, stripComments };
+module.exports = {
+  loadConfig,
+  defaultConfigPath,
+  DEFAULTS,
+  ENV_MAP,
+  CLI_FLAG_MAP,
+  convertType,
+  loadFromEnv,
+  loadFromCli,
+  mergeLayers,
+  stripComments,
+};

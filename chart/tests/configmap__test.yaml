@@ -1,0 +1,32 @@
+suite: configmap
+release:
+  name: mpchess
+templates:
+  - templates/configmap.yaml
+tests:
+  - it: no document when config disabled (default)
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders ConfigMap when config enabled
+    set:
+      config:
+        enabled: true
+        content: |
+          {
+            "port": 8080
+          }
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: mpchess-config
+      - exists:
+          path: data["config.json"]
+      - matchRegex:
+          path: data["config.json"]
+          pattern: 'port.*8080'

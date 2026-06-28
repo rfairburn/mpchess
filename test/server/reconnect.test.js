@@ -23,7 +23,7 @@ class MockWebSocket {
   }
 
   getSent(type) {
-    return this.sentMessages.filter(m => m.type === type);
+    return this.sentMessages.filter((m) => m.type === type);
   }
 
   on(event, fn) {
@@ -574,7 +574,10 @@ describe('validateToken — invalid (fake) token', () => {
     joinAs(wss, 'white');
     joinAs(wss, 'black');
     const ws3 = wss.simulateConnection();
-    ws3.emit('message', JSON.stringify({ type: 'validateToken', token: 'fake-token', color: 'white' }));
+    ws3.emit(
+      'message',
+      JSON.stringify({ type: 'validateToken', token: 'fake-token', color: 'white' })
+    );
     assert.strictEqual(ws3.getSent('tokenValid').length, 1);
     assert.strictEqual(safeGet(ws3.getSent('tokenValid')[0], 'valid'), false);
   });
@@ -655,7 +658,7 @@ describe('Promotion — promotingPiece does not store ws', () => {
     game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     game.board[6][4] = 1; // W_PAWN at e7
     game.turn = 'white';
-    game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     const result = game.tryMove(ws1, 4, 6, 4, 7);
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.promotion, true);
@@ -676,7 +679,7 @@ describe('Promotion soft-lock fix — disconnect then reconnect completes promot
     game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     game.board[6][4] = 1;
     game.turn = 'white';
-    game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     const result = game.tryMove(ws1, 4, 6, 4, 7);
     assert.strictEqual(result.ok, true);
     assert.ok(game.promotingPiece !== null);
@@ -703,7 +706,7 @@ describe('Promotion blocked for wrong color', () => {
     game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     game.board[6][4] = 1;
     game.turn = 'white';
-    game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     game.tryMove(ws1, 4, 6, 4, 7);
     assert.ok(game.promotingPiece !== null);
     const beforeBoard = game.board[7][4];
@@ -723,7 +726,7 @@ describe('Promotion after drop + rejoin by new player', () => {
     game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     game.board[6][4] = 1;
     game.turn = 'white';
-    game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     game.tryMove(ws1, 4, 6, 4, 7);
     assert.ok(game.promotingPiece !== null);
     wss.simulateDisconnect(ws1);
@@ -747,7 +750,7 @@ describe('Promotion state broadcast to reconnected client', () => {
     game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     game.board[6][4] = 1;
     game.turn = 'white';
-    game.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     game.tryMove(ws1, 4, 6, 4, 7);
     assert.ok(game.promotingPiece !== null);
     wss.simulateDisconnect(ws1);
@@ -809,7 +812,10 @@ describe('Import FEN — spectator cannot import', () => {
     joinAs(wss, 'white');
     joinAs(wss, 'black');
     const ws3 = joinAs(wss, 'spectator');
-    ws3.emit('message', JSON.stringify({ type: 'importFen', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1' }));
+    ws3.emit(
+      'message',
+      JSON.stringify({ type: 'importFen', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1' })
+    );
     assert.strictEqual(ws3.getSent('error').length, 1);
     assert.ok(ws3.getSent('error')[0].reason.includes('players'));
   });
@@ -883,7 +889,10 @@ describe('Rate limiter — basic behavior', () => {
     const ws = joinAs(wss, 'white');
     // Send 3 move messages (well under default 60/10s limit)
     for (let i = 0; i < 3; i++) {
-      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     // No rateLimited messages should be sent
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
@@ -898,7 +907,10 @@ describe('Rate limiter — basic behavior', () => {
     const ws = joinAs(wss, 'white');
     // Default limit is 60 per 10s — flood past it
     for (let i = 0; i < 60; i++) {
-      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     // 60th move + 1 join = 61 total, 60 were allowed, 61st should be rate limited
     const rlMsgs = ws.getSent('rateLimited');
@@ -910,7 +922,10 @@ describe('Rate limiter — basic behavior', () => {
     const { wss } = createTestEnv();
     const ws = joinAs(wss, 'white');
     for (let i = 0; i < 60; i++) {
-      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     const rlMsg = ws.getSent('rateLimited')[0];
     assert.ok(typeof rlMsg.retryAfter === 'number');
@@ -925,7 +940,10 @@ describe('Rate limiter — basic behavior', () => {
     game.turn = 'white';
     // Flood to trigger rate limit
     for (let i = 0; i < 60; i++) {
-      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 }));
+      ws1.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 })
+      );
     }
     // The 61st message should be rate limited, not processed
     const rlMsgs = ws1.getSent('rateLimited');
@@ -938,12 +956,18 @@ describe('Rate limiter — basic behavior', () => {
     const ws2 = joinAs(wss, 'black');
     // Fill ws1's bucket
     for (let i = 0; i < 60; i++) {
-      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws1.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     // ws1 should be rate limited
     assert.ok(ws1.getSent('rateLimited').length >= 1);
     // ws2 should still be fine
-    ws2.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws2.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws2.getSent('rateLimited').length, 0);
   });
 });
@@ -961,11 +985,20 @@ describe('Rate limiter — configurable limits', () => {
     const ws = wss.simulateConnection();
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
     // 1 join + 2 more = 3 allowed
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
     // 4th message should be rate limited
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
   });
 
@@ -982,11 +1015,17 @@ describe('Rate limiter — configurable limits', () => {
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
     // Fill up: 1 join + 4 moves = 5
     for (let i = 0; i < 4; i++) {
-      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
     // Next should be rate limited
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
   });
 
@@ -1001,18 +1040,30 @@ describe('Rate limiter — configurable limits', () => {
     });
     const ws = wss.simulateConnection();
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
     // 4th should be rate limited
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
 
     // Wait for window to expire
     asyncTest('window resets after rateLimitWindow expires', (done) => {
       setTimeout(() => {
         // After window expires, new messages should be allowed
-        ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+        ws.emit(
+          'message',
+          JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+        );
         // Should not be rate limited anymore
         assert.strictEqual(ws.getSent('rateLimited').length, 1); // still just the original one
         done();
@@ -1037,7 +1088,10 @@ describe('Rate limiter — cleanup on disconnect', () => {
     joinAs(wss, 'black');
     // Fill ws1's bucket
     for (let i = 0; i < 60; i++) {
-      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+      ws1.emit(
+        'message',
+        JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+      );
     }
     assert.ok(ws1.getSent('rateLimited').length >= 1);
     // Disconnect ws1
@@ -1047,7 +1101,10 @@ describe('Rate limiter — cleanup on disconnect', () => {
     ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token }));
     assert.strictEqual(ws1_new.getSent('reconnected').length, 1);
     // New socket should have a fresh bucket — messages should work
-    ws1_new.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws1_new.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws1_new.getSent('rateLimited').length, 0);
   });
 });
@@ -1064,13 +1121,19 @@ describe('Rate limiter — different message types all count', () => {
     });
     const ws = wss.simulateConnection();
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 1
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 2
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    ); // 2
     ws.emit('message', JSON.stringify({ type: 'restart' })); // 3
     ws.emit('message', JSON.stringify({ type: 'exportFen' })); // 4
     ws.emit('message', JSON.stringify({ type: 'exportPgn' })); // 5
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
     // 6th message should be rate limited
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
   });
 
@@ -1085,10 +1148,19 @@ describe('Rate limiter — different message types all count', () => {
     });
     const ws = wss.simulateConnection();
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 1
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 2
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 3
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    ); // 2
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    ); // 3
     // 4th — rate limited, bucket is deleted
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
     // Bucket was deleted on rate limit — next message starts fresh
     const bucket = handlers.rateLimitBuckets.get(ws);
@@ -1110,7 +1182,10 @@ describe('Rate limiter — different message types all count', () => {
     ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 3
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
     // 4th should be rate limited
-    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
   });
 });

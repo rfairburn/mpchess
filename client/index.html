@@ -1,158 +1,166 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>3D Chess – Multiplayer</title>
-  <base href="/client/">
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
-  <div id="hud">Click to move pieces · TAB toggle mouse-look · ESC menu</div>
-  <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
-  <div id="mouse-mode">♟ Piece Mode</div>
-  <div id="role-badge">Connecting...</div>
-  <div id="player-count"></div>
-  <div id="captured-white"><span class="cap-label">White's Captures</span><span class="cap-pieces"></span></div>
-  <div id="captured-black"><span class="cap-label">Black's Captures</span><span class="cap-pieces"></span></div>
-  <div id="move-log"></div>
-  <div id="draw-info"></div>
-
-  <div id="menu-overlay">
-    <div id="menu-box">
-      <h2>♔ 3D Chess ♚</h2>
-      <button id="btn-resume">Resume Game</button>
-      <button id="btn-restart">New Game</button>
-      <button id="btn-concede">Concede Game</button>
-      <div id="export-row">
-        <button id="btn-export-fen">Export FEN</button>
-        <button id="btn-export-pgn">Export PGN</button>
-      </div>
-      <button id="btn-import-fen">Import FEN</button>
-      <div id="sensitivity-row">
-        <label for="sensitivity-slider">Mouse Sensitivity</label>
-        <input type="range" id="sensitivity-slider" min="1" max="100" value="20">
-        <span id="sensitivity-value">20</span>
-      </div>
-      <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Chess – Multiplayer</title>
+    <base href="/client/" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="hud">Click to move pieces · TAB toggle mouse-look · ESC menu</div>
+    <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
+    <div id="mouse-mode">♟ Piece Mode</div>
+    <div id="role-badge">Connecting...</div>
+    <div id="player-count"></div>
+    <div id="captured-white">
+      <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
     </div>
-  </div>
+    <div id="captured-black">
+      <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+    </div>
+    <div id="move-log"></div>
+    <div id="draw-info"></div>
 
-  <div id="promo-overlay">
-    <div id="promo-box">
-      <h3>Promote Pawn</h3>
-      <div id="promo-choices">
-        <button data-type="queen">♕</button>
-        <button data-type="rook">♖</button>
-        <button data-type="bishop">♗</button>
-        <button data-type="knight">♘</button>
+    <div id="menu-overlay">
+      <div id="menu-box">
+        <h2>♔ 3D Chess ♚</h2>
+        <button id="btn-resume">Resume Game</button>
+        <button id="btn-restart">New Game</button>
+        <button id="btn-concede">Concede Game</button>
+        <div id="export-row">
+          <button id="btn-export-fen">Export FEN</button>
+          <button id="btn-export-pgn">Export PGN</button>
+        </div>
+        <button id="btn-import-fen">Import FEN</button>
+        <div id="sensitivity-row">
+          <label for="sensitivity-slider">Mouse Sensitivity</label>
+          <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
+          <span id="sensitivity-value">20</span>
+        </div>
+        <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
       </div>
     </div>
-  </div>
 
-  <div id="concede-overlay">
-    <div id="concede-box">
-      <h3>Concede Game?</h3>
-      <p>Are you sure you want to concede? This cannot be undone.</p>
-      <div id="concede-actions">
-        <button id="btn-concede-cancel" class="cancel">Cancel</button>
-        <button id="btn-concede-confirm">Concede</button>
+    <div id="promo-overlay">
+      <div id="promo-box">
+        <h3>Promote Pawn</h3>
+        <div id="promo-choices">
+          <button data-type="queen">♕</button>
+          <button data-type="rook">♖</button>
+          <button data-type="bishop">♗</button>
+          <button data-type="knight">♘</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="import-fen-overlay">
-    <div id="import-fen-box">
-      <h3>Import FEN</h3>
-      <p>Paste a FEN string to load a position</p>
-      <textarea id="fen-input" placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" rows="3"></textarea>
-      <div id="import-fen-actions">
-        <button id="btn-import-fen-cancel" class="cancel">Cancel</button>
-        <button id="btn-import-fen-confirm">Import</button>
+    <div id="concede-overlay">
+      <div id="concede-box">
+        <h3>Concede Game?</h3>
+        <p>Are you sure you want to concede? This cannot be undone.</p>
+        <div id="concede-actions">
+          <button id="btn-concede-cancel" class="cancel">Cancel</button>
+          <button id="btn-concede-confirm">Concede</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="game-over-overlay">
-    <div id="game-over-box">
-      <h2>Game Over</h2>
-      <p id="game-over-text"></p>
-      <button id="btn-new-game">New Game</button>
-    </div>
-  </div>
-
-  <div id="error-toast"></div>
-
-  <!-- Join selection overlay -->
-  <div id="join-overlay">
-    <div id="join-box">
-      <h2>♔ 3D Chess ♚</h2>
-      <p id="join-subtitle">Choose how to join</p>
-      <div id="join-buttons">
-        <button id="btn-join-white" disabled>
-          <span class="join-icon">♔</span>
-          <span class="join-label">White</span>
-          <span class="join-status"></span>
-        </button>
-        <button id="btn-join-black" disabled>
-          <span class="join-icon">♚</span>
-          <span class="join-label">Black</span>
-          <span class="join-status"></span>
-        </button>
-        <button id="btn-join-spectator">
-          <span class="join-icon">👁</span>
-          <span class="join-label">Spectate</span>
-          <span class="join-status">Always available</span>
-        </button>
+    <div id="import-fen-overlay">
+      <div id="import-fen-box">
+        <h3>Import FEN</h3>
+        <p>Paste a FEN string to load a position</p>
+        <textarea
+          id="fen-input"
+          placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+          rows="3"
+        ></textarea>
+        <div id="import-fen-actions">
+          <button id="btn-import-fen-cancel" class="cancel">Cancel</button>
+          <button id="btn-import-fen-confirm">Import</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Reconnecting overlay -->
-  <div id="reconnecting-overlay">
-    <div id="reconnecting-box">
-      <h3>Reconnecting…</h3>
-      <div class="spinner"></div>
-      <p id="reconnecting-status">Attempting to reconnect…</p>
-      <button id="btn-give-up">Give Up</button>
+    <div id="game-over-overlay">
+      <div id="game-over-box">
+        <h2>Game Over</h2>
+        <p id="game-over-text"></p>
+        <button id="btn-new-game">New Game</button>
+      </div>
     </div>
-  </div>
 
-  <!-- Connection error overlay -->
-  <div id="connection-error-overlay">
-    <div id="connection-error-box">
-      <h3>Connection Failed</h3>
-      <p id="connection-error-message">Unable to reach the server.</p>
-      <button id="btn-retry-connection">Retry</button>
+    <div id="error-toast"></div>
+
+    <!-- Join selection overlay -->
+    <div id="join-overlay">
+      <div id="join-box">
+        <h2>♔ 3D Chess ♚</h2>
+        <p id="join-subtitle">Choose how to join</p>
+        <div id="join-buttons">
+          <button id="btn-join-white" disabled>
+            <span class="join-icon">♔</span>
+            <span class="join-label">White</span>
+            <span class="join-status"></span>
+          </button>
+          <button id="btn-join-black" disabled>
+            <span class="join-icon">♚</span>
+            <span class="join-label">Black</span>
+            <span class="join-status"></span>
+          </button>
+          <button id="btn-join-spectator">
+            <span class="join-icon">👁</span>
+            <span class="join-label">Spectate</span>
+            <span class="join-status">Always available</span>
+          </button>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <!-- Opponent disconnected banner -->
-  <div id="opponent-disconnected-banner">
-    <span id="opponent-disconnected-text"></span>
-    <button id="btn-drop-player" disabled>Drop Player</button>
-  </div>
-  <!-- Second disconnected player banner (spectators) -->
-  <div id="second-disconnected-banner">
-    <span id="second-disconnected-text"></span>
-  </div>
+    <!-- Reconnecting overlay -->
+    <div id="reconnecting-overlay">
+      <div id="reconnecting-box">
+        <h3>Reconnecting…</h3>
+        <div class="spinner"></div>
+        <p id="reconnecting-status">Attempting to reconnect…</p>
+        <button id="btn-give-up">Give Up</button>
+      </div>
+    </div>
 
-  <!-- Game available banner (for spectators) -->
-  <div id="game-available-banner">
-    <span>Game available — both players disconnected</span>
-    <button id="btn-join-game">Join Game</button>
-  </div>
+    <!-- Connection error overlay -->
+    <div id="connection-error-overlay">
+      <div id="connection-error-box">
+        <h3>Connection Failed</h3>
+        <p id="connection-error-message">Unable to reach the server.</p>
+        <button id="btn-retry-connection">Retry</button>
+      </div>
+    </div>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
+    <!-- Opponent disconnected banner -->
+    <div id="opponent-disconnected-banner">
+      <span id="opponent-disconnected-text"></span>
+      <button id="btn-drop-player" disabled>Drop Player</button>
+    </div>
+    <!-- Second disconnected player banner (spectators) -->
+    <div id="second-disconnected-banner">
+      <span id="second-disconnected-text"></span>
+    </div>
 
-  <script type="module" src="../shared/chess.mjs"></script>
-  <script type="module" src="app.js"></script>
-</body>
+    <!-- Game available banner (for spectators) -->
+    <div id="game-available-banner">
+      <span>Game available — both players disconnected</span>
+      <button id="btn-join-game">Join Game</button>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module" src="../shared/chess.mjs"></script>
+    <script type="module" src="app.js"></script>
+  </body>
 </html>

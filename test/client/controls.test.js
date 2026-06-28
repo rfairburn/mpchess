@@ -45,7 +45,7 @@ vi.mock('/home/robert/mpchess/client/board.js', () => ({
 }));
 
 vi.mock('/home/robert/mpchess/shared/chess.mjs', () => ({
-  pieceColor: vi.fn((piece) => piece > 0 ? 'white' : 'black'),
+  pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => []),
   findKing: vi.fn(() => null),
   isInCheck: vi.fn(() => false),
@@ -100,7 +100,9 @@ describe('controls.js', () => {
       // Set up game state so the click handler proceeds past guards
       network.myRole = 'white';
       network.serverTurn = 'white';
-      network.serverBoard = Array(8).fill(null).map(() => Array(8).fill(0));
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
       network.serverBoard[7][0] = 1;
       network.serverGameOver = false;
       network.serverPromotingPiece = null;
@@ -112,7 +114,7 @@ describe('controls.js', () => {
       const clickEvent = new MouseEvent('click', {
         clientX: window.innerWidth / 2,
         clientY: window.innerHeight / 2,
-        bubbles: true
+        bubbles: true,
       });
 
       // Should not throw — allSquares built lazily from populated squares[]
@@ -135,7 +137,9 @@ describe('controls.js', () => {
 
       network.myRole = 'white';
       network.serverTurn = 'white';
-      network.serverBoard = Array(8).fill(null).map(() => Array(8).fill(0));
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
       network.serverGameOver = false;
       network.serverPromotingPiece = null;
       ui.menuOpen = false;
@@ -327,7 +331,9 @@ describe('controls.js', () => {
     it('should prevent default on Tab key', async () => {
       let defaultPrevented = false;
       const tabEvent = new KeyboardEvent('keydown', { code: 'Tab' });
-      tabEvent.preventDefault = () => { defaultPrevented = true; };
+      tabEvent.preventDefault = () => {
+        defaultPrevented = true;
+      };
       document.dispatchEvent(tabEvent);
       expect(defaultPrevented).toBe(true);
     });

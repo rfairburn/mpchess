@@ -3,14 +3,39 @@
 // ═══════════════════════════════════════════════════════════
 
 import {
-  myRole, serverTurn, serverPromotingPiece, serverGameOver, serverGameResult,
-  moveHistory, disconnectedPlayersInfo, seatStatus, tokenKey, validatedTokens,
-  halfmoveClock, threefoldCount, currentFen,
-  sendPromotion, sendRestart, sendConcede, sendDropPlayer, sendJoin,
-  sendExportFen, sendExportPgn, sendImportFen,
-  onStateUpdate, onRestart, onError, onInfo, onReconnecting, onReconnected,
-  onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
-  onConnected, onConnectionError, retryConnection
+  myRole,
+  serverTurn,
+  serverPromotingPiece,
+  serverGameOver,
+  serverGameResult,
+  moveHistory,
+  disconnectedPlayersInfo,
+  seatStatus,
+  tokenKey,
+  validatedTokens,
+  halfmoveClock,
+  threefoldCount,
+  sendPromotion,
+  sendRestart,
+  sendConcede,
+  sendDropPlayer,
+  sendJoin,
+  sendExportFen,
+  sendExportPgn,
+  sendImportFen,
+  onStateUpdate,
+  onRestart,
+  onError,
+  onInfo,
+  onReconnecting,
+  onReconnected,
+  onPlayerDisconnected,
+  onPlayerDropped,
+  onGameAvailable,
+  onReconnectFailed,
+  onConnected,
+  onConnectionError,
+  retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
 
@@ -77,7 +102,7 @@ let prevRole = null;
 
 // Track disconnected opponent for drop button
 let disconnectedOpponentToken = null;
-let disconnectedOpponentColor = null;
+
 let dropButtonTimer = null;
 
 // Track second disconnected player (spectators only)
@@ -89,8 +114,12 @@ const sensitivitySlider = document.getElementById('sensitivity-slider');
 const sensitivityValue = document.getElementById('sensitivity-value');
 export let mouseSensitivity = parseFloat(localStorage.getItem('mouseSensitivity') || '0.002');
 
-function sliderToSens(v) { return v * 0.0001; }
-function sensToSlider(s) { return Math.round(s / 0.0001); }
+function sliderToSens(v) {
+  return v * 0.0001;
+}
+function sensToSlider(s) {
+  return Math.round(s / 0.0001);
+}
 sensitivitySlider.value = sensToSlider(mouseSensitivity);
 sensitivityValue.textContent = sensitivitySlider.value;
 
@@ -108,7 +137,8 @@ export function updateMouseModeDisplay(mouseLookOn) {
   if (mouseLookOn) {
     mouseModeEl.textContent = '🖱 Camera Mode';
     mouseModeEl.style.borderColor = 'rgba(181, 136, 99, 0.3)';
-    hud.textContent = 'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu';
+    hud.textContent =
+      'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu';
   } else {
     mouseModeEl.textContent = '♟ Piece Mode';
     mouseModeEl.style.borderColor = 'rgba(68, 187, 68, 0.6)';
@@ -117,8 +147,8 @@ export function updateMouseModeDisplay(mouseLookOn) {
 }
 
 function updateRoleBadge() {
-  roleBadge.textContent = myRole === 'white' ? '♔ White' :
-                           myRole === 'black' ? '♚ Black' : '👁 Spectator';
+  roleBadge.textContent =
+    myRole === 'white' ? '♔ White' : myRole === 'black' ? '♚ Black' : '👁 Spectator';
   roleBadge.className = myRole;
 }
 
@@ -128,10 +158,10 @@ function updatePlayerCount(players, spectators) {
 
 function updateTurnIndicator() {
   if (serverTurn === 'white') {
-    turnIndicator.textContent = '⬤ White\'s Turn';
+    turnIndicator.textContent = "⬤ White's Turn";
     turnIndicator.className = 'white-turn';
   } else {
-    turnIndicator.textContent = '⬤ Black\'s Turn';
+    turnIndicator.textContent = "⬤ Black's Turn";
     turnIndicator.className = 'black-turn';
   }
 }
@@ -172,15 +202,27 @@ const CAPTURE_SYMBOLS = {
   rook: { white: '♖', black: '♜' },
   bishop: { white: '♗', black: '♝' },
   knight: { white: '♘', black: '♞' },
-  pawn: { white: '♙', black: '♟' }
+  pawn: { white: '♙', black: '♟' },
 };
 const CAPTURE_ORDER = { queen: 0, rook: 1, bishop: 2, knight: 3, pawn: 4 };
 
 function updateCapturedPieces(captured) {
-  if (!captured) { capturedWhitePieces.textContent = ''; capturedBlackPieces.textContent = ''; return; }
+  if (!captured) {
+    capturedWhitePieces.textContent = '';
+    capturedBlackPieces.textContent = '';
+    return;
+  }
   const sortFn = (a, b) => (CAPTURE_ORDER[a] ?? 99) - (CAPTURE_ORDER[b] ?? 99);
-  capturedWhitePieces.textContent = captured.white.slice().sort(sortFn).map(t => CAPTURE_SYMBOLS[t]?.black || '').join(' ');
-  capturedBlackPieces.textContent = captured.black.slice().sort(sortFn).map(t => CAPTURE_SYMBOLS[t]?.white || '').join(' ');
+  capturedWhitePieces.textContent = captured.white
+    .slice()
+    .sort(sortFn)
+    .map((t) => CAPTURE_SYMBOLS[t]?.black || '')
+    .join(' ');
+  capturedBlackPieces.textContent = captured.black
+    .slice()
+    .sort(sortFn)
+    .map((t) => CAPTURE_SYMBOLS[t]?.white || '')
+    .join(' ');
 }
 
 export function showError(msg) {
@@ -218,7 +260,9 @@ export function hideMenu() {
   menuOpen = false;
 }
 
-btnResume.addEventListener('click', () => { hideMenu(); });
+btnResume.addEventListener('click', () => {
+  hideMenu();
+});
 
 btnGiveUp.addEventListener('click', () => {
   localStorage.removeItem(tokenKey('white'));
@@ -238,7 +282,10 @@ btnJoinGame.addEventListener('click', () => {
   window.location.reload();
 });
 
-btnRestart.addEventListener('click', () => { sendRestart(); hideMenu(); });
+btnRestart.addEventListener('click', () => {
+  sendRestart();
+  hideMenu();
+});
 
 // Export buttons
 const btnExportFen = document.getElementById('btn-export-fen');
@@ -262,10 +309,11 @@ btnNewGame.addEventListener('click', () => {
 // ── Promotion picker ────────────────────────────────────
 
 export function showPromotionPicker(file, rank, color) {
-  const symbols = color === 'white'
-    ? { queen: '♕', rook: '♖', bishop: '♗', knight: '♘' }
-    : { queen: '♛', rook: '♜', bishop: '♝', knight: '♞' };
-  promoButtons.forEach(btn => {
+  const symbols =
+    color === 'white'
+      ? { queen: '♕', rook: '♖', bishop: '♗', knight: '♘' }
+      : { queen: '♛', rook: '♜', bishop: '♝', knight: '♞' };
+  promoButtons.forEach((btn) => {
     const t = btn.dataset.type;
     btn.textContent = symbols[t];
   });
@@ -276,7 +324,7 @@ export function hidePromotionPicker() {
   promoOverlay.classList.remove('visible');
 }
 
-promoButtons.forEach(btn => {
+promoButtons.forEach((btn) => {
   btn.addEventListener('click', () => sendPromotion(btn.dataset.type));
 });
 
@@ -292,7 +340,10 @@ export function hideConcedeConfirm() {
 }
 
 btnConcede.addEventListener('click', () => showConcedeConfirm());
-btnConcedeConfirm.addEventListener('click', () => { sendConcede(); hideConcedeConfirm(); });
+btnConcedeConfirm.addEventListener('click', () => {
+  sendConcede();
+  hideConcedeConfirm();
+});
 btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
 
 // ── Import FEN ───────────────────────────────────────────
@@ -329,10 +380,10 @@ fenInput.addEventListener('keydown', (e) => {
 // ── Unified state update handler ────────────────────────
 
 function syncDisconnectedBanners() {
-  const dp = disconnectedPlayersInfo.filter(p => p.color === 'white' || p.color === 'black');
+  const dp = disconnectedPlayersInfo.filter((p) => p.color === 'white' || p.color === 'black');
 
   if (myRole === 'white' || myRole === 'black') {
-    const opp = dp.find(p => p.color !== myRole);
+    const opp = dp.find((p) => p.color !== myRole);
     if (opp && (!disconnectedOpponentToken || disconnectedOpponentToken !== opp.token)) {
       showOpponentDisconnectedBanner(opp.color, opp.token, opp.disconnectedAt);
     } else if (!opp && disconnectedOpponentToken) {
@@ -398,7 +449,11 @@ onStateUpdate((msg) => {
 
   // Promotion picker
   if (serverPromotingPiece && serverPromotingPiece.color === myRole) {
-    showPromotionPicker(serverPromotingPiece.file, serverPromotingPiece.rank, serverPromotingPiece.color);
+    showPromotionPicker(
+      serverPromotingPiece.file,
+      serverPromotingPiece.rank,
+      serverPromotingPiece.color
+    );
   } else {
     hidePromotionPicker();
   }
@@ -474,7 +529,8 @@ onConnectionError((data) => {
   let message = 'Unable to reach the server. Check your connection and try again.';
   if (code === 3) {
     // Connection was rejected or failed
-    message = 'Connection to the server was refused. The server may be down or your origin is not allowed.';
+    message =
+      'Connection to the server was refused. The server may be down or your origin is not allowed.';
   }
   showConnectionError(message);
 });
@@ -516,7 +572,6 @@ function startDropButtonCountdown(disconnectedAt) {
 
 function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
   disconnectedOpponentToken = token;
-  disconnectedOpponentColor = color;
   const icon = color === 'white' ? '♔' : '♚';
   opponentDisconnectedText.textContent = `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
   opponentDisconnectedBanner.classList.add('visible');
@@ -533,7 +588,6 @@ function hideOpponentDisconnectedBanner() {
   opponentDisconnectedBanner.classList.remove('visible');
   btnDropPlayer.style.display = ''; // reset for next time
   disconnectedOpponentToken = null;
-  disconnectedOpponentColor = null;
   if (dropButtonTimer) {
     clearInterval(dropButtonTimer);
     dropButtonTimer = null;

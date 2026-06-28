@@ -17,10 +17,18 @@ class MockWebSocket {
     this._onmessage = null;
   }
 
-  set onopen(fn) { this._onopen = fn; }
-  set onclose(fn) { this._onclose = fn; }
-  set onerror(fn) { this._onerror = fn; }
-  set onmessage(fn) { this._onmessage = fn; }
+  set onopen(fn) {
+    this._onopen = fn;
+  }
+  set onclose(fn) {
+    this._onclose = fn;
+  }
+  set onerror(fn) {
+    this._onerror = fn;
+  }
+  set onmessage(fn) {
+    this._onmessage = fn;
+  }
 
   send() {}
   close() {
@@ -83,8 +91,12 @@ describe('network.js — connection error handling', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
         getItem: (key) => store[key] ?? null,
-        setItem: (key, val) => { store[key] = val; },
-        removeItem: (key) => { delete store[key]; },
+        setItem: (key, val) => {
+          store[key] = val;
+        },
+        removeItem: (key) => {
+          delete store[key];
+        },
       },
       writable: true,
     });
@@ -110,7 +122,9 @@ describe('network.js — connection error handling', () => {
   describe('callback registration', () => {
     it('should register onConnectionError callbacks', async () => {
       let called = false;
-      network.onConnectionError(() => { called = true; });
+      network.onConnectionError(() => {
+        called = true;
+      });
       expect(typeof network.onConnectionError).toBe('function');
     });
 
@@ -171,10 +185,18 @@ describe('network.js — WebSocket error simulation', () => {
         mockWsInstance = this; // capture for test use
       }
 
-      set onopen(fn) { this._onopen = fn; }
-      set onclose(fn) { this._onclose = fn; }
-      set onerror(fn) { this._onerror = fn; }
-      set onmessage(fn) { this._onmessage = fn; }
+      set onopen(fn) {
+        this._onopen = fn;
+      }
+      set onclose(fn) {
+        this._onclose = fn;
+      }
+      set onerror(fn) {
+        this._onerror = fn;
+      }
+      set onmessage(fn) {
+        this._onmessage = fn;
+      }
 
       send() {}
       close() {
@@ -189,8 +211,12 @@ describe('network.js — WebSocket error simulation', () => {
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
         getItem: (key) => store[key] ?? null,
-        setItem: (key, val) => { store[key] = val; },
-        removeItem: (key) => { delete store[key]; },
+        setItem: (key, val) => {
+          store[key] = val;
+        },
+        removeItem: (key) => {
+          delete store[key];
+        },
       },
       writable: true,
     });
@@ -224,7 +250,7 @@ describe('network.js — WebSocket error simulation', () => {
       mockWsInstance._onerror?.({ target: mockWsInstance });
     }
     // Give callbacks time to fire
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(onConnectionErrorCallback).toHaveBeenCalled();
   });
 
@@ -233,7 +259,7 @@ describe('network.js — WebSocket error simulation', () => {
       mockWsInstance.readyState = MockWebSocket.OPEN;
       mockWsInstance._onopen?.();
     }
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(onConnectedCallback).toHaveBeenCalled();
   });
 
@@ -256,7 +282,9 @@ describe('network.js — send functions guard', () => {
     globalThis.WebSocket = class {
       static CONNECTING = 0;
       static OPEN = 1;
-      constructor() { this.readyState = 0; }
+      constructor() {
+        this.readyState = 0;
+      }
       send() {}
     };
 

@@ -9,8 +9,16 @@ const path = require('path');
 const os = require('os');
 
 const {
-  loadConfig, defaultConfigPath, DEFAULTS, ENV_MAP, CLI_FLAG_MAP,
-  convertType, loadFromEnv, loadFromCli, mergeLayers, stripComments,
+  loadConfig,
+  defaultConfigPath,
+  DEFAULTS,
+  ENV_MAP,
+  CLI_FLAG_MAP,
+  convertType,
+  loadFromEnv,
+  loadFromCli,
+  mergeLayers,
+  stripComments,
 } = require('../../loadConfig');
 
 // ── Minimal test runner ──────────────────────────────────
@@ -169,10 +177,7 @@ describe('mergeLayers', () => {
   });
 
   test('later layer overrides earlier', () => {
-    const result = mergeLayers([
-      { port: 3000 },
-      { port: 8080 },
-    ]);
+    const result = mergeLayers([{ port: 3000 }, { port: 8080 }]);
     assert.strictEqual(result.port, 8080);
   });
 
@@ -186,11 +191,7 @@ describe('mergeLayers', () => {
   });
 
   test('null layer is skipped', () => {
-    const result = mergeLayers([
-      { port: 3000 },
-      null,
-      { port: 8080 },
-    ]);
+    const result = mergeLayers([{ port: 3000 }, null, { port: 8080 }]);
     assert.strictEqual(result.port, 8080);
   });
 });
@@ -412,13 +413,16 @@ describe('config file with comments (integration)', () => {
     const tmpDir = makeTempDir();
     const prevCwd = process.cwd();
     try {
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), `
+      fs.writeFileSync(
+        path.join(tmpDir, 'config.json'),
+        `
 {
   "port": 9999
 }
 // This is a comment
 // Another comment
-`);
+`
+      );
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);
       const config = loadConfig();
@@ -433,12 +437,15 @@ describe('config file with comments (integration)', () => {
     const tmpDir = makeTempDir();
     const prevCwd = process.cwd();
     try {
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), `
+      fs.writeFileSync(
+        path.join(tmpDir, 'config.json'),
+        `
 {
   "port": 7777,  // port number
   "allowedOrigins": ["localhost"] // origins
 }
-`);
+`
+      );
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);
       const config = loadConfig();
@@ -454,12 +461,15 @@ describe('config file with comments (integration)', () => {
     const tmpDir = makeTempDir();
     const prevCwd = process.cwd();
     try {
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), `
+      fs.writeFileSync(
+        path.join(tmpDir, 'config.json'),
+        `
 /* Server config */
 {
   "port": 5555
 }
-`);
+`
+      );
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);
       const config = loadConfig();
@@ -474,7 +484,10 @@ describe('config file with comments (integration)', () => {
     const tmpDir = makeTempDir();
     const prevCwd = process.cwd();
     try {
-      const exampleContent = fs.readFileSync(path.join(__dirname, '../../config.example.json'), 'utf8');
+      const exampleContent = fs.readFileSync(
+        path.join(__dirname, '../../config.example.json'),
+        'utf8'
+      );
       fs.writeFileSync(path.join(tmpDir, 'config.json'), exampleContent);
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);

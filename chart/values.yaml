@@ -1,0 +1,74 @@
+# ── mpchess Helm values ──────────────────────────────────────
+# Note: replicas is fixed at 1 — the server holds all game state in-memory.
+# Multiple replicas would each run an independent game with no shared state.
+
+image:
+  repository: mpchess
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  # pullSecrets:
+  #   - name: my-registry-secret
+
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+
+# Gateway: "httproute" (Envoy Gateway) or "ingress" (ingress-nginx)
+gateway:
+  type: httproute
+  host: chess.example.com
+
+  # --- HTTPRoute (Envoy Gateway) ---
+  # Gateway name (created by Envoy Gateway controller)
+  gatewayName: envoy-gateway
+  gatewayNamespace: envoy-gateway
+
+  # --- Ingress (ingress-nginx) ---
+  # ingressClassName: nginx
+  # ingressAnnotations:
+  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+
+  # --- Shared ---
+  # TLS secret name (must exist in the same namespace)
+  tlsSecretName: mpchess-tls
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Server CLI options (passed as args)
+server:
+  port: 3000
+  # fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  # allowedOrigins: "chess.example.com,localhost"
+
+# Config file (mounted as ConfigMap)
+config:
+  enabled: false
+  # JSON content (comments stripped at runtime)
+  content: |
+    {
+      "port": 3000
+    }
+
+# TLS certificate (mounted as Secret)
+tls:
+  enabled: false
+  # cert: |
+  #   -----BEGIN CERTIFICATE-----
+  #   ...
+  #   -----END CERTIFICATE-----
+  # key: |
+  #   -----BEGIN PRIVATE KEY-----
+  #   ...
+  #   -----END PRIVATE KEY-----
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

@@ -1,0 +1,191 @@
+suite: deployment
+release:
+  name: mpchess
+templates:
+  - templates/deployment.yaml
+tests:
+  - it: default values render correctly
+    asserts:
+      - isKind:
+          of: Deployment
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: mpchess
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: mpchess:latest
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: IfNotPresent
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --port=3000
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 3000
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 256Mi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 100m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 128Mi
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --cert=
+      - isNull:
+          path: spec.template.spec.containers[0].volumeMounts
+      - isNull:
+          path: spec.template.spec.volumes
+
+  - it: respects custom image repository and tag
+    set:
+      image:
+        repository: myregistry/mpchess
+        tag: v1.2.3
+        pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: myregistry/mpchess:v1.2.3
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  - it: TLS enabled adds cert args and volume mount
+    set:
+      tls:
+        enabled: true
+      gateway:
+        tlsSecretName: my-tls-secret
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cert=/etc/tls/tls.crt
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --key=/etc/tls/tls.key
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: tls
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /etc/tls
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
+          value: true
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: tls
+      - equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: my-tls-secret
+
+  - it: config enabled adds config volume mount
+    set:
+      config:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: config
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /app/config.json
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: config.json
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: config
+
+  - it: TLS and config together adds both volume mounts
+    set:
+      tls:
+        enabled: true
+      config:
+        enabled: true
+      gateway:
+        tlsSecretName: my-tls
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.template.spec.containers[0].volumeMounts
+          count: 2
+      - lengthEqual:
+          path: spec.template.spec.volumes
+          count: 2
+
+  - it: custom server port changes arg and containerPort
+    set:
+      server:
+        port: 8443
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --port=8443
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].containerPort
+          value: 8443
+
+  - it: custom FEN adds fen arg
+    set:
+      server:
+        fen: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --fen=4k3/8/8/8/8/8/8/4K2R w K - 0 1
+
+  - it: allowedOrigins adds arg
+    set:
+      server:
+        allowedOrigins: "chess.example.com,localhost"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --allowed-origins=chess.example.com,localhost
+
+  - it: has liveness and readiness probes
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.containers[0].livenessProbe
+      - isNotNull:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /
+
+  - it: has standard labels
+    asserts:
+      - exists:
+          path: metadata.labels["app.kubernetes.io/name"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/instance"]
+      - exists:
+          path: metadata.labels["helm.sh/chart"]
+      - exists:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+
+  - it: selector matchLabels match pod template labels
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: mpchess
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/instance"]
+          value: mpchess

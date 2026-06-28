@@ -8,12 +8,35 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '../..'); // project root
 
 const {
-  EMPTY, W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-  B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
-  pieceColor, pieceType, isOwn, isEnemy,
-  startingBoard, cloneBoard, findKing, isAttacked, isInCheck,
-  getValidMoves, hasAnyMoves, isInsufficientMaterial, Game,
-  ZOBRIST, toFen, fromFen,
+  EMPTY,
+  W_PAWN,
+  W_KNIGHT,
+  W_BISHOP,
+  W_ROOK,
+  W_QUEEN,
+  W_KING,
+  B_PAWN,
+  B_KNIGHT,
+  B_BISHOP,
+  B_ROOK,
+  B_QUEEN,
+  B_KING,
+  pieceColor,
+  pieceType,
+  isOwn,
+  isEnemy,
+  startingBoard,
+  cloneBoard,
+  findKing,
+  isAttacked,
+  isInCheck,
+  getValidMoves,
+  hasAnyMoves,
+  isInsufficientMaterial,
+  Game,
+  ZOBRIST,
+  toFen,
+  fromFen,
 } = require('../../shared/chess');
 
 const fs = require('fs');
@@ -30,10 +53,19 @@ function test(name, fn) {
     const result = fn();
     if (result && typeof result.then === 'function') {
       // Async test — collect the promise for later resolution
-      pendingPromises.push(result.then(
-        () => { passed++; console.log(`  ✓ ${name}`); },
-        (e) => { failed++; console.log(`  ✗ ${name}`); console.log(`    ${e.message}`); }
-      ));
+      pendingPromises.push(
+        result.then(
+          () => {
+            passed++;
+            console.log(`  ✓ ${name}`);
+          },
+          (e) => {
+            failed++;
+            console.log(`  ✗ ${name}`);
+            console.log(`    ${e.message}`);
+          }
+        )
+      );
     } else {
       passed++;
       console.log(`  ✓ ${name}`);
@@ -127,8 +159,8 @@ describe('Starting board', () => {
 describe('Move generation — basic pieces', () => {
   test('white pawn at e2 can move to e3 and e4', () => {
     const b = startingBoard();
-    const moves = getValidMoves(b, 4, 1, { wK:true, wQ:true, bK:true, bQ:true }, null);
-    const targets = moves.map(m => `${m.file},${m.rank}`);
+    const moves = getValidMoves(b, 4, 1, { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const targets = moves.map((m) => `${m.file},${m.rank}`);
     assert.ok(targets.includes('4,2'), 'e3 should be valid');
     assert.ok(targets.includes('4,3'), 'e4 should be valid');
   });
@@ -152,7 +184,7 @@ describe('Move generation — basic pieces', () => {
     b[4][4] = W_BISHOP;
     b[6][6] = W_PAWN; // blocks at (6,6)
     const moves = getValidMoves(b, 4, 4, {}, null);
-    const diag = moves.filter(m => m.file > 4 && m.rank > 4);
+    const diag = moves.filter((m) => m.file > 4 && m.rank > 4);
     assert.strictEqual(diag.length, 1, 'should reach (5,5) but stop before (6,6)');
     assert.strictEqual(diag[0].file, 5);
     assert.strictEqual(diag[0].rank, 5);
@@ -175,7 +207,7 @@ describe('Check detection', () => {
 
   test('bishop delivers check on diagonal', () => {
     const b = Array.from({ length: 8 }, () => Array(8).fill(0));
-    b[0][4] = W_KING;  // e1
+    b[0][4] = W_KING; // e1
     b[4][0] = B_BISHOP; // a5 — diagonal a5-e1 hits king
     assert.strictEqual(isInCheck(b, 'white'), true);
   });
@@ -193,8 +225,8 @@ describe('Castling', () => {
     const b = Array.from({ length: 8 }, () => Array(8).fill(0));
     b[0][4] = W_KING;
     b[0][7] = W_ROOK;
-    const moves = getValidMoves(b, 4, 0, { wK:true, wQ:true, bK:true, bQ:true }, null);
-    const ks = moves.find(m => m.castle === 'K');
+    const moves = getValidMoves(b, 4, 0, { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const ks = moves.find((m) => m.castle === 'K');
     assert.ok(ks, 'king-side castle should be available');
     assert.strictEqual(ks.file, 6);
   });
@@ -203,39 +235,50 @@ describe('Castling', () => {
     const b = Array.from({ length: 8 }, () => Array(8).fill(0));
     b[0][4] = W_KING;
     b[0][0] = W_ROOK;
-    const moves = getValidMoves(b, 4, 0, { wK:true, wQ:true, bK:true, bQ:true }, null);
-    const qs = moves.find(m => m.castle === 'Q');
+    const moves = getValidMoves(b, 4, 0, { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const qs = moves.find((m) => m.castle === 'Q');
     assert.ok(qs, 'queen-side castle should be available');
     assert.strictEqual(qs.file, 2);
   });
 
   test('castling unavailable when rights are cleared', () => {
     const b = startingBoard();
-    const moves = getValidMoves(b, 4, 0, { wK:false, wQ:false, bK:true, bQ:true }, null);
-    assert.strictEqual(moves.find(m => m.castle), undefined);
+    const moves = getValidMoves(b, 4, 0, { wK: false, wQ: false, bK: true, bQ: true }, null);
+    assert.strictEqual(
+      moves.find((m) => m.castle),
+      undefined
+    );
   });
 
   test('castling unavailable when path is blocked', () => {
     const b = startingBoard();
     b[0][5] = W_PAWN; // block king-side
-    const moves = getValidMoves(b, 4, 0, { wK:true, wQ:true, bK:true, bQ:true }, null);
-    assert.strictEqual(moves.find(m => m.castle === 'K'), undefined);
+    const moves = getValidMoves(b, 4, 0, { wK: true, wQ: true, bK: true, bQ: true }, null);
+    assert.strictEqual(
+      moves.find((m) => m.castle === 'K'),
+      undefined
+    );
   });
 
   test('castling unavailable when king is in check', () => {
     const b = startingBoard();
     // Put a black bishop on b4 to check e1
     b[2][1] = B_BISHOP;
-    const moves = getValidMoves(b, 4, 0, { wK:true, wQ:true, bK:true, bQ:true }, null);
-    assert.strictEqual(moves.find(m => m.castle), undefined);
+    const moves = getValidMoves(b, 4, 0, { wK: true, wQ: true, bK: true, bQ: true }, null);
+    assert.strictEqual(
+      moves.find((m) => m.castle),
+      undefined
+    );
   });
 });
 
 describe('Castling rights — P0 fix regression tests', () => {
   test('king moving one square revokes BOTH castling rights', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // Clear the board so king can move freely
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
@@ -255,8 +298,10 @@ describe('Castling rights — P0 fix regression tests', () => {
 
   test('black king moving one square revokes castling rights', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[7][4] = B_KING;
@@ -283,19 +328,21 @@ describe('En passant', () => {
 
   test('en passant capture is available', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // White pawn at f4 (rank 3), en passant target at e5 (rank 4)
     // White pawn captures forward-left: rank 3→4, file 5→4
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[3][5] = W_PAWN;  // f4 (rank 3, file 5)
-    g.board[3][4] = B_PAWN;  // e4 (rank 3, file 4) — the captured pawn
+    g.board[3][5] = W_PAWN; // f4 (rank 3, file 5)
+    g.board[3][4] = B_PAWN; // e4 (rank 3, file 4) — the captured pawn
     g.enPassantTarget = { file: 4, rank: 4 }; // e5 — where white pawn moves to
     g.turn = 'white';
 
     const moves = getValidMoves(g.board, 5, 3, g.castlingRights, g.enPassantTarget);
-    const ep = moves.find(m => m.enPassant === true);
+    const ep = moves.find((m) => m.enPassant === true);
     assert.ok(ep, 'en passant capture should be available');
     assert.strictEqual(ep.file, 4);
     assert.strictEqual(ep.rank, 4);
@@ -317,8 +364,10 @@ describe('En passant', () => {
 describe('Promotion — P0 fix regression tests', () => {
   test('promotion to queen works', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // Set up white pawn one square from promotion
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
@@ -335,8 +384,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion to rook works', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
@@ -349,8 +400,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion to bishop works', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
@@ -363,8 +416,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion to knight works', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
@@ -377,8 +432,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('invalid promotion pieceType returns false and does not corrupt board', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
@@ -392,8 +449,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('undefined promotion pieceType returns false', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
@@ -407,8 +466,10 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('black pawn promotes correctly', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[1][4] = B_PAWN;
@@ -421,15 +482,17 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion via capture revokes captured rook castling rights (white pawn takes black rook on a8)', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][1] = W_PAWN;  // b7 — white pawn
-    g.board[7][0] = B_ROOK;  // a8 — black rook on home square
-    g.board[7][4] = B_KING;  // e8
+    g.board[6][1] = W_PAWN; // b7 — white pawn
+    g.board[7][0] = B_ROOK; // a8 — black rook on home square
+    g.board[7][4] = B_KING; // e8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+    g.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
 
     // b7xa8 — promotion capture
     const result = g.tryMove(ws1, 1, 6, 0, 7);
@@ -444,15 +507,17 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion via capture revokes captured rook castling rights (black pawn takes white rook on h1)', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[1][6] = B_PAWN;  // g2 — black pawn
-    g.board[0][7] = W_ROOK;  // h1 — white rook on home square
-    g.board[0][4] = W_KING;  // e1
+    g.board[1][6] = B_PAWN; // g2 — black pawn
+    g.board[0][7] = W_ROOK; // h1 — white rook on home square
+    g.board[0][4] = W_KING; // e1
     g.turn = 'black';
-    g.castlingRights = { wK:true, wQ:true, bK:false, bQ:false };
+    g.castlingRights = { wK: true, wQ: true, bK: false, bQ: false };
 
     // g2xh1 — promotion capture
     const result = g.tryMove(ws2, 6, 1, 7, 0);
@@ -467,18 +532,28 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion via en passant does not revoke castling rights (synthetic)', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][1] = W_PAWN;  // b7 — white pawn
-    g.board[6][0] = B_PAWN;  // a7 — black pawn to be captured via en passant
-    g.board[7][4] = B_KING;  // e8
+    g.board[6][1] = W_PAWN; // b7 — white pawn
+    g.board[6][0] = B_PAWN; // a7 — black pawn to be captured via en passant
+    g.board[7][4] = B_KING; // e8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+    g.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
 
     // Synthetic en passant promotion (bypasses move validation)
-    g.promotingPiece = { file: 0, rank: 7, color: 'white', fromFile: 1, fromRank: 6, enPassant: true, captured: 0 };
+    g.promotingPiece = {
+      file: 0,
+      rank: 7,
+      color: 'white',
+      fromFile: 1,
+      fromRank: 6,
+      enPassant: true,
+      captured: 0,
+    };
 
     g.completePromotion(ws1, 'rook');
     assert.strictEqual(g.board[7][0], W_ROOK, 'rook at a8');
@@ -489,22 +564,24 @@ describe('Promotion — P0 fix regression tests', () => {
 
   test('promotion without capture does not affect castling rights', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;  // e7
-    g.board[7][4] = B_KING;  // e8
+    g.board[6][4] = W_PAWN; // e7
+    g.board[7][4] = B_KING; // e8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+    g.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
 
     // Pawn pushes straight to e8 — but e8 has the king, so it's a capture.
     // Use a different file for the promotion to avoid capturing.
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][3] = W_PAWN;  // d7
-    g.board[7][4] = B_KING;  // e8
+    g.board[6][3] = W_PAWN; // d7
+    g.board[7][4] = B_KING; // e8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:true, bQ:true };
+    g.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
 
     const result = g.tryMove(ws1, 3, 6, 3, 7); // d7-d8, no capture
     assert.strictEqual(result.ok, true);
@@ -519,21 +596,23 @@ describe('Promotion — P0 fix regression tests', () => {
 describe('Checkmate and stalemate', () => {
   test('back-rank checkmate is detected', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // White king on e1 trapped by own pieces. Queen on e8, knight on c3 protects e2.
     // Qe2# — king can't capture queen (protected by knight), no escape squares.
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][4] = W_KING;  // e1
-    g.board[0][3] = W_ROOK;  // d1 (blocks escape)
-    g.board[0][5] = W_ROOK;  // f1 (blocks escape)
-    g.board[1][3] = W_PAWN;  // d2 (blocks escape)
-    g.board[1][5] = W_PAWN;  // f2 (blocks escape)
+    g.board[0][4] = W_KING; // e1
+    g.board[0][3] = W_ROOK; // d1 (blocks escape)
+    g.board[0][5] = W_ROOK; // f1 (blocks escape)
+    g.board[1][3] = W_PAWN; // d2 (blocks escape)
+    g.board[1][5] = W_PAWN; // f2 (blocks escape)
     g.board[7][4] = B_QUEEN; // e8
     g.board[2][2] = B_KNIGHT; // c3 (protects e2)
     g.turn = 'black';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws2, 4, 7, 4, 1); // Qe2#
     assert.strictEqual(result.ok, true);
@@ -543,17 +622,19 @@ describe('Checkmate and stalemate', () => {
 
   test('stalemate is detected', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // King on a1, black knights control a2 and b1, black king blocks b2
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][0] = W_KING;   // a1
-    g.board[0][2] = B_KNIGHT;  // c1 — controls a2, b3
-    g.board[1][3] = B_KNIGHT;  // d2 — controls b1, b3, c4, e4, f3, f1
-    g.board[2][1] = B_KING;    // c3 — controls b2, b3, c2, c4, d2, d3, d4, b4
+    g.board[0][0] = W_KING; // a1
+    g.board[0][2] = B_KNIGHT; // c1 — controls a2, b3
+    g.board[1][3] = B_KNIGHT; // d2 — controls b1, b3, c4, e4, f3, f1
+    g.board[2][1] = B_KING; // c3 — controls b2, b3, c2, c4, d2, d3, d4, b4
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // King at a1: a2 controlled by c1 knight, b1 controlled by d2 knight, b2 controlled by c3 king
     // King is not in check (no piece attacks a1)
@@ -571,14 +652,16 @@ describe('Checkmate and stalemate', () => {
 describe('Game state management', () => {
   test('addPlayer assigns white then black', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
+    const ws1 = {};
+    const ws2 = {};
     assert.strictEqual(g.addPlayer(ws1), 'white');
     assert.strictEqual(g.addPlayer(ws2), 'black');
   });
 
   test('third player becomes spectator', () => {
     const g = new Game();
-    g.addPlayer({}); g.addPlayer({});
+    g.addPlayer({});
+    g.addPlayer({});
     assert.strictEqual(g.addPlayer({}), 'spectator');
   });
 
@@ -594,7 +677,7 @@ describe('Game state management', () => {
     game.tryMove(white, 4, 1, 4, 2);
     game.reset();
     assert.strictEqual(game.turn, 'white');
-    assert.deepStrictEqual(game.castlingRights, { wK:true, wQ:true, bK:true, bQ:true });
+    assert.deepStrictEqual(game.castlingRights, { wK: true, wQ: true, bK: true, bQ: true });
     assert.strictEqual(game.enPassantTarget, null);
     assert.strictEqual(game.gameOver, false);
     assert.strictEqual(game.moveHistory.length, 0);
@@ -662,7 +745,11 @@ describe('Path resolution algorithm — verifies the fix logic', () => {
 
     // BUG: path.resolve treats leading / as absolute
     const buggyPath = path.resolve(ROOT, urlPath);
-    assert.strictEqual(buggyPath, '/client/index.html', 'bug confirmed: leading / makes path absolute');
+    assert.strictEqual(
+      buggyPath,
+      '/client/index.html',
+      'bug confirmed: leading / makes path absolute'
+    );
     assert.ok(!buggyPath.startsWith(ROOT), 'bug: path escapes ROOT');
 
     // FIX: strip leading / first
@@ -681,7 +768,10 @@ describe('Client-side capture — rebuildPieces regression', () => {
   function makeMockMesh(file, rank, type, color) {
     return {
       mesh: { position: { x: file - 3.5, y: 0.01, z: 3.5 - rank } },
-      file, rank, type, color
+      file,
+      rank,
+      type,
+      color,
     };
   }
 
@@ -726,22 +816,19 @@ describe('Client-side capture — rebuildPieces regression', () => {
   test('capture: capturing piece survives rebuildPieces (regression)', () => {
     // Board: white rook at e1 captures black pawn at e5
     const board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    board[0][4] = W_ROOK;  // e1
-    board[5][4] = B_PAWN;  // e5
+    board[0][4] = W_ROOK; // e1
+    board[5][4] = B_PAWN; // e5
 
-    let meshes = [
-      makeMockMesh(4, 0, 'rook', 'white'),
-      makeMockMesh(4, 5, 'pawn', 'black'),
-    ];
+    let meshes = [makeMockMesh(4, 0, 'rook', 'white'), makeMockMesh(4, 5, 'pawn', 'black')];
 
     // Simulate animateMove: rook moves e1 → e5, captures pawn
     // FIX: update file/rank IMMEDIATELY (not at end of animation)
-    const fromPiece = meshes.find(p => p.file === 4 && p.rank === 0);
-    fromPiece.file = 4;  // toFile
-    fromPiece.rank = 5;  // toRank
+    const fromPiece = meshes.find((p) => p.file === 4 && p.rank === 0);
+    fromPiece.file = 4; // toFile
+    fromPiece.rank = 5; // toRank
 
     // Remove captured pawn (animateMove does this via splice)
-    meshes = meshes.filter(p => !(p.file === 4 && p.rank === 5 && p.type === 'pawn'));
+    meshes = meshes.filter((p) => !(p.file === 4 && p.rank === 5 && p.type === 'pawn'));
 
     // Server board after capture: rook at e5, pawn gone
     const newBoard = Array.from({ length: 8 }, () => Array(8).fill(0));
@@ -751,14 +838,15 @@ describe('Client-side capture — rebuildPieces regression', () => {
     const result = simulateRebuild(newBoard, meshes);
 
     // The capturing rook must survive
-    assert.strictEqual(result.finalMeshes.length, 1,
-      'capturing piece must survive rebuildPieces');
+    assert.strictEqual(result.finalMeshes.length, 1, 'capturing piece must survive rebuildPieces');
     assert.strictEqual(result.finalMeshes[0].type, 'rook');
     assert.strictEqual(result.finalMeshes[0].file, 4);
     assert.strictEqual(result.finalMeshes[0].rank, 5);
     // The rook must NOT have been removed
-    assert.ok(!result.removed.includes('4,5'),
-      'capturing piece at destination must not be removed');
+    assert.ok(
+      !result.removed.includes('4,5'),
+      'capturing piece at destination must not be removed'
+    );
   });
 
   test('capture: WITHOUT the fix, capturing piece is removed (bug reproduction)', () => {
@@ -767,16 +855,13 @@ describe('Client-side capture — rebuildPieces regression', () => {
     board[0][4] = W_ROOK;
     board[5][4] = B_PAWN;
 
-    let meshes = [
-      makeMockMesh(4, 0, 'rook', 'white'),
-      makeMockMesh(4, 5, 'pawn', 'black'),
-    ];
+    let meshes = [makeMockMesh(4, 0, 'rook', 'white'), makeMockMesh(4, 5, 'pawn', 'black')];
 
     // BUG: file/rank NOT updated (old behavior — updated at end of animation)
     // fromPiece.file and fromPiece.rank stay at 4,0
 
     // Remove captured pawn
-    meshes = meshes.filter(p => !(p.file === 4 && p.rank === 5 && p.type === 'pawn'));
+    meshes = meshes.filter((p) => !(p.file === 4 && p.rank === 5 && p.type === 'pawn'));
 
     // Server board after capture
     const newBoard = Array.from({ length: 8 }, () => Array(8).fill(0));
@@ -785,22 +870,25 @@ describe('Client-side capture — rebuildPieces regression', () => {
     const result = simulateRebuild(newBoard, meshes);
 
     // BUG: rook at "4,0" is not in desired → gets removed
-    assert.ok(result.removed.includes('4,0'),
-      'BUG confirmed: capturing piece at old position is removed');
-    assert.strictEqual(result.finalMeshes.length, 0,
-      'BUG: no pieces survive — capturing piece is gone');
+    assert.ok(
+      result.removed.includes('4,0'),
+      'BUG confirmed: capturing piece at old position is removed'
+    );
+    assert.strictEqual(
+      result.finalMeshes.length,
+      0,
+      'BUG: no pieces survive — capturing piece is gone'
+    );
   });
 
   test('non-capture move: piece survives rebuildPieces', () => {
     // White knight moves b1 → a3 (no capture)
-    const meshes = [
-      makeMockMesh(1, 0, 'knight', 'white'),
-    ];
+    const meshes = [makeMockMesh(1, 0, 'knight', 'white')];
 
     // Simulate animateMove with fix: update file/rank immediately
     const fromPiece = meshes[0];
-    fromPiece.file = 0;  // toFile
-    fromPiece.rank = 2;  // toRank
+    fromPiece.file = 0; // toFile
+    fromPiece.rank = 2; // toRank
 
     const newBoard = Array.from({ length: 8 }, () => Array(8).fill(0));
     newBoard[2][0] = W_KNIGHT;
@@ -814,24 +902,27 @@ describe('Client-side capture — rebuildPieces regression', () => {
   test('en passant: capturing piece survives, captured pawn removed', () => {
     // White pawn at f4 captures en passant: f4 → e5, removes black pawn at e4
     let meshes = [
-      makeMockMesh(5, 3, 'pawn', 'white'),  // f4
-      makeMockMesh(4, 3, 'pawn', 'black'),  // e4 (the captured pawn)
+      makeMockMesh(5, 3, 'pawn', 'white'), // f4
+      makeMockMesh(4, 3, 'pawn', 'black'), // e4 (the captured pawn)
     ];
 
     // animateMove: update file/rank immediately
     const fromPiece = meshes[0];
-    fromPiece.file = 4;  // toFile (e)
-    fromPiece.rank = 4;  // toRank (5)
+    fromPiece.file = 4; // toFile (e)
+    fromPiece.rank = 4; // toRank (5)
 
     // En passant: remove captured pawn at epRank (rank 3 = 4th row)
-    meshes = meshes.filter(p => !(p.file === 4 && p.rank === 3 && p.type === 'pawn'));
+    meshes = meshes.filter((p) => !(p.file === 4 && p.rank === 3 && p.type === 'pawn'));
 
     const newBoard = Array.from({ length: 8 }, () => Array(8).fill(0));
-    newBoard[4][4] = W_PAWN;  // e5
+    newBoard[4][4] = W_PAWN; // e5
 
     const result = simulateRebuild(newBoard, meshes);
-    assert.strictEqual(result.finalMeshes.length, 1,
-      'capturing pawn must survive en passant rebuild');
+    assert.strictEqual(
+      result.finalMeshes.length,
+      1,
+      'capturing pawn must survive en passant rebuild'
+    );
     assert.strictEqual(result.finalMeshes[0].type, 'pawn');
     assert.strictEqual(result.finalMeshes[0].color, 'white');
   });
@@ -896,14 +987,16 @@ describe('Algebraic notation disambiguation', () => {
   test('two knights can reach same square - file disambiguation', () => {
     // Knight at c3 and knight at g3 both can move to e4
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[2][2] = W_KNIGHT;  // c3
-    g.board[2][6] = W_KNIGHT;  // g3
+    g.board[2][2] = W_KNIGHT; // c3
+    g.board[2][6] = W_KNIGHT; // g3
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Move knight from c3 to e4
     const result1 = g.tryMove(ws1, 2, 2, 4, 3);
@@ -914,8 +1007,8 @@ describe('Algebraic notation disambiguation', () => {
     // Move knight from g3 to e4
     g.reset();
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[2][2] = W_KNIGHT;  // c3
-    g.board[2][6] = W_KNIGHT;  // g3
+    g.board[2][2] = W_KNIGHT; // c3
+    g.board[2][6] = W_KNIGHT; // g3
     g.turn = 'white';
     const result2 = g.tryMove(ws1, 6, 2, 4, 3);
     assert.strictEqual(result2.ok, true);
@@ -926,15 +1019,17 @@ describe('Algebraic notation disambiguation', () => {
   test('two rooks on same file - rank disambiguation', () => {
     // Two rooks on the d-file, black king on d8 — Rd4 gives check
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][3] = W_ROOK;  // d1
-    g.board[4][3] = W_ROOK;  // d5
-    g.board[7][3] = B_KING;  // d8
+    g.board[0][3] = W_ROOK; // d1
+    g.board[4][3] = W_ROOK; // d5
+    g.board[7][3] = B_KING; // d8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // R1d4+ — rank disambiguation since both rooks are on d-file
     const result = g.tryMove(ws1, 3, 0, 3, 3);
@@ -945,15 +1040,17 @@ describe('Algebraic notation disambiguation', () => {
   test('two rooks on same rank - file disambiguation', () => {
     // Two rooks on the 1st rank, black king on c8 — Rc1 gives check
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][0] = W_ROOK;  // a1
-    g.board[0][3] = W_ROOK;  // d1
-    g.board[7][2] = B_KING;  // c8
+    g.board[0][0] = W_ROOK; // a1
+    g.board[0][3] = W_ROOK; // d1
+    g.board[7][2] = B_KING; // c8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Rac1+ — file disambiguation since both rooks are on 1st rank
     const result = g.tryMove(ws1, 0, 0, 2, 0);
@@ -968,15 +1065,17 @@ describe('Algebraic notation disambiguation', () => {
     // Rank alone (N2c4) can't distinguish from d2.
     // Must use Nb2c4.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[1][1] = W_KNIGHT;  // b2
-    g.board[5][1] = W_KNIGHT;  // b6
-    g.board[1][3] = W_KNIGHT;  // d2
+    g.board[1][1] = W_KNIGHT; // b2
+    g.board[5][1] = W_KNIGHT; // b6
+    g.board[1][3] = W_KNIGHT; // d2
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 1, 1, 2, 3);
     assert.strictEqual(result.ok, true);
@@ -989,15 +1088,17 @@ describe('Algebraic notation disambiguation', () => {
     // g1 shares rank 1 with c1, c5 shares file c with c1.
     // Must use Bc1e3.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][2] = W_BISHOP;  // c1
-    g.board[0][6] = W_BISHOP;  // g1
-    g.board[4][2] = W_BISHOP;  // c5
+    g.board[0][2] = W_BISHOP; // c1
+    g.board[0][6] = W_BISHOP; // g1
+    g.board[4][2] = W_BISHOP; // c5
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 2, 0, 4, 2);
     assert.strictEqual(result.ok, true);
@@ -1010,15 +1111,17 @@ describe('Algebraic notation disambiguation', () => {
     // g1 shares rank 1 with c1, c5 shares file c with c1.
     // Must use Qc1e3.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][2] = W_QUEEN;  // c1
-    g.board[0][6] = W_QUEEN;  // g1
-    g.board[4][2] = W_QUEEN;  // c5
+    g.board[0][2] = W_QUEEN; // c1
+    g.board[0][6] = W_QUEEN; // g1
+    g.board[4][2] = W_QUEEN; // c5
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 2, 0, 4, 2);
     assert.strictEqual(result.ok, true);
@@ -1029,14 +1132,16 @@ describe('Algebraic notation disambiguation', () => {
   test('bishop move with disambiguation', () => {
     // Two bishops on c3 and g3, both can reach e5
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[2][2] = W_BISHOP;  // c3
-    g.board[2][6] = W_BISHOP;  // g3
+    g.board[2][2] = W_BISHOP; // c3
+    g.board[2][6] = W_BISHOP; // g3
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 2, 2, 4, 4);
     assert.strictEqual(result.ok, true);
@@ -1047,14 +1152,16 @@ describe('Algebraic notation disambiguation', () => {
   test('queen move with disambiguation', () => {
     // Two queens on d3 and f3, both can reach e4
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[3][3] = W_QUEEN;  // d3
-    g.board[3][5] = W_QUEEN;  // f3
+    g.board[3][3] = W_QUEEN; // d3
+    g.board[3][5] = W_QUEEN; // f3
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 3, 3, 4, 4);
     assert.strictEqual(result.ok, true);
@@ -1064,14 +1171,16 @@ describe('Algebraic notation disambiguation', () => {
 
   test('king move - no disambiguation needed (only one king)', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][4] = W_KING;  // e1
-    g.board[7][4] = B_KING;  // e8
+    g.board[0][4] = W_KING; // e1
+    g.board[7][4] = B_KING; // e8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Move king from e1 to e2 (no check involved)
     const result = g.tryMove(ws1, 4, 0, 4, 1);
@@ -1082,17 +1191,19 @@ describe('Algebraic notation disambiguation', () => {
 
   test('pawn capture notation includes departure file', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[3][4] = W_PAWN;  // e4
-    g.board[4][3] = B_PAWN;  // d5 (the pawn to capture via en passant)
+    g.board[3][4] = W_PAWN; // e4
+    g.board[4][3] = B_PAWN; // d5 (the pawn to capture via en passant)
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Black pawn just moved d7-d5
-    g.enPassantTarget = { file: 3, rank: 4 };  // d5
+    g.enPassantTarget = { file: 3, rank: 4 }; // d5
 
     // White pawn at e4 captures en passant on d5
     const result = g.tryMove(ws1, 4, 3, 3, 4);
@@ -1108,16 +1219,18 @@ describe('Algebraic notation disambiguation', () => {
     // King on e1, knight on e2 (pinned by rook on e8), knight on c3.
     // Both can reach d4, but e2 knight is pinned.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][4] = W_KING;    // e1
-    g.board[1][4] = W_KNIGHT;  // e2 — pinned by rook on e8
-    g.board[2][2] = W_KNIGHT;  // c3 — free
-    g.board[7][4] = B_ROOK;    // e8 — pins the e2 knight
+    g.board[0][4] = W_KING; // e1
+    g.board[1][4] = W_KNIGHT; // e2 — pinned by rook on e8
+    g.board[2][2] = W_KNIGHT; // c3 — free
+    g.board[7][4] = B_ROOK; // e8 — pins the e2 knight
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Move the free knight from c3 to d4 — no disambiguation needed
     // because the pinned knight on e2 cannot legally move to d4.
@@ -1129,12 +1242,12 @@ describe('Algebraic notation disambiguation', () => {
     // e2 can reach: c1,c3,d4,f4,g1,g3. c3 can reach: a2,a4,b1,b5,d1,d5,e2,e4.
     // No common square! Let me use knights on b1 and e2, both can reach c3.
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[0][4] = W_KING;    // e1
-    g.board[1][4] = W_KNIGHT;  // e2 — pinned by rook on e8
-    g.board[0][1] = W_KNIGHT;  // b1 — free
-    g.board[7][4] = B_ROOK;    // e8 — pins the e2 knight
+    g.board[0][4] = W_KING; // e1
+    g.board[1][4] = W_KNIGHT; // e2 — pinned by rook on e8
+    g.board[0][1] = W_KNIGHT; // b1 — free
+    g.board[7][4] = B_ROOK; // e8 — pins the e2 knight
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // b1=(file=1,rank=0) → c3=(file=2,rank=2) is (±1,±2) — valid!
     // e2=(file=4,rank=1) → c3=(file=2,rank=2) is (±2,±1) — valid but pinned!
@@ -1154,13 +1267,15 @@ describe('Algebraic notation disambiguation', () => {
 
   test('pawn promotion notation includes piece suffix', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;  // e7
+    g.board[6][4] = W_PAWN; // e7
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Push pawn to e8 — triggers promotion
     const result = g.tryMove(ws1, 4, 6, 4, 7);
@@ -1175,13 +1290,15 @@ describe('Algebraic notation disambiguation', () => {
 
   test('promotion removes pawn from source square', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;  // e7
+    g.board[6][4] = W_PAWN; // e7
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Push pawn to e8 — triggers promotion
     const result = g.tryMove(ws1, 4, 6, 4, 7);
@@ -1202,17 +1319,26 @@ describe('Algebraic notation disambiguation', () => {
     // en passant targets from landing on the promotion rank), but the code path
     // exists and must be correct. Test with a synthetic board state.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][1] = W_PAWN;   // white pawn at source
-    g.board[6][0] = B_PAWN;   // black pawn to be captured (synthetic en passant)
+    g.board[6][1] = W_PAWN; // white pawn at source
+    g.board[6][0] = B_PAWN; // black pawn to be captured (synthetic en passant)
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // Manually set up a promotion with enPassant flag (bypasses move validation)
-    g.promotingPiece = { file: 0, rank: 7, color: 'white', fromFile: 1, fromRank: 6, enPassant: true };
+    g.promotingPiece = {
+      file: 0,
+      rank: 7,
+      color: 'white',
+      fromFile: 1,
+      fromRank: 6,
+      enPassant: true,
+    };
 
     // Complete promotion — should clear source AND en passant captured pawn
     g.completePromotion(ws1, 'rook');
@@ -1223,13 +1349,15 @@ describe('Algebraic notation disambiguation', () => {
 
   test('promotingPiece stores source coordinates for client sync', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][0] = W_PAWN;  // a7
+    g.board[6][0] = W_PAWN; // a7
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     g.tryMove(ws1, 0, 6, 0, 7);
     assert.strictEqual(g.promotingPiece.fromFile, 0, 'fromFile stored');
@@ -1247,16 +1375,18 @@ describe('Algebraic notation disambiguation', () => {
     // White bishop on a2, white knight on f7, white king on e1, black king on g8.
     // Knight moves f7→h6, revealing the bishop's diagonal a2–g8 → discovered check.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[1][0] = W_BISHOP;  // a2
-    g.board[6][5] = W_KNIGHT;  // f7
-    g.board[0][4] = W_KING;    // e1
-    g.board[7][6] = B_KING;    // g8
+    g.board[1][0] = W_BISHOP; // a2
+    g.board[6][5] = W_KNIGHT; // f7
+    g.board[0][4] = W_KING; // e1
+    g.board[7][6] = B_KING; // g8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // f7=(file=5,rank=6) → h6=(file=7,rank=5) is (±2,±1) — valid knight move
     const result = g.tryMove(ws1, 5, 6, 7, 5);
@@ -1272,20 +1402,22 @@ describe('Algebraic notation disambiguation', () => {
     // Rook on a8 covers d8,f8; knight on c6 covers d8; knight on g6 covers f8.
     // Bishop diagonal covers e7. Pawns block d7,f7. King has no escape → checkmate.
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[2][0] = W_BISHOP;  // a3 — checks f8 along a3-f8 diagonal
-    g.board[6][4] = W_KNIGHT;  // e7 — blocks bishop, will move to g6
-    g.board[5][2] = W_KNIGHT;  // c6 — covers d8 escape
-    g.board[7][0] = W_ROOK;    // a8 — covers d8,f8 on back rank
-    g.board[0][6] = W_KING;    // g1
-    g.board[7][4] = B_KING;    // e8
-    g.board[6][3] = B_PAWN;    // d7 — blocks Ke8→d7
-    g.board[6][5] = B_PAWN;    // f7 — blocks Ke8→f7
+    g.board[2][0] = W_BISHOP; // a3 — checks f8 along a3-f8 diagonal
+    g.board[6][4] = W_KNIGHT; // e7 — blocks bishop, will move to g6
+    g.board[5][2] = W_KNIGHT; // c6 — covers d8 escape
+    g.board[7][0] = W_ROOK; // a8 — covers d8,f8 on back rank
+    g.board[0][6] = W_KING; // g1
+    g.board[7][4] = B_KING; // e8
+    g.board[6][3] = B_PAWN; // d7 — blocks Ke8→d7
+    g.board[6][5] = B_PAWN; // f7 — blocks Ke8→f7
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     // e7=(file=4,rank=6) → g6=(file=6,rank=5) is (±2,±1) — valid knight move
     const result = g.tryMove(ws1, 4, 6, 6, 5);
@@ -1301,16 +1433,18 @@ describe('Algebraic notation disambiguation', () => {
     // Queen on d8 checks king on g8 along the 8th rank.
     // Notation: exd8=Q+
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;   // e7
-    g.board[7][3] = B_ROOK;   // d8
-    g.board[0][4] = W_KING;   // e1
-    g.board[7][6] = B_KING;   // g8
+    g.board[6][4] = W_PAWN; // e7
+    g.board[7][3] = B_ROOK; // d8
+    g.board[0][4] = W_KING; // e1
+    g.board[7][6] = B_KING; // g8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 4, 6, 3, 7);
     assert.strictEqual(result.ok, true);
@@ -1325,16 +1459,18 @@ describe('Algebraic notation disambiguation', () => {
     // White pawn on e7 captures black piece on d8, promotes to queen, delivers check.
     // Notation: exd8=Q+
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;   // e7
-    g.board[7][3] = B_PAWN;   // d8
-    g.board[0][4] = W_KING;   // e1
-    g.board[7][4] = B_KING;   // e8 — on same file as promotion square
+    g.board[6][4] = W_PAWN; // e7
+    g.board[7][3] = B_PAWN; // d8
+    g.board[0][4] = W_KING; // e1
+    g.board[7][4] = B_KING; // e8 — on same file as promotion square
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 4, 6, 3, 7);
     assert.strictEqual(result.ok, true);
@@ -1351,20 +1487,22 @@ describe('Algebraic notation disambiguation', () => {
     // Black king on e8, pawns on d7, f7, f8 block all escapes.
     // Notation: exd8=Q#
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][4] = W_PAWN;   // e7
-    g.board[7][3] = B_PAWN;   // d8 — captured by promoting pawn
-    g.board[5][2] = W_KNIGHT;  // c6 — defends d8 (queen cannot be captured)
-    g.board[0][4] = W_KING;   // e1
-    g.board[7][4] = B_KING;   // e8
-    g.board[6][3] = B_PAWN;   // d7 — blocks Ke8→d7
-    g.board[6][5] = B_PAWN;   // f7 — blocks Ke8→f7
-    g.board[7][5] = B_PAWN;   // f8 — blocks Ke8→f8
+    g.board[6][4] = W_PAWN; // e7
+    g.board[7][3] = B_PAWN; // d8 — captured by promoting pawn
+    g.board[5][2] = W_KNIGHT; // c6 — defends d8 (queen cannot be captured)
+    g.board[0][4] = W_KING; // e1
+    g.board[7][4] = B_KING; // e8
+    g.board[6][3] = B_PAWN; // d7 — blocks Ke8→d7
+    g.board[6][5] = B_PAWN; // f7 — blocks Ke8→f7
+    g.board[7][5] = B_PAWN; // f8 — blocks Ke8→f8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const result = g.tryMove(ws1, 4, 6, 3, 7);
     assert.strictEqual(result.ok, true);
@@ -1379,7 +1517,9 @@ describe('Algebraic notation disambiguation', () => {
 });
 
 describe('Insufficient material — draw detection', () => {
-  function emptyBoard() { return Array.from({ length: 8 }, () => Array(8).fill(0)); }
+  function emptyBoard() {
+    return Array.from({ length: 8 }, () => Array(8).fill(0));
+  }
 
   test('K vs K is insufficient material', () => {
     const b = emptyBoard();
@@ -1423,18 +1563,18 @@ describe('Insufficient material — draw detection', () => {
   test('K+B vs K+B same-colored bishops is insufficient material', () => {
     const b = emptyBoard();
     b[0][4] = W_KING;
-    b[0][0] = W_BISHOP;  // a1 — dark square (0+0=0, even)
+    b[0][0] = W_BISHOP; // a1 — dark square (0+0=0, even)
     b[7][4] = B_KING;
-    b[7][1] = B_BISHOP;  // b8 — dark square (1+7=8, even)
+    b[7][1] = B_BISHOP; // b8 — dark square (1+7=8, even)
     assert.strictEqual(isInsufficientMaterial(b), true);
   });
 
   test('K+B vs K+B opposite-colored bishops is NOT insufficient material', () => {
     const b = emptyBoard();
     b[0][4] = W_KING;
-    b[0][0] = W_BISHOP;  // a1 — dark square (0+0=0, even)
+    b[0][0] = W_BISHOP; // a1 — dark square (0+0=0, even)
     b[7][4] = B_KING;
-    b[7][0] = B_BISHOP;  // a8 — light square (0+7=7, odd)
+    b[7][0] = B_BISHOP; // a8 — light square (0+7=7, odd)
     assert.strictEqual(isInsufficientMaterial(b), false);
   });
 
@@ -1469,8 +1609,10 @@ describe('Insufficient material — draw detection', () => {
 
   test('checkGameEnd detects insufficient material as draw', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     // K vs K
     g.board = emptyBoard();
@@ -1480,13 +1622,18 @@ describe('Insufficient material — draw detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('insufficient material'), `expected insufficient material draw: ${g.gameResult}`);
+    assert.ok(
+      g.gameResult.includes('insufficient material'),
+      `expected insufficient material draw: ${g.gameResult}`
+    );
   });
 
   test('checkGameEnd detects K+B vs K as draw', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = emptyBoard();
     g.board[0][4] = W_KING;
@@ -1496,19 +1643,24 @@ describe('Insufficient material — draw detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('insufficient material'), `expected insufficient material draw: ${g.gameResult}`);
+    assert.ok(
+      g.gameResult.includes('insufficient material'),
+      `expected insufficient material draw: ${g.gameResult}`
+    );
   });
 
   test('checkGameEnd does NOT draw on K+B vs K+B opposite-colored bishops', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
 
     g.board = emptyBoard();
     g.board[0][4] = W_KING;
-    g.board[0][0] = W_BISHOP;  // a1 — dark
+    g.board[0][0] = W_BISHOP; // a1 — dark
     g.board[7][4] = B_KING;
-    g.board[7][0] = B_BISHOP;  // a8 — light
+    g.board[7][0] = B_BISHOP; // a8 — light
     g.turn = 'white';
 
     g.checkGameEnd();
@@ -1523,8 +1675,8 @@ describe('Insufficient material — draw detection', () => {
 describe('Zobrist hashing', () => {
   test('same position produces same hash', () => {
     const board = startingBoard();
-    const h1 = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
-    const h2 = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    const h1 = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h2 = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.strictEqual(h1, h2, 'identical positions must produce identical hashes');
   });
 
@@ -1532,14 +1684,14 @@ describe('Zobrist hashing', () => {
     const b1 = startingBoard();
     const b2 = startingBoard();
     b2[1][4] = 0; // remove white e-pawn
-    const h1 = ZOBRIST.compute(b1, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
-    const h2 = ZOBRIST.compute(b2, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    const h1 = ZOBRIST.compute(b1, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h2 = ZOBRIST.compute(b2, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.notStrictEqual(h1, h2, 'different boards must produce different hashes');
   });
 
   test('different turn produces different hash', () => {
     const board = startingBoard();
-    const cr = { wK:true, wQ:true, bK:true, bQ:true };
+    const cr = { wK: true, wQ: true, bK: true, bQ: true };
     const hw = ZOBRIST.compute(board, 'white', cr, null);
     const hb = ZOBRIST.compute(board, 'black', cr, null);
     assert.notStrictEqual(hw, hb, 'different sides to move must produce different hashes');
@@ -1547,8 +1699,8 @@ describe('Zobrist hashing', () => {
 
   test('different castling rights produce different hash', () => {
     const board = startingBoard();
-    const cr1 = { wK:true, wQ:true, bK:true, bQ:true };
-    const cr2 = { wK:false, wQ:true, bK:true, bQ:true };
+    const cr1 = { wK: true, wQ: true, bK: true, bQ: true };
+    const cr2 = { wK: false, wQ: true, bK: true, bQ: true };
     const h1 = ZOBRIST.compute(board, 'white', cr1, null);
     const h2 = ZOBRIST.compute(board, 'white', cr2, null);
     assert.notStrictEqual(h1, h2, 'different castling rights must produce different hashes');
@@ -1556,7 +1708,7 @@ describe('Zobrist hashing', () => {
 
   test('en passant target produces different hash', () => {
     const board = startingBoard();
-    const cr = { wK:true, wQ:true, bK:true, bQ:true };
+    const cr = { wK: true, wQ: true, bK: true, bQ: true };
     const h1 = ZOBRIST.compute(board, 'white', cr, null);
     const h2 = ZOBRIST.compute(board, 'white', cr, { file: 3, rank: 3 });
     assert.notStrictEqual(h1, h2, 'en passant target must affect hash');
@@ -1564,7 +1716,7 @@ describe('Zobrist hashing', () => {
 
   test('hash is a BigInt', () => {
     const board = startingBoard();
-    const h = ZOBRIST.compute(board, 'white', { wK:true, wQ:true, bK:true, bQ:true }, null);
+    const h = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.ok(typeof h === 'bigint', 'Zobrist hash must be a BigInt');
   });
 });
@@ -1612,12 +1764,14 @@ describe('Half-move clock', () => {
 
   test('resets on promotion (pawn move)', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN; // e7
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.halfmoveClock = 5; // simulate prior non-pawn moves
 
     g.tryMove(ws1, 4, 6, 4, 7); // e7-e8 promotion
@@ -1654,12 +1808,14 @@ describe('Position history', () => {
 
   test('position recorded after promotion', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[6][4] = W_PAWN;
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
     const beforeCount = g.positionHistory.length;
     g.tryMove(ws1, 4, 6, 4, 7);
@@ -1683,13 +1839,15 @@ describe('Threefold repetition detection', () => {
   test('K b8-c8 shuttle produces threefold', () => {
     // Minimal position: K b8, K g8. White king shuttles b8-c8-b8-c8-b8
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[7][1] = W_KING; // b8
     g.board[7][6] = B_KING; // g8
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.halfmoveClock = 0;
     g.positionHistory = [];
     g.positionCounts = new Map();
@@ -1709,7 +1867,7 @@ describe('Threefold repetition detection', () => {
     board[7][4] = B_KING;
     g.board = board;
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.enPassantTarget = null;
 
     g.positionHistory = [];
@@ -1720,7 +1878,11 @@ describe('Threefold repetition detection', () => {
     g._recordPosition(null); // count = 2
     assert.strictEqual(g.isThreefoldRepetition(), false);
     g._recordPosition(null); // count = 3
-    assert.strictEqual(g.isThreefoldRepetition(), true, 'three identical positions triggers threefold');
+    assert.strictEqual(
+      g.isThreefoldRepetition(),
+      true,
+      'three identical positions triggers threefold'
+    );
   });
 
   test('checkGameEnd declares draw on threefold', () => {
@@ -1730,7 +1892,7 @@ describe('Threefold repetition detection', () => {
     board[7][4] = B_KING;
     g.board = board;
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.positionHistory = [];
     g.positionCounts = new Map();
     g._recordPosition(null);
@@ -1747,7 +1909,7 @@ describe('Threefold repetition detection', () => {
     const board = startingBoard();
     g.board = board;
     g.turn = 'white';
-    g.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    g.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
     g.positionHistory = [];
     g.positionCounts = new Map();
 
@@ -1777,8 +1939,10 @@ describe('Fifty-move rule', () => {
 
   test('checkGameEnd declares draw on 50-move rule', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     // Position with legal moves but 50-move clock reached
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[0][4] = W_KING;
@@ -1786,7 +1950,7 @@ describe('Fifty-move rule', () => {
     g.board[7][4] = B_KING;
     g.board[7][3] = B_KNIGHT;
     g.turn = 'white';
-    g.castlingRights = { wK:false, wQ:false, bK:false, bQ:false };
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.halfmoveClock = 100;
 
     g.checkGameEnd();
@@ -1831,14 +1995,16 @@ describe('FEN export', () => {
 
   test('FEN castling rights updated after king move', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     // Move white king
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[0][4] = W_KING;
     g.board[7][4] = B_KING;
     g.turn = 'white';
-    g.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    g.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
     g.tryMove(ws1, 4, 0, 4, 1); // Ke2
     const fen = g.currentFen();
     // White castling rights cleared; black retains kq
@@ -1853,7 +2019,7 @@ describe('FEN import', () => {
     const state = fromFen(fen);
     assert.deepStrictEqual(state.board, startingBoard());
     assert.strictEqual(state.turn, 'white');
-    assert.deepStrictEqual(state.castlingRights, { wK:true, wQ:true, bK:true, bQ:true });
+    assert.deepStrictEqual(state.castlingRights, { wK: true, wQ: true, bK: true, bQ: true });
     assert.strictEqual(state.enPassantTarget, null);
     assert.strictEqual(state.halfmoveClock, 0);
     assert.strictEqual(state.fullmoveNumber, 1);
@@ -1885,7 +2051,10 @@ describe('FEN import', () => {
 
   test('invalid FEN throws error', () => {
     assert.throws(() => fromFen('invalid'), /Invalid FEN/);
-    assert.throws(() => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1'), /Invalid FEN/);
+    assert.throws(
+      () => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR x KQkq - 0 1'),
+      /Invalid FEN/
+    );
   });
 
   test('loadFromFen on Game instance', () => {
@@ -1989,8 +2158,10 @@ describe('getState includes new fields', () => {
 
   test('threefoldCount updates after moves', () => {
     const g = new Game();
-    const ws1 = {}; const ws2 = {};
-    g.addPlayer(ws1); g.addPlayer(ws2);
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
     g.tryMove(ws1, 4, 1, 4, 3); // e4
     const state = g.getState();
     assert.strictEqual(state.threefoldCount, 1); // new position, count=1
@@ -2011,22 +2182,37 @@ describe('Build regression — chess.mjs browser safety', () => {
       const line = lines[i].trim();
       // Skip comments
       if (line.startsWith('//') || line.startsWith('*')) continue;
-      // Skip the guarded try/catch pattern
+      // Skip lines with require( that are inside a try/catch block
+      // (check if require( is on same line as try, or if a nearby line has try)
       if (line.includes('try') && line.includes('require(')) continue;
-      // Flag any other require(
       if (line.includes('require(')) {
-        bareRequires.push({ line: i + 1, text: line });
+        // Check if any of the previous 3 lines contain 'try' (multi-line try/catch)
+        let insideTry = false;
+        for (let j = Math.max(0, i - 3); j < i; j++) {
+          if (lines[j].trim().includes('try')) {
+            insideTry = true;
+            break;
+          }
+        }
+        if (!insideTry) {
+          bareRequires.push({ line: i + 1, text: line });
+        }
       }
     }
-    assert.strictEqual(bareRequires.length, 0,
-      `Bare require() found in chess.mjs (crashes in browser):\n${bareRequires.map(r => `  line ${r.line}: ${r.text}`).join('\n')}`);
+    assert.strictEqual(
+      bareRequires.length,
+      0,
+      `Bare require() found in chess.mjs (crashes in browser):\n${bareRequires.map((r) => `  line ${r.line}: ${r.text}`).join('\n')}`
+    );
   });
 
   test('generated chess.mjs wraps crypto require in try/catch', () => {
     const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
-    assert.ok(mjs.includes('try') && mjs.includes("require('crypto')"),
-      'crypto require must be wrapped in try/catch for browser compatibility');
+    assert.ok(
+      mjs.includes('try') && mjs.includes("require('crypto')"),
+      'crypto require must be wrapped in try/catch for browser compatibility'
+    );
   });
 
   test('ZOBRIST is null-safe when crypto unavailable', () => {
@@ -2035,8 +2221,10 @@ describe('Build regression — chess.mjs browser safety', () => {
     assert.ok(ZOBRIST !== null, 'ZOBRIST should be initialized in Node.js');
     // Verify _computeZobrist has a null guard (check source)
     const src = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
-    assert.ok(src.includes('if (!ZOBRIST)'),
-      '_computeZobrist must guard against null ZOBRIST for browser safety');
+    assert.ok(
+      src.includes('if (!ZOBRIST)'),
+      '_computeZobrist must guard against null ZOBRIST for browser safety'
+    );
   });
 });
 
@@ -2046,7 +2234,9 @@ describe('TLS CLI arguments', () => {
 
   // Each test gets a unique port to avoid EADDRINUSE / TIME_WAIT conflicts
   let portCounter = 49000;
-  function nextPort() { return ++portCounter; }
+  function nextPort() {
+    return ++portCounter;
+  }
 
   function runServer(args, timeout) {
     const t = timeout || 3000;
@@ -2055,22 +2245,35 @@ describe('TLS CLI arguments', () => {
     // Use spawn so we can explicitly kill the child after capturing output.
     // execSync with a timeout leaves the process in an undefined state,
     // causing EADDRINUSE on subsequent test runs.
-    const child = spawn('node', [serverPath, '--config=/dev/null', ...args.split(/\s+/).filter(Boolean)], {
-      env: { ...process.env, MPCHESS_PORT: String(port) },
-      timeout: t,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      'node',
+      [serverPath, '--config=/dev/null', ...args.split(/\s+/).filter(Boolean)],
+      {
+        env: { ...process.env, MPCHESS_PORT: String(port) },
+        timeout: t,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }
+    );
 
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', d => { stdout += d.toString(); });
-    child.stderr.on('data', d => { stderr += d.toString(); });
+    child.stdout.on('data', (d) => {
+      stdout += d.toString();
+    });
+    child.stderr.on('data', (d) => {
+      stderr += d.toString();
+    });
 
     // Wait for the startup banner (or TLS warning/fallback) then kill immediately
     return new Promise((resolve) => {
       let killed = false;
       const tryKill = () => {
-        if (!killed) { killed = true; try { child.kill('SIGTERM'); } catch {} }
+        if (!killed) {
+          killed = true;
+          try {
+            child.kill('SIGTERM');
+          } catch {}
+        }
       };
       const handleStdout = (data) => {
         stdout += data.toString();
@@ -2078,15 +2281,17 @@ describe('TLS CLI arguments', () => {
       };
       const handleStderr = (data) => {
         stderr += data.toString();
-        if (stderr.includes('Falling back to HTTP') ||
-            stderr.includes('Running in HTTP mode')) tryKill();
+        if (stderr.includes('Falling back to HTTP') || stderr.includes('Running in HTTP mode'))
+          tryKill();
       };
       child.stdout.on('data', handleStdout);
       child.stderr.on('data', handleStderr);
 
       // Safety net: kill after timeout regardless
       const safety = setTimeout(() => {
-        try { child.kill('SIGKILL'); } catch {}
+        try {
+          child.kill('SIGKILL');
+        } catch {}
         resolve({ stdout, stderr, port });
       }, t);
 
@@ -2143,15 +2348,21 @@ describe('TLS CLI arguments', () => {
     const certPath = '/tmp/mpchess_test.crt';
     const keyPath = '/tmp/mpchess_test.key';
     try {
-      exec(`openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`);
+      exec(
+        `openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`
+      );
 
       const result = await runServer(`--cert=${certPath} --key=${keyPath}`, 3000);
       const output = result.stdout + result.stderr;
       assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
       assert.ok(output.includes(`https://localhost:${result.port}`), 'should show https:// URL');
     } finally {
-      try { fs.unlinkSync(certPath); } catch {}
-      try { fs.unlinkSync(keyPath); } catch {}
+      try {
+        fs.unlinkSync(certPath);
+      } catch {}
+      try {
+        fs.unlinkSync(keyPath);
+      } catch {}
     }
   });
 
@@ -2161,17 +2372,28 @@ describe('TLS CLI arguments', () => {
     const keyPath = '/tmp/mpchess_test2.key';
     const chainPath = '/tmp/mpchess_test2.chain.pem';
     try {
-      exec(`openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`);
+      exec(
+        `openssl req -x509 -newkey rsa:2048 -keyout ${keyPath} -out ${certPath} -days 1 -nodes -subj '/CN=localhost' 2>/dev/null`
+      );
       // Use the cert itself as the chain (valid PEM)
       fs.copyFileSync(certPath, chainPath);
 
-      const result = await runServer(`--cert=${certPath} --key=${keyPath} --chain=${chainPath}`, 3000);
+      const result = await runServer(
+        `--cert=${certPath} --key=${keyPath} --chain=${chainPath}`,
+        3000
+      );
       const output = result.stdout + result.stderr;
       assert.ok(output.includes('(https)'), 'should indicate HTTPS mode');
     } finally {
-      try { fs.unlinkSync(certPath); } catch {}
-      try { fs.unlinkSync(keyPath); } catch {}
-      try { fs.unlinkSync(chainPath); } catch {}
+      try {
+        fs.unlinkSync(certPath);
+      } catch {}
+      try {
+        fs.unlinkSync(keyPath);
+      } catch {}
+      try {
+        fs.unlinkSync(chainPath);
+      } catch {}
     }
   });
 });

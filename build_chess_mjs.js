@@ -23,19 +23,22 @@ const exportsList = [
   'ZOBRIST, toFen, fromFen',
 ];
 
-const mjs = body + '\n\n// ═══════════════════════════════════════════════════════════\n//  EXPORTS (ES Module — generated from chess.js)\n// ═══════════════════════════════════════════════════════════\n\nexport {' + exportsList.join(' ') + '};\n';
+const mjs =
+  body +
+  '\n\n// ═══════════════════════════════════════════════════════════\n//  EXPORTS (ES Module — generated from chess.js)\n// ═══════════════════════════════════════════════════════════\n\nexport {' +
+  exportsList.join(' ') +
+  '};\n';
 
 // Regression check: generated mjs must not contain bare `require(` calls
 // (chess.js wraps `require('crypto')` in try/catch, but catch any future regressions)
 const requireMatches = mjs.match(/(?<!catch\s*\{\s*\/\*\s*browser)[^/]*\brequire\s*\(/g);
-if (requireMatches && requireMatches.some(m => !m.includes('try') && !m.includes('catch'))) {
+if (requireMatches && requireMatches.some((m) => !m.includes('try') && !m.includes('catch'))) {
   // More precise check: look for require( not inside a try/catch block
   const lines = mjs.split('\n');
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     // Skip lines that are the guarded try/catch pattern
-    if (line.includes("try { crypto = require('crypto'); }") ||
-        line.includes("try{")) continue;
+    if (line.includes("try { crypto = require('crypto'); }") || line.includes('try{')) continue;
     if (line.includes('require(') && !line.startsWith('//') && !line.startsWith('*')) {
       console.error(`ERROR: bare require() found in generated chess.mjs at line ${i + 1}:`);
       console.error(`  ${line}`);

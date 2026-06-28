@@ -81,7 +81,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // Check if actively occupied
       let occupiedWs = null;
       for (const [ws, c] of game.players) {
-        if (c === color) { occupiedWs = ws; break; }
+        if (c === color) {
+          occupiedWs = ws;
+          break;
+        }
       }
       if (occupiedWs) {
         // Check if this client holds the active session (browser refresh)
@@ -95,7 +98,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         let heldEntry = null;
         let heldToken = null;
         for (const [token, entry] of disconnectedPlayers) {
-          if (entry.color === color) { heldEntry = entry; heldToken = token; break; }
+          if (entry.color === color) {
+            heldEntry = entry;
+            heldToken = token;
+            break;
+          }
         }
         if (heldEntry) {
           const freesAt = heldEntry.disconnectedAt + seatTimeout;
@@ -103,7 +110,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           const clientSession = sessions.get(clientWs);
           const clientToken = clientSession?.token;
           const canReconnect = clientToken === heldToken;
-          seats[color] = { status: 'held', freesAt, remaining: Math.max(0, freesAt - Date.now()), canReconnect };
+          seats[color] = {
+            status: 'held',
+            freesAt,
+            remaining: Math.max(0, freesAt - Date.now()),
+            canReconnect,
+          };
         } else {
           seats[color] = { status: 'free', canReconnect: false };
         }
@@ -115,7 +127,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   function sendState(ws) {
     const role = getRole(ws);
     const state = game.getState();
-    send(ws, { type: 'state', role, seats: buildSeatStatus(ws), disconnectedPlayers: buildDisconnectedPlayersArray(), ...state });
+    send(ws, {
+      type: 'state',
+      role,
+      seats: buildSeatStatus(ws),
+      disconnectedPlayers: buildDisconnectedPlayersArray(),
+      ...state,
+    });
   }
 
   function bothDisconnected() {
@@ -270,7 +288,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
     ws.on('message', (raw) => {
       let msg;
-      try { msg = JSON.parse(raw); } catch { return; }
+      try {
+        msg = JSON.parse(raw);
+      } catch {
+        return;
+      }
 
       // Rate limit check (per connection, sliding window)
       const rl = checkRateLimit(ws);
@@ -319,7 +341,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       switch (msg.type) {
         case 'move': {
           const { fromFile, fromRank, toFile, toRank } = msg;
-          if (![fromFile, fromRank, toFile, toRank].every(v => Number.isInteger(v) && v >= 0 && v <= 7)) return;
+          if (
+            ![fromFile, fromRank, toFile, toRank].every(
+              (v) => Number.isInteger(v) && v >= 0 && v <= 7
+            )
+          )
+            return;
           const result = game.tryMove(ws, fromFile, fromRank, toFile, toRank);
           if (result.ok) {
             broadcast({ type: 'move', ...result });
@@ -333,7 +360,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         case 'promotion': {
           if (!game.promotingPiece || game.players.get(ws) !== game.promotingPiece.color) return;
-          if (!['queen','rook','bishop','knight'].includes(msg.pieceType)) return;
+          if (!['queen', 'rook', 'bishop', 'knight'].includes(msg.pieceType)) return;
           const ok = game.completePromotion(ws, msg.pieceType);
           if (ok) {
             broadcast({ type: 'promotion', pieceType: msg.pieceType });
@@ -486,16 +513,16 @@ const requestHandler = (req, res) => {
     const content = fs.readFileSync(filePath);
     res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
     res.end(content);
-  } catch (e) {
+  } catch {
     res.writeHead(404);
     res.end('Not found');
   }
-}
+};
 
 if (require.main === module) {
   // CLI help (check before loading config)
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
-    const { defaultConfigPath } = require('./loadConfig');
+    require('./loadConfig'); // loaded for side effects
     console.log(`
 Usage: node server.js [options]
 
@@ -569,7 +596,7 @@ Examples:
         cb(true);
         return;
       }
-      const ok = allowedOrigins.some(allowed => origin.includes(allowed));
+      const ok = allowedOrigins.some((allowed) => origin.includes(allowed));
       cb(ok, ok ? 200 : 403);
     };
   }

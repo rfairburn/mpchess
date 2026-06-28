@@ -4,7 +4,7 @@ import path from 'path';
 export default defineConfig({
   resolve: {
     alias: {
-      'three': path.resolve(__dirname, 'test/client/mocks/three.js'),
+      three: path.resolve(__dirname, 'test/client/mocks/three.js'),
     },
   },
   test: {

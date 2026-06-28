@@ -60,13 +60,14 @@ export function createBoard(scene, matBorder) {
 // ── Highlights ───────────────────────────────────────────
 
 export function clearHighlights() {
-  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-    const sq = squares[r][f];
-    const isLight = (f + r) % 2 === 1;
-    sq.material.emissive.set(0x000000);
-    sq.material.emissiveIntensity = 0;
-    sq.material.color.copy(isLight ? matLight.color : matDark.color);
-  }
+  for (let r = 0; r < 8; r++)
+    for (let f = 0; f < 8; f++) {
+      const sq = squares[r][f];
+      const isLight = (f + r) % 2 === 1;
+      sq.material.emissive.set(0x000000);
+      sq.material.emissiveIntensity = 0;
+      sq.material.color.copy(isLight ? matLight.color : matDark.color);
+    }
 }
 
 function highlightSquare(file, rank, mat) {
@@ -103,9 +104,14 @@ export function createLabels(scene, font) {
   const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   const ranks = ['1', '2', '3', '4', '5', '6', '7', '8'];
   const textOpts = {
-    font, size: 0.18, height: 0.025, curveSegments: 4,
-    bevelEnabled: true, bevelThickness: 0.008,
-    bevelSize: 0.008, bevelSegments: 2
+    font,
+    size: 0.18,
+    height: 0.025,
+    curveSegments: 4,
+    bevelEnabled: true,
+    bevelThickness: 0.008,
+    bevelSize: 0.008,
+    bevelSegments: 2,
   };
   files.forEach((ch, i) => {
     const g = new TextGeometry(ch, textOpts);

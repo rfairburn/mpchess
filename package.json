@@ -9,7 +9,15 @@
     "test:server": "node test/server/chess.test.js && node test/server/reconnect.test.js && node test/server/config.test.js",
     "test:client": "vitest run",
     "test:all": "npm run test:server && npm run test:client",
-    "build:chess": "node build_chess_mjs.js"
+    "build:chess": "node build_chess_mjs.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "ci": "bash scripts/ci.sh"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +27,12 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
     "jsdom": "^29.1.1",
+    "prettier": "^3.0.0",
     "vitest": "^4.1.9"
   }
 }

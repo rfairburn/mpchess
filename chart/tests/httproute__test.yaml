@@ -1,0 +1,89 @@
+suite: httproute
+release:
+  name: mpchess
+templates:
+  - templates/httproute.yaml
+tests:
+  - it: renders HTTPRoute when gateway type is httproute (default)
+    asserts:
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: HTTPRoute
+      - equal:
+          documentIndex: 0
+          path: spec.hostnames[0]
+          value: chess.example.com
+      - equal:
+          documentIndex: 0
+          path: spec.parentRefs[0].name
+          value: envoy-gateway
+      - equal:
+          documentIndex: 0
+          path: spec.parentRefs[0].namespace
+          value: envoy-gateway
+      - equal:
+          documentIndex: 0
+          path: spec.rules[0].backendRefs[0].name
+          value: mpchess
+      - equal:
+          documentIndex: 0
+          path: spec.rules[0].backendRefs[0].port
+          value: 3000
+
+  - it: no documents when gateway type is ingress
+    set:
+      gateway:
+        type: ingress
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: custom host
+    set:
+      gateway:
+        host: my-chess.game.devop.ninja
+    asserts:
+      - equal:
+          documentIndex: 0
+          path: spec.hostnames[0]
+          value: my-chess.game.devop.ninja
+      - equal:
+          documentIndex: 1
+          path: spec.hostnames[0]
+          value: my-chess.game.devop.ninja
+
+  - it: custom gateway name and namespace
+    set:
+      gateway:
+        gatewayName: my-gateway
+        gatewayNamespace: my-gateway-ns
+    asserts:
+      - equal:
+          documentIndex: 0
+          path: spec.parentRefs[0].name
+          value: my-gateway
+      - equal:
+          documentIndex: 0
+          path: spec.parentRefs[0].namespace
+          value: my-gateway-ns
+
+  - it: TLS HTTPRoute references correct secret
+    set:
+      gateway:
+        tlsSecretName: custom-tls-secret
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].sectionName
+          value: custom-tls-secret
+
+  - it: TLS HTTPRoute uses fullname-based secret by default
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: mpchess-tls
+      - equal:
+          path: spec.parentRefs[0].sectionName
+          value: mpchess-tls

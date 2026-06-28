@@ -1,0 +1,48 @@
+suite: service
+release:
+  name: mpchess
+templates:
+  - templates/service.yaml
+tests:
+  - it: default values render correctly
+    asserts:
+      - isKind:
+          of: Service
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: mpchess
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 3000
+      - equal:
+          path: spec.ports[0].targetPort
+          value: http
+      - equal:
+          path: spec.ports[0].protocol
+          value: TCP
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: mpchess
+
+  - it: custom service type
+    set:
+      service:
+        type: LoadBalancer
+    asserts:
+      - equal:
+          path: spec.type
+          value: LoadBalancer
+
+  - it: custom service port
+    set:
+      service:
+        port: 8080
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 8080

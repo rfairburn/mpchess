@@ -6,34 +6,64 @@
 
 // crypto is Node-only; browser build (chess.mjs) never uses Zobrist
 let crypto;
-try { crypto = require('crypto'); } catch { /* browser — no crypto */ }
+try {
+  crypto = require('crypto');
+} catch {
+  /* browser — no crypto */
+}
 
 const EMPTY = 0;
-const W_PAWN=1, W_KNIGHT=2, W_BISHOP=3, W_ROOK=4, W_QUEEN=5, W_KING=6;
-const B_PAWN=7, B_KNIGHT=8, B_BISHOP=9, B_ROOK=10, B_QUEEN=11, B_KING=12;
+const W_PAWN = 1,
+  W_KNIGHT = 2,
+  W_BISHOP = 3,
+  W_ROOK = 4,
+  W_QUEEN = 5,
+  W_KING = 6;
+const B_PAWN = 7,
+  B_KNIGHT = 8,
+  B_BISHOP = 9,
+  B_ROOK = 10,
+  B_QUEEN = 11,
+  B_KING = 12;
 
-function pieceColor(p) { if (p === 0) return null; return p >= 7 ? 'black' : 'white'; }
+function pieceColor(p) {
+  if (p === 0) return null;
+  return p >= 7 ? 'black' : 'white';
+}
 function pieceType(p) {
   if (p === 0) return null;
   const t = p >= 7 ? p - 7 : p - 1;
-  return ['pawn','knight','bishop','rook','queen','king'][t] || null;
+  return ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'][t] || null;
 }
-function isOwn(p, color) { return pieceColor(p) === color; }
-function isEnemy(p, color) { return p !== 0 && pieceColor(p) !== color; }
+function isOwn(p, color) {
+  return pieceColor(p) === color;
+}
+function isEnemy(p, color) {
+  return p !== 0 && pieceColor(p) !== color;
+}
 
 function startingBoard() {
-  const b = Array.from({length:8}, () => Array(8).fill(0));
-  const back = [W_ROOK,W_KNIGHT,W_BISHOP,W_QUEEN,W_KING,W_BISHOP,W_KNIGHT,W_ROOK];
-  for (let f=0;f<8;f++) { b[0][f]=back[f]; b[7][f]=back[f]+6; }
-  for (let f=0;f<8;f++) { b[1][f]=W_PAWN; b[6][f]=B_PAWN; }
+  const b = Array.from({ length: 8 }, () => Array(8).fill(0));
+  const back = [W_ROOK, W_KNIGHT, W_BISHOP, W_QUEEN, W_KING, W_BISHOP, W_KNIGHT, W_ROOK];
+  for (let f = 0; f < 8; f++) {
+    b[0][f] = back[f];
+    b[7][f] = back[f] + 6;
+  }
+  for (let f = 0; f < 8; f++) {
+    b[1][f] = W_PAWN;
+    b[6][f] = B_PAWN;
+  }
   return b;
 }
 
-function cloneBoard(b) { return b.map(r => [...r]); }
+function cloneBoard(b) {
+  return b.map((r) => [...r]);
+}
 
 function findKing(board, color) {
   const k = color === 'white' ? W_KING : B_KING;
-  for (let r=0;r<8;r++) for (let f=0;f<8;f++) if (board[r][f]===k) return {file:f, rank:r};
+  for (let r = 0; r < 8; r++)
+    for (let f = 0; f < 8; f++) if (board[r][f] === k) return { file: f, rank: r };
   return null;
 }
 
@@ -41,42 +71,72 @@ function isAttacked(board, file, rank, byColor) {
   // White pawns sit at lower ranks and attack upward (toward higher ranks)
   // so a white pawn attacks (file,rank) from (file±1, rank-1)
   if (byColor === 'white') {
-    if (rank-1>=0 && file-1>=0 && board[rank-1][file-1]===W_PAWN) return true;
-    if (rank-1>=0 && file+1<8 && board[rank-1][file+1]===W_PAWN) return true;
+    if (rank - 1 >= 0 && file - 1 >= 0 && board[rank - 1][file - 1] === W_PAWN) return true;
+    if (rank - 1 >= 0 && file + 1 < 8 && board[rank - 1][file + 1] === W_PAWN) return true;
   } else {
     // Black pawns sit at higher ranks and attack downward (toward lower ranks)
     // so a black pawn attacks (file,rank) from (file±1, rank+1)
-    if (rank+1<8 && file-1>=0 && board[rank+1][file-1]===B_PAWN) return true;
-    if (rank+1<8 && file+1<8 && board[rank+1][file+1]===B_PAWN) return true;
+    if (rank + 1 < 8 && file - 1 >= 0 && board[rank + 1][file - 1] === B_PAWN) return true;
+    if (rank + 1 < 8 && file + 1 < 8 && board[rank + 1][file + 1] === B_PAWN) return true;
   }
-  const knight = byColor==='white' ? W_KNIGHT : B_KNIGHT;
-  for (const [df,dr] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
-    const nf=file+df, nr=rank+dr;
-    if (nf>=0&&nf<8&&nr>=0&&nr<8&&board[nr][nf]===knight) return true;
+  const knight = byColor === 'white' ? W_KNIGHT : B_KNIGHT;
+  for (const [df, dr] of [
+    [-2, -1],
+    [-2, 1],
+    [-1, -2],
+    [-1, 2],
+    [1, -2],
+    [1, 2],
+    [2, -1],
+    [2, 1],
+  ]) {
+    const nf = file + df,
+      nr = rank + dr;
+    if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8 && board[nr][nf] === knight) return true;
   }
-  const king = byColor==='white' ? W_KING : B_KING;
-  for (let dr=-1;dr<=1;dr++) for (let df=-1;df<=1;df++) {
-    if (dr===0&&df===0) continue;
-    const nf=file+df, nr=rank+dr;
-    if (nf>=0&&nf<8&&nr>=0&&nr<8&&board[nr][nf]===king) return true;
-  }
-  const bishop = byColor==='white' ? W_BISHOP : B_BISHOP;
-  const queen = byColor==='white' ? W_QUEEN : B_QUEEN;
-  for (const [df,dr] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
-    for (let i=1;i<8;i++) {
-      const nf=file+df*i, nr=rank+dr*i;
-      if (nf<0||nf>=8||nr<0||nr>=8) break;
-      const p=board[nr][nf];
-      if (p!==0) { if (p===bishop||p===queen) return true; break; }
+  const king = byColor === 'white' ? W_KING : B_KING;
+  for (let dr = -1; dr <= 1; dr++)
+    for (let df = -1; df <= 1; df++) {
+      if (dr === 0 && df === 0) continue;
+      const nf = file + df,
+        nr = rank + dr;
+      if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8 && board[nr][nf] === king) return true;
+    }
+  const bishop = byColor === 'white' ? W_BISHOP : B_BISHOP;
+  const queen = byColor === 'white' ? W_QUEEN : B_QUEEN;
+  for (const [df, dr] of [
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ]) {
+    for (let i = 1; i < 8; i++) {
+      const nf = file + df * i,
+        nr = rank + dr * i;
+      if (nf < 0 || nf >= 8 || nr < 0 || nr >= 8) break;
+      const p = board[nr][nf];
+      if (p !== 0) {
+        if (p === bishop || p === queen) return true;
+        break;
+      }
     }
   }
-  const rook = byColor==='white' ? W_ROOK : B_ROOK;
-  for (const [df,dr] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-    for (let i=1;i<8;i++) {
-      const nf=file+df*i, nr=rank+dr*i;
-      if (nf<0||nf>=8||nr<0||nr>=8) break;
-      const p=board[nr][nf];
-      if (p!==0) { if (p===rook||p===queen) return true; break; }
+  const rook = byColor === 'white' ? W_ROOK : B_ROOK;
+  for (const [df, dr] of [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ]) {
+    for (let i = 1; i < 8; i++) {
+      const nf = file + df * i,
+        nr = rank + dr * i;
+      if (nf < 0 || nf >= 8 || nr < 0 || nr >= 8) break;
+      const p = board[nr][nf];
+      if (p !== 0) {
+        if (p === rook || p === queen) return true;
+        break;
+      }
     }
   }
   return false;
@@ -85,7 +145,7 @@ function isAttacked(board, file, rank, byColor) {
 function isInCheck(board, color) {
   const k = findKing(board, color);
   if (!k) return false;
-  return isAttacked(board, k.file, k.rank, color==='white'?'black':'white');
+  return isAttacked(board, k.file, k.rank, color === 'white' ? 'black' : 'white');
 }
 
 function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
@@ -96,15 +156,20 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
   const type = pieceType(piece);
 
   function addMove(tf, tr, isEnPassant) {
-    if (tf<0||tf>=8||tr<0||tr>=8) return false;
+    if (tf < 0 || tf >= 8 || tr < 0 || tr >= 8) return false;
     const target = board[tr][tf];
     if (target !== 0 && isOwn(target, color)) return true;
     const saved = board[tr][tf];
     board[tr][tf] = piece;
     board[rank][file] = 0;
     let epCaptured = null;
-    if (type==='pawn' && enPassantTarget && tf===enPassantTarget.file && tr===enPassantTarget.rank) {
-      const capturedRank = color==='white' ? tr-1 : tr+1;
+    if (
+      type === 'pawn' &&
+      enPassantTarget &&
+      tf === enPassantTarget.file &&
+      tr === enPassantTarget.rank
+    ) {
+      const capturedRank = color === 'white' ? tr - 1 : tr + 1;
       epCaptured = board[capturedRank][tf];
       board[capturedRank][tf] = 0;
     }
@@ -112,10 +177,10 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
     board[rank][file] = piece;
     board[tr][tf] = saved;
     if (epCaptured !== null) {
-      const capturedRank = color==='white' ? tr-1 : tr+1;
+      const capturedRank = color === 'white' ? tr - 1 : tr + 1;
       board[capturedRank][tf] = epCaptured;
     }
-    if (!inCheck) moves.push({file:tf, rank:tr, enPassant: isEnPassant});
+    if (!inCheck) moves.push({ file: tf, rank: tr, enPassant: isEnPassant });
     return target !== 0;
   }
 
@@ -123,64 +188,127 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
     const dir = color === 'white' ? 1 : -1;
     const startRank = color === 'white' ? 1 : 6;
     const nr = rank + dir;
-    if (nr>=0 && nr<8 && board[nr][file]===0) {
+    if (nr >= 0 && nr < 8 && board[nr][file] === 0) {
       addMove(file, nr);
-      const nr2 = rank + 2*dir;
-      if (rank===startRank && nr2>=0 && nr2<8 && board[nr2][file]===0) {
+      const nr2 = rank + 2 * dir;
+      if (rank === startRank && nr2 >= 0 && nr2 < 8 && board[nr2][file] === 0) {
         addMove(file, nr2);
       }
     }
-    for (const df of [-1,1]) {
-      const nf = file+df;
-      if (nf>=0 && nf<8 && nr>=0 && nr<8) {
+    for (const df of [-1, 1]) {
+      const nf = file + df;
+      if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8) {
         if (isEnemy(board[nr][nf], color)) addMove(nf, nr);
-        if (enPassantTarget && nf===enPassantTarget.file && nr===enPassantTarget.rank) {
+        if (enPassantTarget && nf === enPassantTarget.file && nr === enPassantTarget.rank) {
           addMove(nf, nr, true);
         }
       }
     }
   } else if (type === 'knight') {
-    for (const [df,dr] of [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]) {
-      addMove(file+df, rank+dr);
+    for (const [df, dr] of [
+      [-2, -1],
+      [-2, 1],
+      [-1, -2],
+      [-1, 2],
+      [1, -2],
+      [1, 2],
+      [2, -1],
+      [2, 1],
+    ]) {
+      addMove(file + df, rank + dr);
     }
   } else if (type === 'bishop') {
-    for (const [df,dr] of [[-1,-1],[-1,1],[1,-1],[1,1]]) {
-      for (let i=1;i<8;i++) { if (addMove(file+df*i, rank+dr*i)) break; }
+    for (const [df, dr] of [
+      [-1, -1],
+      [-1, 1],
+      [1, -1],
+      [1, 1],
+    ]) {
+      for (let i = 1; i < 8; i++) {
+        if (addMove(file + df * i, rank + dr * i)) break;
+      }
     }
   } else if (type === 'rook') {
-    for (const [df,dr] of [[-1,0],[1,0],[0,-1],[0,1]]) {
-      for (let i=1;i<8;i++) { if (addMove(file+df*i, rank+dr*i)) break; }
+    for (const [df, dr] of [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1],
+    ]) {
+      for (let i = 1; i < 8; i++) {
+        if (addMove(file + df * i, rank + dr * i)) break;
+      }
     }
   } else if (type === 'queen') {
-    for (const [df,dr] of [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]) {
-      for (let i=1;i<8;i++) { if (addMove(file+df*i, rank+dr*i)) break; }
+    for (const [df, dr] of [
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ]) {
+      for (let i = 1; i < 8; i++) {
+        if (addMove(file + df * i, rank + dr * i)) break;
+      }
     }
   } else if (type === 'king') {
-    for (let dr=-1;dr<=1;dr++) for (let df=-1;df<=1;df++) {
-      if (dr===0&&df===0) continue;
-      addMove(file+df, rank+dr);
+    for (let dr = -1; dr <= 1; dr++)
+      for (let df = -1; df <= 1; df++) {
+        if (dr === 0 && df === 0) continue;
+        addMove(file + df, rank + dr);
+      }
+    if (color === 'white' && rank === 0 && file === 4) {
+      if (castlingRights.wK && board[0][5] === 0 && board[0][6] === 0 && board[0][7] === W_ROOK) {
+        if (
+          !isInCheck(board, 'white') &&
+          !isAttacked(board, 5, 0, 'black') &&
+          !isAttacked(board, 6, 0, 'black')
+        ) {
+          moves.push({ file: 6, rank: 0, castle: 'K' });
+        }
+      }
+      if (
+        castlingRights.wQ &&
+        board[0][3] === 0 &&
+        board[0][2] === 0 &&
+        board[0][1] === 0 &&
+        board[0][0] === W_ROOK
+      ) {
+        if (
+          !isInCheck(board, 'white') &&
+          !isAttacked(board, 3, 0, 'black') &&
+          !isAttacked(board, 2, 0, 'black')
+        ) {
+          moves.push({ file: 2, rank: 0, castle: 'Q' });
+        }
+      }
     }
-    if (color==='white' && rank===0 && file===4) {
-      if (castlingRights.wK && board[0][5]===0 && board[0][6]===0 && board[0][7]===W_ROOK) {
-        if (!isInCheck(board,'white') && !isAttacked(board,5,0,'black') && !isAttacked(board,6,0,'black')) {
-          moves.push({file:6, rank:0, castle:'K'});
+    if (color === 'black' && rank === 7 && file === 4) {
+      if (castlingRights.bK && board[7][5] === 0 && board[7][6] === 0 && board[7][7] === B_ROOK) {
+        if (
+          !isInCheck(board, 'black') &&
+          !isAttacked(board, 5, 7, 'white') &&
+          !isAttacked(board, 6, 7, 'white')
+        ) {
+          moves.push({ file: 6, rank: 7, castle: 'K' });
         }
       }
-      if (castlingRights.wQ && board[0][3]===0 && board[0][2]===0 && board[0][1]===0 && board[0][0]===W_ROOK) {
-        if (!isInCheck(board,'white') && !isAttacked(board,3,0,'black') && !isAttacked(board,2,0,'black')) {
-          moves.push({file:2, rank:0, castle:'Q'});
-        }
-      }
-    }
-    if (color==='black' && rank===7 && file===4) {
-      if (castlingRights.bK && board[7][5]===0 && board[7][6]===0 && board[7][7]===B_ROOK) {
-        if (!isInCheck(board,'black') && !isAttacked(board,5,7,'white') && !isAttacked(board,6,7,'white')) {
-          moves.push({file:6, rank:7, castle:'K'});
-        }
-      }
-      if (castlingRights.bQ && board[7][3]===0 && board[7][2]===0 && board[7][1]===0 && board[7][0]===B_ROOK) {
-        if (!isInCheck(board,'black') && !isAttacked(board,3,7,'white') && !isAttacked(board,2,7,'white')) {
-          moves.push({file:2, rank:7, castle:'Q'});
+      if (
+        castlingRights.bQ &&
+        board[7][3] === 0 &&
+        board[7][2] === 0 &&
+        board[7][1] === 0 &&
+        board[7][0] === B_ROOK
+      ) {
+        if (
+          !isInCheck(board, 'black') &&
+          !isAttacked(board, 3, 7, 'white') &&
+          !isAttacked(board, 2, 7, 'white')
+        ) {
+          moves.push({ file: 2, rank: 7, castle: 'Q' });
         }
       }
     }
@@ -189,11 +317,15 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
 }
 
 function hasAnyMoves(board, color, castlingRights, enPassantTarget) {
-  for (let r=0;r<8;r++) for (let f=0;f<8;f++) {
-    if (pieceColor(board[r][f]) === color && getValidMoves(board, f, r, castlingRights, enPassantTarget).length > 0) {
-      return true;
+  for (let r = 0; r < 8; r++)
+    for (let f = 0; f < 8; f++) {
+      if (
+        pieceColor(board[r][f]) === color &&
+        getValidMoves(board, f, r, castlingRights, enPassantTarget).length > 0
+      ) {
+        return true;
+      }
     }
-  }
   return false;
 }
 
@@ -221,17 +353,17 @@ function isInsufficientMaterial(board) {
   if (wp.length === 1 && bp.length === 1) return true;
 
   // K+B vs K or K vs K+B
-  if (wp.length === 2 && bp.length === 1 && wp.some(p => p.type === 'bishop')) return true;
-  if (wp.length === 1 && bp.length === 2 && bp.some(p => p.type === 'bishop')) return true;
+  if (wp.length === 2 && bp.length === 1 && wp.some((p) => p.type === 'bishop')) return true;
+  if (wp.length === 1 && bp.length === 2 && bp.some((p) => p.type === 'bishop')) return true;
 
   // K+N vs K or K vs K+N
-  if (wp.length === 2 && bp.length === 1 && wp.some(p => p.type === 'knight')) return true;
-  if (wp.length === 1 && bp.length === 2 && bp.some(p => p.type === 'knight')) return true;
+  if (wp.length === 2 && bp.length === 1 && wp.some((p) => p.type === 'knight')) return true;
+  if (wp.length === 1 && bp.length === 2 && bp.some((p) => p.type === 'knight')) return true;
 
   // K+B vs K+B — same-colored bishops
   if (wp.length === 2 && bp.length === 2) {
-    const wb = wp.find(p => p.type === 'bishop');
-    const bb = bp.find(p => p.type === 'bishop');
+    const wb = wp.find((p) => p.type === 'bishop');
+    const bb = bp.find((p) => p.type === 'bishop');
     if (wb && bb) {
       // Bishop color = (file + rank) % 2; same parity = same-colored squares
       if ((wb.file + wb.rank) % 2 === (bb.file + bb.rank) % 2) return true;
@@ -247,10 +379,20 @@ function isInsufficientMaterial(board) {
 
 const FILES = 'abcdefgh';
 const RANKS = '12345678';
-const PIECE_LETTERS = { king:'K', queen:'Q', rook:'R', bishop:'B', knight:'N', pawn:'' };
+const PIECE_LETTERS = { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: '' };
 
 // Find all pieces of the given type and color (excluding source) that can move to the target square
-function findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toRank, castlingRights, enPassantTarget) {
+function findAmbiguousPieces(
+  board,
+  type,
+  color,
+  fromFile,
+  fromRank,
+  toFile,
+  toRank,
+  castlingRights,
+  enPassantTarget
+) {
   const ambiguous = [];
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
@@ -259,7 +401,7 @@ function findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toR
       if (piece === 0 || pieceColor(piece) !== color || pieceType(piece) !== type) continue;
       if (f === fromFile && r === fromRank) continue;
       const moves = getValidMoves(board, f, r, castlingRights, enPassantTarget);
-      if (moves.some(m => m.file === toFile && m.rank === toRank)) {
+      if (moves.some((m) => m.file === toFile && m.rank === toRank)) {
         ambiguous.push({ file: f, rank: r });
       }
     }
@@ -267,7 +409,19 @@ function findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toR
   return ambiguous;
 }
 
-function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured, enPassant, castled, castlingRights, enPassantTarget) {
+function buildNotation(
+  board,
+  type,
+  fromFile,
+  fromRank,
+  toFile,
+  toRank,
+  captured,
+  enPassant,
+  castled,
+  castlingRights,
+  enPassantTarget
+) {
   const sq = () => FILES[toFile] + RANKS[toRank];
 
   // Castling
@@ -291,13 +445,22 @@ function buildNotation(board, type, fromFile, fromRank, toFile, toRank, captured
 
     // Check for disambiguation needed
     const color = pieceColor(board[fromRank][fromFile]);
-    const ambiguous = findAmbiguousPieces(board, type, color, fromFile, fromRank, toFile, toRank,
-      castlingRights || { wK:true, wQ:true, bK:true, bQ:true }, enPassantTarget);
+    const ambiguous = findAmbiguousPieces(
+      board,
+      type,
+      color,
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+      castlingRights || { wK: true, wQ: true, bK: true, bQ: true },
+      enPassantTarget
+    );
 
     if (ambiguous.length > 0) {
       // Check if file disambiguation is sufficient
-      const sameFile = ambiguous.some(p => p.file === fromFile);
-      const sameRank = ambiguous.some(p => p.rank === fromRank);
+      const sameFile = ambiguous.some((p) => p.file === fromFile);
+      const sameRank = ambiguous.some((p) => p.rank === fromRank);
 
       if (!sameFile) {
         // File alone disambiguates (e.g., Nce4)
@@ -327,7 +490,7 @@ class Game {
   constructor() {
     this.board = startingBoard();
     this.turn = 'white';
-    this.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    this.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
     this.enPassantTarget = null;
     this.promotingPiece = null; // {file, rank, color} awaiting promotion
     this.players = new Map(); // ws -> 'white' | 'black'
@@ -393,7 +556,7 @@ class Game {
   }
 
   isThreefoldRepetition() {
-    return [...this.positionCounts.values()].some(c => c >= 3);
+    return [...this.positionCounts.values()].some((c) => c >= 3);
   }
 
   isFiftyMoveRule() {
@@ -410,8 +573,14 @@ class Game {
   // ── FEN / PGN export ──────────────────────────────────
 
   currentFen() {
-    return toFen(this.board, this.turn, this.castlingRights, this.enPassantTarget,
-      this.halfmoveClock, this.fullmoveNumber);
+    return toFen(
+      this.board,
+      this.turn,
+      this.castlingRights,
+      this.enPassantTarget,
+      this.halfmoveClock,
+      this.fullmoveNumber
+    );
   }
 
   loadFromFen(fen) {
@@ -454,9 +623,24 @@ class Game {
 
   _pgnResult() {
     if (!this.gameResult) return '*';
-    if (this.gameResult.includes('Draw') || this.gameResult.includes('stalemate') || this.gameResult.includes('insufficient')) return '1/2-1/2';
-    if (this.gameResult.includes('White wins') || this.gameResult.includes('white wins') || this.gameResult.includes('Black conceded')) return '1-0';
-    if (this.gameResult.includes('Black wins') || this.gameResult.includes('black wins') || this.gameResult.includes('White conceded')) return '0-1';
+    if (
+      this.gameResult.includes('Draw') ||
+      this.gameResult.includes('stalemate') ||
+      this.gameResult.includes('insufficient')
+    )
+      return '1/2-1/2';
+    if (
+      this.gameResult.includes('White wins') ||
+      this.gameResult.includes('white wins') ||
+      this.gameResult.includes('Black conceded')
+    )
+      return '1-0';
+    if (
+      this.gameResult.includes('Black wins') ||
+      this.gameResult.includes('black wins') ||
+      this.gameResult.includes('White conceded')
+    )
+      return '0-1';
     return '*';
   }
 
@@ -473,8 +657,14 @@ class Game {
     if (this.gameOver) return { ok: false, reason: 'Game over' };
     if (this.promotingPiece) return { ok: false, reason: 'Promotion in progress' };
 
-    const moves = getValidMoves(this.board, fromFile, fromRank, this.castlingRights, this.enPassantTarget);
-    const move = moves.find(m => m.file === toFile && m.rank === toRank);
+    const moves = getValidMoves(
+      this.board,
+      fromFile,
+      fromRank,
+      this.castlingRights,
+      this.enPassantTarget
+    );
+    const move = moves.find((m) => m.file === toFile && m.rank === toRank);
     if (!move) return { ok: false, reason: 'Invalid move' };
 
     const captured = this.board[toRank][toFile];
@@ -502,16 +692,46 @@ class Game {
     }
 
     // Calculate notation with current board state (before move)
-    const notation = buildNotation(this.board, type, fromFile, fromRank, toFile, toRank, !!captured, isEnPassant, castled, this.castlingRights, this.enPassantTarget);
+    const notation = buildNotation(
+      this.board,
+      type,
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+      !!captured,
+      isEnPassant,
+      castled,
+      this.castlingRights,
+      this.enPassantTarget
+    );
 
     if (isPromotion) {
-      this.promotingPiece = { file: toFile, rank: toRank, color, fromFile, fromRank, enPassant: isEnPassant, captured };
+      this.promotingPiece = {
+        file: toFile,
+        rank: toRank,
+        color,
+        fromFile,
+        fromRank,
+        enPassant: isEnPassant,
+        captured,
+      };
       // Record the pawn move; promotion suffix added later
-      const promoNotation = notation + '=P';  // P for pawn (will be replaced with actual piece in completePromotion)
+      const promoNotation = notation + '=P'; // P for pawn (will be replaced with actual piece in completePromotion)
       this.moveHistory.push(promoNotation);
       // Pawn move resets half-move clock (position recorded in completePromotion)
       this.halfmoveClock = 0;
-      return { ok: true, promotion: true, fromFile, fromRank, toFile, toRank, captured: !!captured, enPassant: isEnPassant, castled };
+      return {
+        ok: true,
+        promotion: true,
+        fromFile,
+        fromRank,
+        toFile,
+        toRank,
+        captured: !!captured,
+        enPassant: isEnPassant,
+        castled,
+      };
     }
 
     // En passant capture
@@ -538,14 +758,24 @@ class Game {
         this.board[toRank][3] = this.board[toRank][0];
         this.board[toRank][0] = 0;
       }
-      if (color === 'white') { this.castlingRights.wK = false; this.castlingRights.wQ = false; }
-      else { this.castlingRights.bK = false; this.castlingRights.bQ = false; }
+      if (color === 'white') {
+        this.castlingRights.wK = false;
+        this.castlingRights.wQ = false;
+      } else {
+        this.castlingRights.bK = false;
+        this.castlingRights.bQ = false;
+      }
     }
 
     // Any king move revokes castling rights (not just castling itself)
     if (type === 'king') {
-      if (color === 'white') { this.castlingRights.wK = false; this.castlingRights.wQ = false; }
-      else { this.castlingRights.bK = false; this.castlingRights.bQ = false; }
+      if (color === 'white') {
+        this.castlingRights.wK = false;
+        this.castlingRights.wQ = false;
+      } else {
+        this.castlingRights.bK = false;
+        this.castlingRights.bQ = false;
+      }
     }
 
     // Rook moved
@@ -597,7 +827,17 @@ class Game {
       this.moveHistory[this.moveHistory.length - 1] += '+';
     }
 
-    return { ok: true, fromFile, fromRank, toFile, toRank, captured: !!captured, enPassant: isEnPassant, castled, notation };
+    return {
+      ok: true,
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+      captured: !!captured,
+      enPassant: isEnPassant,
+      castled,
+      notation,
+    };
   }
 
   completePromotion(ws, pieceType) {
@@ -642,7 +882,13 @@ class Game {
     }
 
     // Record position in history (halfmoveClock was reset in tryMove for pawn move)
-    this._recordPosition({ fromFile, fromRank, toFile: file, toRank: rank, notation: this.moveHistory[this.moveHistory.length - 1] });
+    this._recordPosition({
+      fromFile,
+      fromRank,
+      toFile: file,
+      toRank: rank,
+      notation: this.moveHistory[this.moveHistory.length - 1],
+    });
 
     this.checkGameEnd();
     if (this.gameOver && this.gameResult.includes('Checkmate')) {
@@ -707,11 +953,22 @@ class Game {
       turn: this.turn,
       castlingRights: this.castlingRights,
       enPassantTarget: this.enPassantTarget,
-      promotingPiece: this.promotingPiece ? { file: this.promotingPiece.file, rank: this.promotingPiece.rank, color: this.promotingPiece.color, fromFile: this.promotingPiece.fromFile, fromRank: this.promotingPiece.fromRank } : null,
+      promotingPiece: this.promotingPiece
+        ? {
+            file: this.promotingPiece.file,
+            rank: this.promotingPiece.rank,
+            color: this.promotingPiece.color,
+            fromFile: this.promotingPiece.fromFile,
+            fromRank: this.promotingPiece.fromRank,
+          }
+        : null,
       gameOver: this.gameOver,
       gameResult: this.gameResult,
       moveHistory: [...this.moveHistory],
-      capturedPieces: { white: [...this.capturedPieces.white], black: [...this.capturedPieces.black] },
+      capturedPieces: {
+        white: [...this.capturedPieces.white],
+        black: [...this.capturedPieces.black],
+      },
       playerCount: this.players.size,
       spectatorCount: this.spectators.size,
       halfmoveClock: this.halfmoveClock,
@@ -723,7 +980,7 @@ class Game {
   reset() {
     this.board = startingBoard();
     this.turn = 'white';
-    this.castlingRights = { wK:true, wQ:true, bK:true, bQ:true };
+    this.castlingRights = { wK: true, wQ: true, bK: true, bQ: true };
     this.enPassantTarget = null;
     this.promotingPiece = null;
     this.moveHistory = [];
@@ -753,8 +1010,10 @@ class Zobrist {
     this.turnTable = { white: this._rand(), black: this._rand() };
     // castlingTable[right] — one entry per castling right
     this.castlingTable = {
-      wK: this._rand(), wQ: this._rand(),
-      bK: this._rand(), bQ: this._rand(),
+      wK: this._rand(),
+      wQ: this._rand(),
+      bK: this._rand(),
+      bQ: this._rand(),
     };
     // epTable[square] — en passant target (64 squares)
     this.epTable = Array.from({ length: 64 }, () => this._rand());
@@ -810,13 +1069,33 @@ const ZOBRIST = crypto ? new Zobrist() : null;
 // ═══════════════════════════════════════════════════════════
 
 const FEN_PIECE_CHARS = {
-  1: 'P', 2: 'N', 3: 'B', 4: 'R', 5: 'Q', 6: 'K',
-  7: 'p', 8: 'n', 9: 'b', 10: 'r', 11: 'q', 12: 'k',
+  1: 'P',
+  2: 'N',
+  3: 'B',
+  4: 'R',
+  5: 'Q',
+  6: 'K',
+  7: 'p',
+  8: 'n',
+  9: 'b',
+  10: 'r',
+  11: 'q',
+  12: 'k',
 };
 
 const FEN_CHAR_TO_PIECE = {
-  'P': W_PAWN, 'N': W_KNIGHT, 'B': W_BISHOP, 'R': W_ROOK, 'Q': W_QUEEN, 'K': W_KING,
-  'p': B_PAWN, 'n': B_KNIGHT, 'b': B_BISHOP, 'r': B_ROOK, 'q': B_QUEEN, 'k': B_KING,
+  P: W_PAWN,
+  N: W_KNIGHT,
+  B: W_BISHOP,
+  R: W_ROOK,
+  Q: W_QUEEN,
+  K: W_KING,
+  p: B_PAWN,
+  n: B_KNIGHT,
+  b: B_BISHOP,
+  r: B_ROOK,
+  q: B_QUEEN,
+  k: B_KING,
 };
 
 function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber) {
@@ -828,7 +1107,10 @@ function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, full
       if (board[r][f] === 0) {
         empty++;
       } else {
-        if (empty > 0) { placement += empty; empty = 0; }
+        if (empty > 0) {
+          placement += empty;
+          empty = 0;
+        }
         placement += FEN_PIECE_CHARS[board[r][f]];
       }
     }
@@ -902,13 +1184,15 @@ function fromFen(fen) {
     if (epStr.length !== 2) throw new Error('Invalid FEN: en passant must be 2 chars');
     const ef = epStr.charCodeAt(0) - 'a'.charCodeAt(0);
     const er = epStr.charCodeAt(1) - '1'.charCodeAt(0);
-    if (ef < 0 || ef > 7 || er < 0 || er > 7) throw new Error('Invalid FEN: en passant out of range');
+    if (ef < 0 || ef > 7 || er < 0 || er > 7)
+      throw new Error('Invalid FEN: en passant out of range');
     enPassantTarget = { file: ef, rank: er };
   }
 
   const halfmoveClock = parseInt(hmStr, 10);
   const fullmoveNumber = parseInt(fmStr, 10);
-  if (isNaN(halfmoveClock) || isNaN(fullmoveNumber)) throw new Error('Invalid FEN: clocks must be numbers');
+  if (isNaN(halfmoveClock) || isNaN(fullmoveNumber))
+    throw new Error('Invalid FEN: clocks must be numbers');
 
   return {
     board,
@@ -925,11 +1209,35 @@ function fromFen(fen) {
 // ═══════════════════════════════════════════════════════════
 
 module.exports = {
-  EMPTY, W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
-  B_PAWN, B_KNIGHT, B_BISHOP, B_ROOK, B_QUEEN, B_KING,
-  pieceColor, pieceType, isOwn, isEnemy,
-  startingBoard, cloneBoard, findKing,
-  isAttacked, isInCheck, getValidMoves, hasAnyMoves, isInsufficientMaterial,
-  buildNotation, Game,
-  Zobrist, ZOBRIST, toFen, fromFen,
+  EMPTY,
+  W_PAWN,
+  W_KNIGHT,
+  W_BISHOP,
+  W_ROOK,
+  W_QUEEN,
+  W_KING,
+  B_PAWN,
+  B_KNIGHT,
+  B_BISHOP,
+  B_ROOK,
+  B_QUEEN,
+  B_KING,
+  pieceColor,
+  pieceType,
+  isOwn,
+  isEnemy,
+  startingBoard,
+  cloneBoard,
+  findKing,
+  isAttacked,
+  isInCheck,
+  getValidMoves,
+  hasAnyMoves,
+  isInsufficientMaterial,
+  buildNotation,
+  Game,
+  Zobrist,
+  ZOBRIST,
+  toFen,
+  fromFen,
 };

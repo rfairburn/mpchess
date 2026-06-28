@@ -3,7 +3,9 @@
 // ═══════════════════════════════════════════════════════════
 
 // Per-color token keys so multiple tabs (white + black) don't collide
-export function tokenKey(color) { return `mpchess_session_${color}`; }
+export function tokenKey(color) {
+  return `mpchess_session_${color}`;
+}
 
 let ws = null;
 let reconnectAttempts = 0;
@@ -11,7 +13,6 @@ let reconnectTimer = null;
 let reconnecting = false;
 let pendingToken = null; // token we're trying to reconnect with
 let reconnectColor = null; // color we're trying to reconnect to (auto-reconnect only)
-let joinPendingColor = null; // color user clicked on join overlay (for fallback)
 
 const MAX_RECONNECT_ATTEMPTS = 8; // 1+2+4+8+16+32+64+128 = 255s max
 
@@ -46,19 +47,45 @@ const onReconnectFailedCallbacks = [];
 const onConnectedCallbacks = []; // fires on raw WebSocket open (before any messages)
 const onConnectionErrorCallbacks = []; // fires when WebSocket connection fails entirely
 
-export function onStateUpdate(fn) { onStateUpdateCallbacks.push(fn); }
-export function onMove(fn) { onMoveCallbacks.push(fn); }
-export function onRestart(fn) { onRestartCallbacks.push(fn); }
-export function onError(fn) { onErrorCallbacks.push(fn); }
-export function onInfo(fn) { onInfoCallbacks.push(fn); }
-export function onReconnecting(fn) { onReconnectingCallbacks.push(fn); }
-export function onReconnected(fn) { onReconnectedCallbacks.push(fn); }
-export function onPlayerDisconnected(fn) { onPlayerDisconnectedCallbacks.push(fn); }
-export function onPlayerDropped(fn) { onPlayerDroppedCallbacks.push(fn); }
-export function onGameAvailable(fn) { onGameAvailableCallbacks.push(fn); }
-export function onReconnectFailed(fn) { onReconnectFailedCallbacks.push(fn); }
-export function onConnected(fn) { onConnectedCallbacks.push(fn); }
-export function onConnectionError(fn) { onConnectionErrorCallbacks.push(fn); }
+export function onStateUpdate(fn) {
+  onStateUpdateCallbacks.push(fn);
+}
+export function onMove(fn) {
+  onMoveCallbacks.push(fn);
+}
+export function onRestart(fn) {
+  onRestartCallbacks.push(fn);
+}
+export function onError(fn) {
+  onErrorCallbacks.push(fn);
+}
+export function onInfo(fn) {
+  onInfoCallbacks.push(fn);
+}
+export function onReconnecting(fn) {
+  onReconnectingCallbacks.push(fn);
+}
+export function onReconnected(fn) {
+  onReconnectedCallbacks.push(fn);
+}
+export function onPlayerDisconnected(fn) {
+  onPlayerDisconnectedCallbacks.push(fn);
+}
+export function onPlayerDropped(fn) {
+  onPlayerDroppedCallbacks.push(fn);
+}
+export function onGameAvailable(fn) {
+  onGameAvailableCallbacks.push(fn);
+}
+export function onReconnectFailed(fn) {
+  onReconnectFailedCallbacks.push(fn);
+}
+export function onConnected(fn) {
+  onConnectedCallbacks.push(fn);
+}
+export function onConnectionError(fn) {
+  onConnectionErrorCallbacks.push(fn);
+}
 
 function fireCallbacks(arr, data) {
   for (const fn of arr) fn(data);
@@ -78,7 +105,11 @@ function getConnectionUrl() {
 
 function connect() {
   clearReconnectTimer();
-  try { ws = new WebSocket(getConnectionUrl()); } catch (e) { return; }
+  try {
+    ws = new WebSocket(getConnectionUrl());
+  } catch {
+    return;
+  }
 
   ws.onopen = () => {
     // Only auto-reconnect if we were actively playing and got disconnected
@@ -111,15 +142,15 @@ function connect() {
     // Otherwise: wait for user to click a button on the join overlay
   };
 
-  ws.onerror = (event) => {
+  ws.onerror = (_event) => {
     // Connection failed before it was established (e.g., origin rejected, server down)
     // Only fire this for initial connections, not during reconnection (reconnect has its own flow)
     if (!reconnecting && myRole === null) {
-      fireCallbacks(onConnectionErrorCallbacks, { event });
+      fireCallbacks(onConnectionErrorCallbacks, { event: _event });
     }
   };
 
-  ws.onclose = (event) => {
+  ws.onclose = (_event) => {
     ws = null;
 
     // Don't auto-reconnect if we're intentionally closing (e.g., page unload)
@@ -133,7 +164,11 @@ function connect() {
 
   ws.onmessage = (event) => {
     let msg;
-    try { msg = JSON.parse(event.data); } catch { return; }
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
     switch (msg.type) {
       case 'state': {
         myRole = msg.role;
@@ -183,7 +218,6 @@ function connect() {
         }
         // Spectator: leave session tokens untouched
         if (!pendingToken) pendingToken = null;
-        joinPendingColor = null;
         reconnectAttempts = 0;
         reconnecting = false;
         fireCallbacks(onReconnectedCallbacks, msg);
@@ -197,7 +231,6 @@ function connect() {
           }
         }
         pendingToken = null;
-        joinPendingColor = null;
         reconnectAttempts = 0;
         reconnecting = false;
         fireCallbacks(onReconnectedCallbacks, msg);
@@ -216,7 +249,6 @@ function connect() {
         pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
-        joinPendingColor = null;
         fireCallbacks(onReconnectFailedCallbacks, msg);
         break;
       }
@@ -239,12 +271,15 @@ function connect() {
       }
       case 'fenExport': {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(msg.fen).then(() => {
-            fireCallbacks(onInfoCallbacks, { reason: 'FEN copied to clipboard' });
-          }).catch(() => {
-            downloadText(msg.fen, 'position.fen', 'text/plain');
-            fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
-          });
+          navigator.clipboard
+            .writeText(msg.fen)
+            .then(() => {
+              fireCallbacks(onInfoCallbacks, { reason: 'FEN copied to clipboard' });
+            })
+            .catch(() => {
+              downloadText(msg.fen, 'position.fen', 'text/plain');
+              fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
+            });
         } else {
           downloadText(msg.fen, 'position.fen', 'text/plain');
           fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
@@ -253,12 +288,15 @@ function connect() {
       }
       case 'pgnExport': {
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(msg.pgn).then(() => {
-            fireCallbacks(onInfoCallbacks, { reason: 'PGN copied to clipboard' });
-          }).catch(() => {
-            downloadText(msg.pgn, 'game.pgn', 'text/plain');
-            fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
-          });
+          navigator.clipboard
+            .writeText(msg.pgn)
+            .then(() => {
+              fireCallbacks(onInfoCallbacks, { reason: 'PGN copied to clipboard' });
+            })
+            .catch(() => {
+              downloadText(msg.pgn, 'game.pgn', 'text/plain');
+              fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
+            });
         } else {
           downloadText(msg.pgn, 'game.pgn', 'text/plain');
           fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
@@ -273,7 +311,9 @@ function downloadText(text, filename, mimeType) {
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   setTimeout(() => URL.revokeObjectURL(url), 100);
 }
 
@@ -332,7 +372,6 @@ export function sendDropPlayer(token) {
 export function sendJoin(color) {
   if (color !== 'white' && color !== 'black' && color !== 'spectator') return;
   if (!ws || ws.readyState !== 1) return;
-  joinPendingColor = color;
   // Only attempt reconnect if we have a token AND the server confirmed it's valid
   const token = localStorage.getItem(tokenKey(color));
   if (token && color !== 'spectator' && validatedTokens[color] === true) {
@@ -345,7 +384,6 @@ export function sendJoin(color) {
       localStorage.removeItem(tokenKey(color));
     }
     ws.send(JSON.stringify({ type: 'join', color }));
-    joinPendingColor = null;
   }
 }
 

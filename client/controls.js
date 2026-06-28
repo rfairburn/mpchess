@@ -4,17 +4,39 @@
 
 import * as THREE from 'three';
 import {
-  myRole, serverBoard, serverTurn, serverPromotingPiece, serverGameOver,
-  castlingRights, enPassantTarget, sendMove, onRestart
+  myRole,
+  serverBoard,
+  serverTurn,
+  serverPromotingPiece,
+  serverGameOver,
+  castlingRights,
+  enPassantTarget,
+  sendMove,
+  onRestart,
 } from './network.js';
-import { menuOpen, showMenu, hideMenu, updateMouseModeDisplay, hidePromotionPicker, hideConcedeConfirm, mouseSensitivity } from './ui.js';
-import { squares, clearHighlights, highlightSelected, highlightValidMoves, highlightCheck } from './board.js';
+import {
+  menuOpen,
+  showMenu,
+  hideMenu,
+  updateMouseModeDisplay,
+  hidePromotionPicker,
+  hideConcedeConfirm,
+  mouseSensitivity,
+} from './ui.js';
+import {
+  squares,
+  clearHighlights,
+  highlightSelected,
+  highlightValidMoves,
+  highlightCheck,
+} from './board.js';
 import { pieceColor, getValidMoves } from '../shared/chess.mjs';
 
 // ── Camera state ─────────────────────────────────────────
 
 export const keys = {};
-export let yaw = 0, pitch = 0;
+export let yaw = 0,
+  pitch = 0;
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 export let mouseLookOn = false;
@@ -36,9 +58,9 @@ export function setRenderer(renderer, camera) {
 
 // Camera starting positions per role
 const CAM_POS = {
-  spectator: { x: -10, y: 7, z: 0 },   // west side, between ranks 4-5, rank labels visible
-  white:     { x:  0, y: 7, z: 10 },   // south side, between files d-e
-  black:     { x:  0, y: 7, z: -10 },  // north side, between files d-e
+  spectator: { x: -10, y: 7, z: 0 }, // west side, between ranks 4-5, rank labels visible
+  white: { x: 0, y: 7, z: 10 }, // south side, between files d-e
+  black: { x: 0, y: 7, z: -10 }, // north side, between files d-e
 };
 
 export function setCameraForRole(role) {
@@ -57,7 +79,7 @@ export function setCameraForRole(role) {
 
 // ── Mouse movement ───────────────────────────────────────
 
-document.addEventListener('mousemove', e => {
+document.addEventListener('mousemove', (e) => {
   if (!mouseLookOn) return;
   if (!_renderer) return;
   if (document.pointerLockElement !== _renderer.domElement) return;
@@ -68,11 +90,14 @@ document.addEventListener('mousemove', e => {
 
 // ── Keyboard ─────────────────────────────────────────────
 
-document.addEventListener('keydown', e => {
+document.addEventListener('keydown', (e) => {
   keys[e.code] = true;
   if (e.code === 'Escape') {
-    if (menuOpen) { hideMenu(); }
-    else { showMenu(); }
+    if (menuOpen) {
+      hideMenu();
+    } else {
+      showMenu();
+    }
     return;
   }
   if (e.code === 'Tab') {
@@ -88,7 +113,9 @@ document.addEventListener('keydown', e => {
   }
 });
 
-document.addEventListener('keyup', e => { keys[e.code] = false; });
+document.addEventListener('keyup', (e) => {
+  keys[e.code] = false;
+});
 
 document.addEventListener('pointerlockchange', () => {
   if (!_renderer) return;
@@ -137,7 +164,7 @@ function getBoardSquareFromRay(event) {
 
 export function setClickHandler(renderer) {
   _renderer = renderer;
-  renderer.domElement.addEventListener('click', event => {
+  renderer.domElement.addEventListener('click', (event) => {
     if (menuOpen) return;
     if (serverPromotingPiece) return;
     if (serverGameOver) return;
@@ -164,8 +191,11 @@ export function setClickHandler(renderer) {
     if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
       selectedSquare = { file, rank };
       validMoves = getValidMoves(
-        serverBoard.map(r => [...r]), file, rank,
-        castlingRights, enPassantTarget
+        serverBoard.map((r) => [...r]),
+        file,
+        rank,
+        castlingRights,
+        enPassantTarget
       );
       clearHighlights();
       highlightSelected(file, rank);

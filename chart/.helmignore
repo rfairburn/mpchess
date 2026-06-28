@@ -1,0 +1,8 @@
+# Patterns to ignore when packaging the chart
+*.tar.gz
+*.log
+*.swp
+*.bak
+*.orig
+.DS_Store
+.env
