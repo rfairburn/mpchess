@@ -10,7 +10,7 @@ import {
   sendExportFen, sendExportPgn, sendImportFen,
   onStateUpdate, onRestart, onError, onInfo, onReconnecting, onReconnected,
   onPlayerDisconnected, onPlayerDropped, onGameAvailable, onReconnectFailed,
-  onConnected
+  onConnected, onConnectionError, retryConnection
 } from './network.js';
 import { setCameraForRole } from './controls.js';
 
@@ -44,6 +44,11 @@ const btnImportFenCancel = document.getElementById('btn-import-fen-cancel');
 const reconnectingOverlay = document.getElementById('reconnecting-overlay');
 const reconnectingStatus = document.getElementById('reconnecting-status');
 const btnGiveUp = document.getElementById('btn-give-up');
+
+// Connection error UI
+const connectionErrorOverlay = document.getElementById('connection-error-overlay');
+const connectionErrorMessage = document.getElementById('connection-error-message');
+const btnRetryConnection = document.getElementById('btn-retry-connection');
 
 // Opponent disconnected banner
 const opponentDisconnectedBanner = document.getElementById('opponent-disconnected-banner');
@@ -445,6 +450,38 @@ onReconnected((data) => {
   if (data.rejoinAsNewPlayer) {
     showError('Your seat was no longer available. Rejoining…');
   }
+});
+
+// ── Connection error ────────────────────────────────────
+
+function showConnectionError(message) {
+  connectionErrorMessage.textContent = message;
+  connectionErrorOverlay.classList.add('visible');
+}
+
+function hideConnectionError() {
+  connectionErrorOverlay.classList.remove('visible');
+}
+
+btnRetryConnection.addEventListener('click', () => {
+  hideConnectionError();
+  retryConnection();
+});
+
+onConnectionError((data) => {
+  const code = data.event?.target?.readyState;
+  // WebSocket readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
+  let message = 'Unable to reach the server. Check your connection and try again.';
+  if (code === 3) {
+    // Connection was rejected or failed
+    message = 'Connection to the server was refused. The server may be down or your origin is not allowed.';
+  }
+  showConnectionError(message);
+});
+
+// Hide connection error when a successful connection is established
+onConnected(() => {
+  hideConnectionError();
 });
 
 // ── Opponent disconnected / drop player ─────────────────

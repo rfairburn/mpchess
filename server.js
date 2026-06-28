@@ -453,7 +453,6 @@ module.exports = { setupWebSocketHandlers };
 // ═══════════════════════════════════════════════════════════
 
 const HOST = '0.0.0.0';
-const PORT = process.env.PORT || 3000;
 
 const MIME = {
   '.html': 'text/html',
@@ -494,53 +493,57 @@ const requestHandler = (req, res) => {
 }
 
 if (require.main === module) {
-  // CLI help
+  // CLI help (check before loading config)
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    const { defaultConfigPath } = require('./loadConfig');
     console.log(`
 Usage: node server.js [options]
 
 Options:
-  --help, -h          Show this help message
-  --fen=<fen_string>  Load a custom starting position (first game only;
-                      restarts reset to standard setup)
-  --port=<number>     Override PORT env var for the HTTP/WebSocket server
-  --cert=<path>       TLS certificate file (enables HTTPS)
-  --key=<path>        TLS private key file (required with --cert)
-  --chain=<path>      TLS certificate chain file (optional, PEM format)
+  --help, -h              Show this help message
+  --config=<path>         Config file path (default: config.json in cwd)
+  --fen=<fen_string>      Load a custom starting position (first game only;
+                          restarts reset to standard setup)
+  --port=<number>         Port for the HTTP/WebSocket server
+  --cert=<path>           TLS certificate file (enables HTTPS)
+  --key=<path>            TLS private key file (required with --cert)
+  --chain=<path>          TLS certificate chain file (optional, PEM format)
+  --allowed-origins=<o1,o2>  Comma-separated list of allowed WebSocket origins
+
+Config sources (highest priority first):
+  1. CLI arguments
+  2. Config file (config.json or --config=<path>)
+  3. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
+     MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS)
+  4. Built-in defaults
 
 Examples:
   node server.js
+  node server.js --config=prod.json --port=8443
   node server.js --cert=server.crt --key=server.key
-  node server.js --cert=server.crt --key=server.key --chain=chain.pem
-  node server.js --fen="4k3/8/8/8/8/8/8/4K2R w K - 0 1"
-  PORT=8080 node server.js --fen="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  node server.js --allowed-origins=games.devop.ninja,localhost
+  MPCHESS_PORT=8080 node server.js
 `);
     process.exit(0);
   }
 
-  // Optional: override PORT from CLI
-  const portArg = process.argv.find(a => a.startsWith('--port='));
-  if (portArg) {
-    process.env.PORT = portArg.slice(7);
-  }
+  // Load merged config (CLI > config file > env vars > defaults)
+  const { loadConfig } = require('./loadConfig');
+  const config = loadConfig();
+  const PORT = config.port;
 
   // TLS support
-  const certArg = process.argv.find(a => a.startsWith('--cert='));
-  const keyArg = process.argv.find(a => a.startsWith('--key='));
-  const chainArg = process.argv.find(a => a.startsWith('--chain='));
   let server;
   let protocol = 'http';
 
-  if (certArg && keyArg) {
+  if (config.cert && config.key) {
     try {
-      const certPath = certArg.slice(certArg.indexOf('=') + 1);
-      const keyPath = keyArg.slice(keyArg.indexOf('=') + 1);
       const tlsOptions = {
-        cert: fs.readFileSync(certPath),
-        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(config.cert),
+        key: fs.readFileSync(config.key),
       };
-      if (chainArg) {
-        tlsOptions.ca = fs.readFileSync(chainArg.slice(chainArg.indexOf('=') + 1));
+      if (config.chain) {
+        tlsOptions.ca = fs.readFileSync(config.chain);
       }
       server = https.createServer(tlsOptions, requestHandler);
       protocol = 'https';
@@ -549,21 +552,35 @@ Examples:
       console.error('Falling back to HTTP.');
       server = http.createServer(requestHandler);
     }
-  } else if (certArg || keyArg) {
+  } else if (config.cert || config.key) {
     console.error('Warning: both --cert and --key are required for TLS. Running in HTTP mode.');
     server = http.createServer(requestHandler);
   } else {
     server = http.createServer(requestHandler);
   }
 
-  const wss = new WebSocketServer({ server });
+  // Origin checking for WebSocket connections
+  const allowedOrigins = config.allowedOrigins;
+  const wssOptions = { server };
+  if (allowedOrigins.length > 0) {
+    wssOptions.verifyClient = (info, cb) => {
+      const origin = info.req.headers.origin;
+      if (!origin) {
+        cb(true);
+        return;
+      }
+      const ok = allowedOrigins.some(allowed => origin.includes(allowed));
+      cb(ok, ok ? 200 : 403);
+    };
+  }
+
+  const wss = new WebSocketServer(wssOptions);
   const game = new Game();
 
   // Optional: load a custom starting position from FEN
-  const fenArg = process.argv.find(a => a.startsWith('--fen='));
-  if (fenArg) {
+  if (config.fen) {
     try {
-      game.loadFromFen(fenArg.slice(6));
+      game.loadFromFen(config.fen);
       console.log(`Loaded starting position from FEN: ${game.currentFen()}`);
     } catch (e) {
       console.error(`Invalid FEN: ${e.message}`);

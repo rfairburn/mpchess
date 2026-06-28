@@ -1921,8 +1921,8 @@ describe('TLS CLI arguments', () => {
     // Use spawn so we can explicitly kill the child after capturing output.
     // execSync with a timeout leaves the process in an undefined state,
     // causing EADDRINUSE on subsequent test runs.
-    const child = spawn('node', [serverPath, ...args.split(/\s+/).filter(Boolean)], {
-      env: { ...process.env, PORT: String(port) },
+    const child = spawn('node', [serverPath, '--config=/dev/null', ...args.split(/\s+/).filter(Boolean)], {
+      env: { ...process.env, MPCHESS_PORT: String(port) },
       timeout: t,
       stdio: ['pipe', 'pipe', 'pipe'],
     });

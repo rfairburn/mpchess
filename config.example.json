@@ -1,0 +1,27 @@
+{
+  "port": 3000,
+  "fen": null,
+  "cert": null,
+  "key": null,
+  "chain": null,
+  "allowedOrigins": []
+}
+
+// Copy this file to config.json and edit as needed.
+// Set to null or omit a key to use the default / env var / CLI value.
+//
+// Config sources (highest priority first):
+//   1. CLI arguments  (--port=8080, --allowed-origins=example.com)
+//   2. Environment variables  (MPCHESS_PORT, MPCHESS_ALLOWED_ORIGINS)
+//   3. This config file  (config.json or --config=<path>)
+//   4. Built-in defaults
+//
+// Options:
+//   port            — Port for the HTTP/WebSocket server (default: 3000)
+//   fen             — Custom starting FEN position (default: standard setup)
+//   cert            — TLS certificate file path (PEM format)
+//   key             — TLS private key file path (PEM format, required with cert)
+//   chain           — TLS certificate chain file path (PEM format, optional)
+//   allowedOrigins  — Array of allowed WebSocket origins, e.g. ["games.devop.ninja", "localhost"]
+//                     Empty array means no origin checking (accept all).
+//                     A comma-separated string is also accepted and auto-split.

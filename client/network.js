@@ -44,6 +44,7 @@ const onPlayerDroppedCallbacks = [];
 const onGameAvailableCallbacks = [];
 const onReconnectFailedCallbacks = [];
 const onConnectedCallbacks = []; // fires on raw WebSocket open (before any messages)
+const onConnectionErrorCallbacks = []; // fires when WebSocket connection fails entirely
 
 export function onStateUpdate(fn) { onStateUpdateCallbacks.push(fn); }
 export function onMove(fn) { onMoveCallbacks.push(fn); }
@@ -57,6 +58,7 @@ export function onPlayerDropped(fn) { onPlayerDroppedCallbacks.push(fn); }
 export function onGameAvailable(fn) { onGameAvailableCallbacks.push(fn); }
 export function onReconnectFailed(fn) { onReconnectFailedCallbacks.push(fn); }
 export function onConnected(fn) { onConnectedCallbacks.push(fn); }
+export function onConnectionError(fn) { onConnectionErrorCallbacks.push(fn); }
 
 function fireCallbacks(arr, data) {
   for (const fn of arr) fn(data);
@@ -82,14 +84,19 @@ function connect() {
     // Only auto-reconnect if we were actively playing and got disconnected
     // Fresh page loads / new windows NEVER auto-pick — join overlay always shows
     if (reconnecting && reconnectColor) {
-      const token = localStorage.getItem(tokenKey(reconnectColor));
-      if (token) {
-        pendingToken = token;
-        ws.send(JSON.stringify({ type: 'reconnect', token }));
+      if (reconnectColor === 'spectator') {
+        // Spectator rejoin — no token needed, just join as spectator
+        ws.send(JSON.stringify({ type: 'join', color: 'spectator' }));
       } else {
-        // No token for our color — fall through to join overlay
-        reconnecting = false;
-        reconnectColor = null;
+        const token = localStorage.getItem(tokenKey(reconnectColor));
+        if (token) {
+          pendingToken = token;
+          ws.send(JSON.stringify({ type: 'reconnect', token }));
+        } else {
+          // No token for our color — fall through to join overlay
+          reconnecting = false;
+          reconnectColor = null;
+        }
       }
     }
     // Validate any stored tokens so the UI knows whether to show "Reconnect"
@@ -104,22 +111,23 @@ function connect() {
     // Otherwise: wait for user to click a button on the join overlay
   };
 
-  ws.onclose = () => {
+  ws.onerror = (event) => {
+    // Connection failed before it was established (e.g., origin rejected, server down)
+    // Only fire this for initial connections, not during reconnection (reconnect has its own flow)
+    if (!reconnecting && myRole === null) {
+      fireCallbacks(onConnectionErrorCallbacks, { event });
+    }
+  };
+
+  ws.onclose = (event) => {
     ws = null;
 
     // Don't auto-reconnect if we're intentionally closing (e.g., page unload)
     if (window._mpchessClosing) return;
 
-    // Start reconnection if we were a player
-    if (myRole === 'white' || myRole === 'black') {
+    // Reconnect if we had any role (player or spectator)
+    if (myRole) {
       startReconnection();
-    } else {
-      // Spectator — just show disconnected state, no auto-reconnect
-      const roleBadge = document.getElementById('role-badge');
-      if (roleBadge) {
-        roleBadge.textContent = 'Disconnected';
-        roleBadge.className = '';
-      }
     }
   };
 
@@ -361,6 +369,13 @@ export function sendImportFen(fen) {
 
 export function isReconnecting() {
   return reconnecting;
+}
+
+export function retryConnection() {
+  clearReconnectTimer();
+  reconnectAttempts = 0;
+  reconnecting = false;
+  connect();
 }
 
 // Start initial connection
