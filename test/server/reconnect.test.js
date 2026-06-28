@@ -5,8 +5,8 @@
 
 const assert = require('assert');
 
-const { Game } = require('./shared/chess');
-const { setupWebSocketHandlers } = require('./server');
+const { Game } = require('../../shared/chess');
+const { setupWebSocketHandlers } = require('../../server');
 
 // ── Mock WebSocket ────────────────────────────────────────
 

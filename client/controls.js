@@ -103,9 +103,15 @@ document.addEventListener('pointerlockchange', () => {
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-// Flattened once at module load time — avoids allocating 64-item array per click
-const allSquares = [];
-for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) allSquares.push(squares[r][f]);
+// Built lazily after createBoard() populates the squares array — avoids
+// allocating a 64-item array on every click.
+let allSquares = null;
+function ensureAllSquares() {
+  if (!allSquares) {
+    allSquares = [];
+    for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) allSquares.push(squares[r][f]);
+  }
+}
 
 export let selectedSquare = null;
 export let validMoves = [];
@@ -114,6 +120,7 @@ function getBoardSquareFromRay(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, _camera);
+  ensureAllSquares();
   const hits = raycaster.intersectObjects(allSquares);
   if (hits.length > 0) {
     const hit = hits[0];

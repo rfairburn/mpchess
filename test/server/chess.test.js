@@ -5,6 +5,7 @@
 
 const assert = require('assert');
 const path = require('path');
+const ROOT = path.resolve(__dirname, '../..'); // project root
 
 const {
   EMPTY, W_PAWN, W_KNIGHT, W_BISHOP, W_ROOK, W_QUEEN, W_KING,
@@ -13,7 +14,7 @@ const {
   startingBoard, cloneBoard, findKing, isAttacked, isInCheck,
   getValidMoves, hasAnyMoves, isInsufficientMaterial, Game,
   ZOBRIST, toFen, fromFen,
-} = require('./shared/chess');
+} = require('../../shared/chess');
 
 const fs = require('fs');
 
@@ -617,15 +618,15 @@ describe('Game state management', () => {
 
 describe('Path resolution algorithm — verifies the fix logic', () => {
   test('stripping leading slash prevents absolute path escape', () => {
-    const __dirname = '/home/robert/mpchess';
+    const ROOT = '/home/robert/mpchess';
     const urlPath = '/client/index.html';
 
     // The fix: strip leading '/' before resolving
     const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
     const safePath = path.normalize(relativePath);
-    const filePath = path.resolve(__dirname, safePath);
+    const filePath = path.resolve(ROOT, safePath);
 
-    assert.ok(filePath.startsWith(__dirname), `filePath ${filePath} should start with ${__dirname}`);
+    assert.ok(filePath.startsWith(ROOT), `filePath ${filePath} should start with ${ROOT}`);
     assert.strictEqual(filePath, '/home/robert/mpchess/client/index.html');
   });
 
@@ -640,7 +641,7 @@ describe('Path resolution algorithm — verifies the fix logic', () => {
   });
 
   test('normal client paths resolve correctly', () => {
-    const __dirname = '/home/robert/mpchess';
+    const ROOT = '/home/robert/mpchess';
     const paths = [
       ['/client/index.html', '/home/robert/mpchess/client/index.html'],
       ['/client/app.js', '/home/robert/mpchess/client/app.js'],
@@ -650,22 +651,22 @@ describe('Path resolution algorithm — verifies the fix logic', () => {
     for (const [urlPath, expected] of paths) {
       const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
       const safePath = path.normalize(relativePath);
-      const filePath = path.resolve(__dirname, safePath);
+      const filePath = path.resolve(ROOT, safePath);
       assert.strictEqual(filePath, expected);
     }
   });
 
   test('path.resolve with leading slash is the bug — verify fix avoids it', () => {
-    const __dirname = '/home/robert/mpchess';
+    const ROOT = '/home/robert/mpchess';
     const urlPath = '/client/index.html';
 
     // BUG: path.resolve treats leading / as absolute
-    const buggyPath = path.resolve(__dirname, urlPath);
+    const buggyPath = path.resolve(ROOT, urlPath);
     assert.strictEqual(buggyPath, '/client/index.html', 'bug confirmed: leading / makes path absolute');
-    assert.ok(!buggyPath.startsWith(__dirname), 'bug: path escapes __dirname');
+    assert.ok(!buggyPath.startsWith(ROOT), 'bug: path escapes ROOT');
 
     // FIX: strip leading / first
-    const fixedPath = path.resolve(__dirname, urlPath.slice(1));
+    const fixedPath = path.resolve(ROOT, urlPath.slice(1));
     assert.strictEqual(fixedPath, '/home/robert/mpchess/client/index.html');
   });
 });
@@ -686,7 +687,7 @@ describe('Client-side capture — rebuildPieces regression', () => {
 
   function simulateRebuild(serverBoard, pieceMeshes) {
     // Replicates the rebuildPieces diffing logic (without Three.js)
-    const { pieceColor, pieceType } = require('./shared/chess');
+    const { pieceColor, pieceType } = require('../../shared/chess');
 
     const desired = new Map();
     for (let r = 0; r < 8; r++) {
@@ -1868,7 +1869,7 @@ describe('getState includes new fields', () => {
 
 describe('Build regression — chess.mjs browser safety', () => {
   test('generated chess.mjs has no bare require() calls', () => {
-    const mjsPath = path.join(__dirname, 'shared', 'chess.mjs');
+    const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
     const lines = mjs.split('\n');
     const bareRequires = [];
@@ -1888,7 +1889,7 @@ describe('Build regression — chess.mjs browser safety', () => {
   });
 
   test('generated chess.mjs wraps crypto require in try/catch', () => {
-    const mjsPath = path.join(__dirname, 'shared', 'chess.mjs');
+    const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
     assert.ok(mjs.includes('try') && mjs.includes("require('crypto')"),
       'crypto require must be wrapped in try/catch for browser compatibility');
@@ -1899,7 +1900,7 @@ describe('Build regression — chess.mjs browser safety', () => {
     // Verify the Game class handles null ZOBRIST gracefully.
     assert.ok(ZOBRIST !== null, 'ZOBRIST should be initialized in Node.js');
     // Verify _computeZobrist has a null guard (check source)
-    const src = fs.readFileSync(path.join(__dirname, 'shared', 'chess.js'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
     assert.ok(src.includes('if (!ZOBRIST)'),
       '_computeZobrist must guard against null ZOBRIST for browser safety');
   });
@@ -1907,7 +1908,7 @@ describe('Build regression — chess.mjs browser safety', () => {
 
 describe('TLS CLI arguments', () => {
   const { execSync, spawn } = require('child_process');
-  const serverPath = path.join(__dirname, 'server.js');
+  const serverPath = path.join(ROOT, 'server.js');
 
   // Each test gets a unique port to avoid EADDRINUSE / TIME_WAIT conflicts
   let portCounter = 49000;

@@ -12,7 +12,7 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 - **FEN import/export**: load custom positions via menu dialog or `--fen=` CLI; export FEN/PGN to clipboard
 - **PGN export**: full game notation with tags and result
 - **TLS/HTTPS support**: `--cert=` / `--key=` / `--chain=` for secure deployments
-- **193 passing tests**: chess engine, reconnection, TLS CLI (run with `npm test`)
+- **214 passing tests**: chess engine, reconnection, TLS CLI, client controls (run with `npm test`)
 
 ## Usage
 
@@ -60,10 +60,26 @@ If `--cert` is given without `--key` (or vice versa), the server logs a warning 
 ## Testing
 
 ```bash
-npm test
+npm test           # everything (214 tests)
+npm run test:server  # server tests (193 tests)
+npm run test:client  # client tests (21 tests)
+npm run test:all     # same as npm test
 ```
 
-Runs the full test suite (193 tests: 142 chess engine + 51 reconnection).
+### Test Structure
+
+```
+test/
+├── client/
+│   ├── controls.test.js      — Vitest + jsdom; camera, clicks, keyboard, pointer lock
+│   ├── mocks/three.js        — Three.js mock classes for unit tests
+│   └── setup.js              — jsdom polyfills (requestPointerLock, etc.)
+└── server/
+    ├── chess.test.js         — Chess engine, moves, castling, promotion, FEN, security
+    └── reconnect.test.js     — WebSocket sessions, reconnection, promotion, import FEN
+```
+
+Server tests use a minimal custom `describe`/`test` runner with Node's built-in `assert`. Client tests use Vitest with jsdom and a Three.js mock.
 
 ## Project Structure
 
@@ -81,8 +97,7 @@ client/
   index.html           — Entry point, importmap, UI markup
   style.css            — All UI styling
 build_chess_mjs.js     — Build script: chess.js → chess.mjs (with regression checks)
-test_chess.js          — Chess engine tests (142 tests)
-test_reconnect.js      — Reconnection / session tests (51 tests)
+test/                  — All tests (see Testing section)
 files/                 — 3D piece models (STL)
 ```
 
