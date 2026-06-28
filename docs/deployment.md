@@ -236,7 +236,7 @@ microk8s helm3 uninstall mpchess --namespace mpchess
 | `service.port`          | Service port                              | `3000`              |
 | `gateway.type`          | Gateway type: `httproute` or `ingress`    | `httproute`         |
 | `gateway.name`          | Gateway resource name                     | `mpchess`           |
-| `gateway.className`     | Gateway class (Traefik, Envoy, etc.)      | `traefik`           |
+| `gateway.className`     | Gateway class name                        | `traefik`           |
 | `gateway.host`          | Hostname for the route                    | `chess.example.com` |
 | `gateway.tlsSecretName` | TLS secret name                           | `mpchess-tls`       |
 | `gateway.issuer`        | cert-manager ClusterIssuer name           | `letsencrypt-prod`  |

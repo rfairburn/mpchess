@@ -699,62 +699,180 @@ describe('Game state management', () => {
   });
 });
 
-describe('Path resolution algorithm — verifies the fix logic', () => {
-  test('stripping leading slash prevents absolute path escape', () => {
-    const ROOT = '/home/robert/mpchess';
-    const urlPath = '/client/index.html';
+describe('Static file server — requestHandler', () => {
+  const { requestHandler, MIME, CLIENT_ROOT } = require('../../server');
 
-    // The fix: strip leading '/' before resolving
-    const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
-    const safePath = path.normalize(relativePath);
-    const filePath = path.resolve(ROOT, safePath);
+  function mockReq(urlPath) {
+    return { url: urlPath };
+  }
 
-    assert.ok(filePath.startsWith(ROOT), `filePath ${filePath} should start with ${ROOT}`);
-    assert.strictEqual(filePath, '/home/robert/mpchess/client/index.html');
+  function mockRes() {
+    const res = {
+      statusCode: null,
+      headers: null,
+      body: null,
+      writeHead(code, headers) {
+        this.statusCode = code;
+        this.headers = headers;
+      },
+      end(body) {
+        this.body = body;
+      },
+    };
+    return res;
+  }
+
+  // ── Root redirect ──
+
+  test('root / serves client/index.html', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.ok(res.body.includes('<!doctype html>') || res.body.includes('<html'), 'should serve HTML');
   });
 
-  test('path traversal attempt is rejected', () => {
-    const urlPath = '/../../../etc/passwd';
+  // ── Allowed extensions ──
 
-    const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
-    const safePath = path.normalize(relativePath);
-
-    // After normalization, this starts with '..'
-    assert.ok(safePath.startsWith('..'), 'normalized path should start with ..');
+  test('serves .html files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/index.html'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.html']);
   });
 
-  test('normal client paths resolve correctly', () => {
-    const ROOT = '/home/robert/mpchess';
-    const paths = [
-      ['/client/index.html', '/home/robert/mpchess/client/index.html'],
-      ['/client/app.js', '/home/robert/mpchess/client/app.js'],
-      ['/client/files/king.stl', '/home/robert/mpchess/client/files/king.stl'],
-    ];
+  test('serves .js files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/app.js'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.js']);
+  });
 
-    for (const [urlPath, expected] of paths) {
-      const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
-      const safePath = path.normalize(relativePath);
-      const filePath = path.resolve(ROOT, safePath);
-      assert.strictEqual(filePath, expected);
+  test('serves .mjs files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/chess.mjs'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.mjs']);
+  });
+
+  test('serves .css files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/style.css'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.css']);
+  });
+
+  test('serves .stl model files from client/files/', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/files/king.stl'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.stl']);
+  });
+
+  // ── Forbidden: outside client/ ──
+
+  test('rejects /server.js with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/server.js'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects /package.json with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/package.json'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects /shared/chess.js with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/shared/chess.js'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects /review.md with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/review.md'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  // ── Forbidden: path traversal ──
+
+  test('rejects /client/../server.js with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/../server.js'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects /client/../../etc/passwd with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/../../etc/passwd'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects /client/..%2f..%2fserver.js with 403', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/..%2f..%2fserver.js'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  // ── Forbidden: disallowed extensions ──
+
+  test('rejects .step files (not in MIME allowlist)', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/files/king.step'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects .txt files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/readme.txt'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects .key files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/server.key'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects .pem files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/cert.pem'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  test('rejects .md files', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/notes.md'), res);
+    assert.strictEqual(res.statusCode, 403);
+  });
+
+  // ── 404 for missing files ──
+
+  test('returns 404 for non-existent .html file', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/nonexistent.html'), res);
+    assert.strictEqual(res.statusCode, 404);
+  });
+
+  test('returns 404 for non-existent .stl file', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/files/unicorn.stl'), res);
+    assert.strictEqual(res.statusCode, 404);
+  });
+
+  // ── CLIENT_ROOT is under project root ──
+
+  test('CLIENT_ROOT resolves to client/ directory', () => {
+    assert.ok(CLIENT_ROOT.endsWith('client'), `CLIENT_ROOT should end with 'client', got ${CLIENT_ROOT}`);
+  });
+
+  // ── MIME allowlist is exhaustive ──
+
+  test('MIME map covers all expected extensions', () => {
+    const expected = ['.html', '.js', '.mjs', '.css', '.json', '.stl', '.png', '.jpg', '.ico'];
+    for (const ext of expected) {
+      assert.ok(MIME[ext] !== undefined, `MIME map should include ${ext}`);
     }
-  });
-
-  test('path.resolve with leading slash is the bug — verify fix avoids it', () => {
-    const ROOT = '/home/robert/mpchess';
-    const urlPath = '/client/index.html';
-
-    // BUG: path.resolve treats leading / as absolute
-    const buggyPath = path.resolve(ROOT, urlPath);
-    assert.strictEqual(
-      buggyPath,
-      '/client/index.html',
-      'bug confirmed: leading / makes path absolute'
-    );
-    assert.ok(!buggyPath.startsWith(ROOT), 'bug: path escapes ROOT');
-
-    // FIX: strip leading / first
-    const fixedPath = path.resolve(ROOT, urlPath.slice(1));
-    assert.strictEqual(fixedPath, '/home/robert/mpchess/client/index.html');
   });
 });
 

@@ -100,8 +100,8 @@ Server tests use a minimal custom `describe`/`test` runner with Node's built-in 
 server.js              — HTTP/HTTPS server, WebSocket handlers, game session management
 loadConfig.js          — Config loading (CLI > env > file > defaults)
 shared/chess.js        — Chess engine (CommonJS for Node.js/server/tests)
-shared/chess.mjs       — Auto-generated ESM build for browser (`npm run build:chess`)
-client/
+client/                — All browser-served assets (static server serves only this dir)
+  chess.mjs            — Auto-generated ESM build for browser (`npm run build:chess`)
   app.js               — Three.js scene setup, game loop
   board.js             — Board rendering, square highlights
   pieces.js            — Piece meshes, animations, rebuild diffing
@@ -110,22 +110,23 @@ client/
   network.js           — WebSocket client, reconnection, message routing
   index.html           — Entry point, importmap, UI markup
   style.css            — All UI styling
-build_chess_mjs.js     — Build script: chess.js → chess.mjs (with regression checks)
+  files/               — 3D piece models (STL)
+build_chess_mjs.js     — Build script: chess.js → client/chess.mjs (with regression checks)
 test/                  — All tests (see Testing section)
-files/                 — 3D piece models (STL)
 chart/                 — Helm chart for Kubernetes deployment
 docs/                  — Deployment guides
 scripts/               — CI and utility scripts
 Dockerfile             — Multi-stage Docker build
+.dockerignore          — Excludes secrets, dev files from Docker build context
 ```
 
 ## Deployment
 
-- **[Deployment Guide](docs/deployment.md)** — Docker, microk8s, Envoy Gateway, TLS with Certbot
-- **[Helm Chart](chart/)** — Kubernetes deployment with Envoy Gateway HTTPRoute support
+- **[Deployment Guide](docs/deployment.md)** — Docker, microk8s, Gateway API, TLS with cert-manager
+- **[Helm Chart](chart/)** — Kubernetes deployment with Gateway API HTTPRoute support
 
 ## License
 
 Code is licensed under MIT. See [LICENSE](LICENSE).
 
-The 3D model files in `files/` are licensed separately under CC BY-NC-SA 4.0. See [files/LICENSE](files/LICENSE).
+The 3D model files in `client/files/` are licensed separately under CC BY-NC-SA 4.0. See [client/files/LICENSE](client/files/LICENSE).

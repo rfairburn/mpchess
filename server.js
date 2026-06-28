@@ -473,8 +473,6 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   };
 }
 
-module.exports = { setupWebSocketHandlers };
-
 // ═══════════════════════════════════════════════════════════
 //  HTTP SERVER + WEBSOCKET (production entry point)
 // ═══════════════════════════════════════════════════════════
@@ -649,3 +647,6 @@ Examples:
     for (const ip of ips) console.log(`LAN:     ${protocol}://${ip}:${PORT}`);
   });
 }
+
+// Exported for testing
+module.exports = { setupWebSocketHandlers, requestHandler, MIME, CLIENT_ROOT };
