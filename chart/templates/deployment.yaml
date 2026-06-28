@@ -25,19 +25,34 @@ spec:
           args:
             {{- include "mpchess.serverArgs" . | nindent 12 }}
           ports:
-            - name: http
+            - name: {{ include "mpchess.portName" . }}
               containerPort: {{ .Values.server.port }}
               protocol: TCP
+          env:
+            - name: MPCHESS_PORT
+              value: {{ .Values.server.port | toString | quote }}
+            {{- if .Values.tls.enabled }}
+            - name: MPCHESS_CERT
+              value: "/etc/tls/tls.crt"
+            - name: MPCHESS_KEY
+              value: "/etc/tls/tls.key"
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /
-              port: http
+              port: {{ include "mpchess.portName" . }}
+            {{- if .Values.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /
-              port: http
+              port: {{ include "mpchess.portName" . }}
+            {{- if .Values.tls.enabled }}
+            scheme: HTTPS
+            {{- end }}
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:
@@ -51,7 +66,12 @@ spec:
             {{- end }}
             {{- if .Values.tls.enabled }}
             - name: tls
-              mountPath: /etc/tls
+              mountPath: /etc/tls/tls.crt
+              subPath: tls.crt
+              readOnly: true
+            - name: tls
+              mountPath: /etc/tls/tls.key
+              subPath: tls.key
               readOnly: true
             {{- end }}
           {{- end }}
@@ -65,7 +85,7 @@ spec:
         {{- if .Values.tls.enabled }}
         - name: tls
           secret:
-            secretName: {{ .Values.gateway.tlsSecretName }}
+            secretName: {{ .Values.tls.secretName }}
         {{- end }}
       {{- end }}
       {{- with .Values.nodeSelector }}

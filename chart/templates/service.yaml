@@ -8,8 +8,8 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: {{ include "mpchess.portName" . }}
       protocol: TCP
-      name: http
+      name: {{ include "mpchess.portName" . }}
   selector:
     {{- include "mpchess.selectorLabels" . | nindent 4 }}

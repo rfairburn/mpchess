@@ -22,9 +22,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: IfNotPresent
-      - contains:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].name
+          value: MPCHESS_PORT
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: "3000"
+      - notContains:
           path: spec.template.spec.containers[0].args
-          content: --port=3000
+          content: --port=
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 3000
@@ -62,34 +68,60 @@ tests:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
 
-  - it: TLS enabled adds cert args and volume mount
+  - it: TLS enabled adds env vars, volume mounts, and HTTPS probes
     set:
       tls:
         enabled: true
-      gateway:
-        tlsSecretName: my-tls-secret
+        secretName: my-tls-secret
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --cert=/etc/tls/tls.crt
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --key=/etc/tls/tls.key
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: MPCHESS_CERT
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: /etc/tls/tls.crt
+      - equal:
+          path: spec.template.spec.containers[0].env[2].name
+          value: MPCHESS_KEY
+      - equal:
+          path: spec.template.spec.containers[0].env[2].value
+          value: /etc/tls/tls.key
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].name
           value: tls
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].mountPath
-          value: /etc/tls
+          value: /etc/tls/tls.crt
       - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].readOnly
-          value: true
+          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          value: tls.crt
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
+          value: /etc/tls/tls.key
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].subPath
+          value: tls.key
       - equal:
           path: spec.template.spec.volumes[0].name
           value: tls
       - equal:
           path: spec.template.spec.volumes[0].secret.secretName
           value: my-tls-secret
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+          value: HTTPS
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+          value: HTTPS
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: https
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: https
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: https
 
   - it: config enabled adds config volume mount
     set:
@@ -113,28 +145,27 @@ tests:
     set:
       tls:
         enabled: true
+        secretName: my-tls
       config:
         enabled: true
-      gateway:
-        tlsSecretName: my-tls
     asserts:
       - hasDocuments:
           count: 1
       - lengthEqual:
           path: spec.template.spec.containers[0].volumeMounts
-          count: 2
+          count: 3
       - lengthEqual:
           path: spec.template.spec.volumes
           count: 2
 
-  - it: custom server port changes arg and containerPort
+  - it: custom server port changes env var and containerPort
     set:
       server:
         port: 8443
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --port=8443
+      - equal:
+          path: spec.template.spec.containers[0].env[0].value
+          value: "8443"
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 8443
@@ -157,7 +188,7 @@ tests:
           path: spec.template.spec.containers[0].args
           content: --allowed-origins=chess.example.com,localhost
 
-  - it: has liveness and readiness probes
+  - it: has liveness and readiness probes with HTTP scheme by default
     asserts:
       - isNotNull:
           path: spec.template.spec.containers[0].livenessProbe
@@ -169,6 +200,16 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.path
           value: /
+      - isNull:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
+      - isNull:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.scheme
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http
 
   - it: has standard labels
     asserts:

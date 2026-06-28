@@ -74,23 +74,21 @@ fi
 
 if [ -n "$HELM_CMD" ] && [ -d chart ]; then
   run_check "Helm lint" $HELM_CMD lint chart || true
-  run_check "Helm template" $HELM_CMD template mpchess chart --set gateway.enabled=false || true
+  run_check "Helm template" $HELM_CMD template mpchess chart --set gateway.type=none || true
 
   # helm-unittest (optional — requires plugin)
   if $HELM_CMD plugin list 2>/dev/null | grep -q unittest; then
     run_check "Helm unittest" $HELM_CMD unittest chart || true
   else
     echo -e "${YELLOW}→ Helm unittest skipped (plugin not installed)${NC}"
-    PASS=$((PASS + 1))
   fi
 
-  # helm lint with custom values
-  run_check "Helm lint (TLS+config)" $HELM_CMD lint chart --set gateway.enabled=false --set tls.enabled=true --set config.enabled=true || true
+  # helm lint with TLS enabled
+  run_check "Helm lint (TLS)" $HELM_CMD lint chart --set gateway.type=none --set tls.enabled=true || true
 else
   if [ -d chart ]; then
     echo -e "${YELLOW}→ Helm checks skipped (no helm binary found)${NC}"
   fi
-  PASS=$((PASS + 3))
 fi
 
 echo ""

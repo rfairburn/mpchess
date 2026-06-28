@@ -1,4 +1,4 @@
-{{- if eq .Values.gateway.type "ingress" }}
+{{- if and (ne .Values.gateway.type "none") (eq .Values.gateway.type "ingress") }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

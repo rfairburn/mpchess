@@ -49,18 +49,26 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Server CLI args from values — one per line for YAML list
+Server CLI args from values — one per line for YAML list.
+Port and TLS cert/key are managed via env vars, not CLI args.
 */}}
 {{- define "mpchess.serverArgs" -}}
-- --port={{ .Values.server.port }}
 {{- if .Values.server.fen }}
 - --fen={{ .Values.server.fen }}
 {{- end }}
 {{- if .Values.server.allowedOrigins }}
 - --allowed-origins={{ .Values.server.allowedOrigins }}
 {{- end }}
-{{- if .Values.tls.enabled }}
-- --cert=/etc/tls/tls.crt
-- --key=/etc/tls/tls.key
 {{- end }}
-{{- end }}
+
+{{/*
+Port name — "http" by default, "https" when TLS is enabled.
+Used for container port name, service port name, and probe port.
+*/}}
+{{- define "mpchess.portName" -}}
+{{- if .Values.tls.enabled -}}
+https
+{{- else -}}
+http
+{{- end -}}
+{{- end -}}

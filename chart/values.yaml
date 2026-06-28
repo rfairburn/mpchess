@@ -11,11 +11,14 @@ image:
 
 service:
   type: ClusterIP
+  # Port must match server.port. Service port name adapts to TLS mode.
   port: 3000
-  targetPort: 3000
 
-# Gateway API (Gateway + HTTPRoute, default) or Ingress
+# Gateway API (Gateway + HTTPRoute), Ingress, or none
 gateway:
+  # httproute — Gateway + HTTPRoute (Gateway API, e.g. Traefik)
+  # ingress  — classic Ingress resource (e.g. ingress-nginx)
+  # none     — no ingress/gateway resources rendered
   type: httproute
   name: mpchess
   className: traefik
@@ -38,32 +41,31 @@ resources:
     cpu: 100m
     memory: 128Mi
 
-# Server CLI options (passed as args)
+# Server settings
+# port, cert, key are managed via env vars (MPCHESS_PORT, MPCHESS_CERT, MPCHESS_KEY)
+# and supersede any config file values. fen and allowedOrigins are passed as CLI args.
 server:
   port: 3000
   # fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   # allowedOrigins: "chess.example.com,localhost"
 
-# Config file (mounted as ConfigMap)
+# Optional user-defined ConfigMap (mounted at /app/config.json)
+# Env vars for port/cert/key always supersede config file values.
 config:
   enabled: false
   # JSON content (comments stripped at runtime)
   content: |
     {
-      "port": 3000
+      "allowedOrigins": ["chess.example.com"]
     }
 
-# TLS certificate (mounted as Secret)
+# Inter-pod TLS — when enabled, the app serves HTTPS and kubelet probes use HTTPS.
+# The TLS secret is mounted at /etc/tls and MPCHESS_CERT / MPCHESS_KEY env vars
+# are set to point the app at the mounted files.
 tls:
   enabled: false
-  # cert: |
-  #   -----BEGIN CERTIFICATE-----
-  #   ...
-  #   -----END CERTIFICATE-----
-  # key: |
-  #   -----BEGIN PRIVATE KEY-----
-  #   ...
-  #   -----END PRIVATE KEY-----
+  # Kubernetes TLS secret name (must contain tls.crt and tls.key)
+  secretName: mpchess-tls
 
 nodeSelector: {}
 tolerations: []

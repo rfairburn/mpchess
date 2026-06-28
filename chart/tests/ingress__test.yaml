@@ -9,6 +9,14 @@ tests:
       - hasDocuments:
           count: 0
 
+  - it: no document when gateway type is none
+    set:
+      gateway:
+        type: none
+    asserts:
+      - hasDocuments:
+          count: 0
+
   - it: renders Ingress when gateway type is ingress
     set:
       gateway:

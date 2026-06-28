@@ -1,4 +1,4 @@
-{{- if eq .Values.gateway.type "httproute" }}
+{{- if and (ne .Values.gateway.type "none") (eq .Values.gateway.type "httproute") }}
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:

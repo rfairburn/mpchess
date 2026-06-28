@@ -26,6 +26,9 @@ tests:
           path: spec.ports[0].protocol
           value: TCP
       - equal:
+          path: spec.ports[0].name
+          value: http
+      - equal:
           path: spec.selector["app.kubernetes.io/name"]
           value: mpchess
 
@@ -46,3 +49,15 @@ tests:
       - equal:
           path: spec.ports[0].port
           value: 8080
+
+  - it: TLS enabled uses https port name
+    set:
+      tls:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ports[0].targetPort
+          value: https
+      - equal:
+          path: spec.ports[0].name
+          value: https
