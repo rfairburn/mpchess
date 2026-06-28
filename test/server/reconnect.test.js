@@ -875,6 +875,259 @@ describe('Import FEN — trims whitespace from FEN', () => {
   });
 });
 
+// ── Rate Limiter Tests ────────────────────────────────────
+
+describe('Rate limiter — basic behavior', () => {
+  test('messages within limit are accepted', () => {
+    const { wss, handlers } = createTestEnv();
+    const ws = joinAs(wss, 'white');
+    // Send 3 move messages (well under default 60/10s limit)
+    for (let i = 0; i < 3; i++) {
+      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    // No rateLimited messages should be sent
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // Bucket should have 3 entries (join + 3 moves = 4 total, but join was before)
+    const bucket = handlers.rateLimitBuckets.get(ws);
+    assert.ok(bucket);
+    assert.strictEqual(bucket.length, 4); // 1 join + 3 moves
+  });
+
+  test('messages exceeding limit are rejected with rateLimited', () => {
+    const { wss } = createTestEnv();
+    const ws = joinAs(wss, 'white');
+    // Default limit is 60 per 10s — flood past it
+    for (let i = 0; i < 60; i++) {
+      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    // 60th move + 1 join = 61 total, 60 were allowed, 61st should be rate limited
+    const rlMsgs = ws.getSent('rateLimited');
+    assert.strictEqual(rlMsgs.length, 1);
+    assert.ok(rlMsgs[0].retryAfter >= 1);
+  });
+
+  test('rate limited messages include retryAfter field', () => {
+    const { wss } = createTestEnv();
+    const ws = joinAs(wss, 'white');
+    for (let i = 0; i < 60; i++) {
+      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    const rlMsg = ws.getSent('rateLimited')[0];
+    assert.ok(typeof rlMsg.retryAfter === 'number');
+    assert.ok(rlMsg.retryAfter >= 1);
+  });
+
+  test('rate limited message does not process the original request', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    joinAs(wss, 'black');
+    // Set up a valid move
+    game.turn = 'white';
+    // Flood to trigger rate limit
+    for (let i = 0; i < 60; i++) {
+      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 }));
+    }
+    // The 61st message should be rate limited, not processed
+    const rlMsgs = ws1.getSent('rateLimited');
+    assert.ok(rlMsgs.length >= 1);
+  });
+
+  test('each connection has independent rate limit', () => {
+    const { wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    // Fill ws1's bucket
+    for (let i = 0; i < 60; i++) {
+      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    // ws1 should be rate limited
+    assert.ok(ws1.getSent('rateLimited').length >= 1);
+    // ws2 should still be fine
+    ws2.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws2.getSent('rateLimited').length, 0);
+  });
+});
+
+describe('Rate limiter — configurable limits', () => {
+  test('custom rateLimitMax is respected', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 3,
+      rateLimitWindow: 10_000,
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    // 1 join + 2 more = 3 allowed
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // 4th message should be rate limited
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+  });
+
+  test('custom rateLimitWindow is respected', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 5,
+      rateLimitWindow: 100, // 100ms window
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    // Fill up: 1 join + 4 moves = 5
+    for (let i = 0; i < 4; i++) {
+      ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // Next should be rate limited
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+  });
+
+  test('window resets after rateLimitWindow expires', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 3,
+      rateLimitWindow: 50, // 50ms window
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // 4th should be rate limited
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+
+    // Wait for window to expire
+    asyncTest('window resets after rateLimitWindow expires', (done) => {
+      setTimeout(() => {
+        // After window expires, new messages should be allowed
+        ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+        // Should not be rate limited anymore
+        assert.strictEqual(ws.getSent('rateLimited').length, 1); // still just the original one
+        done();
+      }, 60);
+    });
+  });
+});
+
+describe('Rate limiter — cleanup on disconnect', () => {
+  test('rate limit bucket removed on disconnect', () => {
+    const { wss, handlers } = createTestEnv();
+    const ws = joinAs(wss, 'white');
+    assert.ok(handlers.rateLimitBuckets.has(ws));
+    wss.simulateDisconnect(ws);
+    assert.ok(!handlers.rateLimitBuckets.has(ws));
+  });
+
+  test('reconnected client gets fresh rate limit bucket', () => {
+    const { wss, handlers } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const token = safeGet(ws1.getSent('joined')[0], 'token');
+    joinAs(wss, 'black');
+    // Fill ws1's bucket
+    for (let i = 0; i < 60; i++) {
+      ws1.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    }
+    assert.ok(ws1.getSent('rateLimited').length >= 1);
+    // Disconnect ws1
+    wss.simulateDisconnect(ws1);
+    // Reconnect with new socket
+    const ws1_new = wss.simulateConnection();
+    ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token }));
+    assert.strictEqual(ws1_new.getSent('reconnected').length, 1);
+    // New socket should have a fresh bucket — messages should work
+    ws1_new.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws1_new.getSent('rateLimited').length, 0);
+  });
+});
+
+describe('Rate limiter — different message types all count', () => {
+  test('join, move, restart, and export messages all count toward limit', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 5,
+      rateLimitWindow: 10_000,
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 1
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 2
+    ws.emit('message', JSON.stringify({ type: 'restart' })); // 3
+    ws.emit('message', JSON.stringify({ type: 'exportFen' })); // 4
+    ws.emit('message', JSON.stringify({ type: 'exportPgn' })); // 5
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // 6th message should be rate limited
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+  });
+
+  test('rate limited message itself does not count toward limit', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 3,
+      rateLimitWindow: 10_000,
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 1
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 2
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })); // 3
+    // 4th — rate limited, bucket is deleted
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+    // Bucket was deleted on rate limit — next message starts fresh
+    const bucket = handlers.rateLimitBuckets.get(ws);
+    assert.strictEqual(bucket, undefined);
+  });
+
+  test('reconnect and validateToken messages count toward limit', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 3,
+      rateLimitWindow: 10_000,
+    });
+    const ws = wss.simulateConnection();
+    ws.emit('message', JSON.stringify({ type: 'validateToken', token: 'fake', color: 'white' })); // 1
+    ws.emit('message', JSON.stringify({ type: 'validateToken', token: 'fake', color: 'black' })); // 2
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' })); // 3
+    assert.strictEqual(ws.getSent('rateLimited').length, 0);
+    // 4th should be rate limited
+    ws.emit('message', JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 }));
+    assert.strictEqual(ws.getSent('rateLimited').length, 1);
+  });
+});
+
+describe('Rate limiter — malformed messages count toward limit', () => {
+  test('malformed JSON does not count toward rate limit', () => {
+    const { wss, handlers } = createTestEnv();
+    const ws = joinAs(wss, 'white');
+    // Send malformed JSON — should be caught by JSON.parse before rate limit check
+    ws.emit('message', 'not json at all');
+    ws.emit('message', '{broken');
+    // Bucket should only have the join message
+    const bucket = handlers.rateLimitBuckets.get(ws);
+    assert.strictEqual(bucket.length, 1);
+  });
+});
+
 // ── Results ───────────────────────────────────────────────
 
 function printResults() {

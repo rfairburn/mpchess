@@ -227,19 +227,20 @@ export function animateMove(scene, fromFile, fromRank, toFile, toRank, castled, 
     if (!target) return;
     animatingPieces.add(target);
     const startY = target.mesh.position.y;
+    const child = target.mesh.children[0];
+    // Clone the material so the shared matWhite/matBlack is not mutated
+    // (all pieces of the same color share one material instance)
+    child.material = child.material.clone();
+    child.material.transparent = true;
     animations.push({
       update(time) {
         const t = Math.min((time - startTime) / duration, 1);
         target.mesh.position.y = startY + t * 2;
-        target.mesh.children[0].material.opacity = 1 - t;
-        target.mesh.children[0].material.transparent = true;
+        child.material.opacity = 1 - t;
         if (t >= 1) {
           // Dispose Three.js resources to avoid memory leaks
-          const child = target.mesh.children[0];
-          if (child) {
-            child.geometry?.dispose();
-            child.material?.dispose();
-          }
+          child.geometry?.dispose();
+          child.material?.dispose();
           scene.remove(target.mesh);
           const idx = pieceMeshes.indexOf(target);
           if (idx > -1) pieceMeshes.splice(idx, 1);

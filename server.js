@@ -14,8 +14,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   const seatTimeout = options.seatTimeout != null ? options.seatTimeout : 60_000;
   const joinTimeoutMs = options.joinTimeoutMs != null ? options.joinTimeoutMs : 5000;
 
+  // Rate limiter config: max messages per window (ms)
+  const rateLimitMax = options.rateLimitMax != null ? options.rateLimitMax : 60;
+  const rateLimitWindow = options.rateLimitWindow != null ? options.rateLimitWindow : 10_000;
+
   const sessions = new Map();
   const disconnectedPlayers = new Map();
+  // Per-connection sliding window: ws -> number[] of timestamps
+  const rateLimitBuckets = new Map();
   let bothDisconnectedTimer = null;
 
   function broadcast(data, excludeWs) {
@@ -37,6 +43,28 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (game.players.has(ws)) return game.players.get(ws);
     if (game.spectators.has(ws)) return 'spectator';
     return null;
+  }
+
+  // ── Rate limiter (sliding window per connection) ──
+
+  function checkRateLimit(ws) {
+    const now = Date.now();
+    let bucket = rateLimitBuckets.get(ws);
+    if (!bucket) {
+      bucket = [];
+      rateLimitBuckets.set(ws, bucket);
+    }
+    // Prune timestamps outside the window
+    while (bucket.length > 0 && bucket[0] <= now - rateLimitWindow) {
+      bucket.shift();
+    }
+    if (bucket.length >= rateLimitMax) {
+      const retryAfter = Math.ceil((bucket[0] - (now - rateLimitWindow)) / 1000);
+      rateLimitBuckets.delete(ws);
+      return { allowed: false, retryAfter: Math.max(1, retryAfter) };
+    }
+    bucket.push(now);
+    return { allowed: true };
   }
 
   function buildDisconnectedPlayersArray() {
@@ -244,6 +272,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       let msg;
       try { msg = JSON.parse(raw); } catch { return; }
 
+      // Rate limit check (per connection, sliding window)
+      const rl = checkRateLimit(ws);
+      if (!rl.allowed) {
+        send(ws, { type: 'rateLimited', retryAfter: rl.retryAfter });
+        return;
+      }
+
       // Handle reconnect for any client (even pre-assigned ones)
       if (msg.type === 'reconnect') {
         clearTimeout(joinTimeout);
@@ -366,6 +401,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     });
 
     ws.on('close', () => {
+      rateLimitBuckets.delete(ws);
       const session = sessions.get(ws);
       if (session) {
         const { token, color } = session;
@@ -403,6 +439,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   return {
     sessions,
     disconnectedPlayers,
+    rateLimitBuckets,
     stopBothDisconnectedTimer,
     getRole,
     sendState,
