@@ -493,25 +493,43 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
+const CLIENT_ROOT = path.resolve(__dirname, 'client');
+
 const requestHandler = (req, res) => {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/client/index.html';
 
-  const relativePath = urlPath.startsWith('/') ? urlPath.slice(1) : urlPath;
+  // Only serve files from the client/ directory
+  if (!urlPath.startsWith('/client/')) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  const relativePath = urlPath.slice('/client/'.length);
   const safePath = path.normalize(relativePath);
-  const filePath = path.resolve(__dirname, safePath);
-  const rootDir = path.resolve(__dirname);
-  if (filePath !== rootDir && !filePath.startsWith(rootDir + path.sep)) {
+  if (safePath.startsWith('..') || safePath.startsWith('/')) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+  const filePath = path.resolve(CLIENT_ROOT, safePath);
+  if (!filePath.startsWith(CLIENT_ROOT + path.sep) && filePath !== CLIENT_ROOT) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
   }
 
   const ext = path.extname(filePath).toLowerCase();
+  if (!MIME[ext]) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
 
   try {
     const content = fs.readFileSync(filePath);
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    res.writeHead(200, { 'Content-Type': MIME[ext] });
     res.end(content);
   } catch {
     res.writeHead(404);

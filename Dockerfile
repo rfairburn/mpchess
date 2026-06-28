@@ -25,9 +25,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/loadConfig.js ./
 COPY --from=builder /app/shared/chess.js ./shared/
-COPY --from=builder /app/shared/chess.mjs ./shared/
 COPY --from=builder /app/client ./client/
-COPY --from=builder /app/files ./files/
 COPY --from=builder /app/package.json ./
 
 # TLS certs are mounted at runtime (not baked in)

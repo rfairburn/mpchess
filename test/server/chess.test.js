@@ -728,7 +728,7 @@ describe('Path resolution algorithm — verifies the fix logic', () => {
     const paths = [
       ['/client/index.html', '/home/robert/mpchess/client/index.html'],
       ['/client/app.js', '/home/robert/mpchess/client/app.js'],
-      ['/files/king.stl', '/home/robert/mpchess/files/king.stl'],
+      ['/client/files/king.stl', '/home/robert/mpchess/client/files/king.stl'],
     ];
 
     for (const [urlPath, expected] of paths) {
@@ -2174,7 +2174,7 @@ describe('getState includes new fields', () => {
 
 describe('Build regression — chess.mjs browser safety', () => {
   test('generated chess.mjs has no bare require() calls', () => {
-    const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
+    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
     const lines = mjs.split('\n');
     const bareRequires = [];
@@ -2207,7 +2207,7 @@ describe('Build regression — chess.mjs browser safety', () => {
   });
 
   test('generated chess.mjs wraps crypto require in try/catch', () => {
-    const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
+    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
     assert.ok(
       mjs.includes('try') && mjs.includes("require('crypto')"),

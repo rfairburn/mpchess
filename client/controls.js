@@ -30,7 +30,7 @@ import {
   highlightValidMoves,
   highlightCheck,
 } from './board.js';
-import { pieceColor, getValidMoves } from '../shared/chess.mjs';
+import { pieceColor, getValidMoves } from './chess.mjs';
 
 // ── Camera state ─────────────────────────────────────────
 

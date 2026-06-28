@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { serverBoard, onStateUpdate, onRestart } from './network.js';
 import { clearHighlights, highlightCheck } from './board.js';
-import { pieceColor, pieceType } from '../shared/chess.mjs';
+import { pieceColor, pieceType } from './chess.mjs';
 
 // Materials — set from app.js
 let matWhite, matBlack;
@@ -26,7 +26,7 @@ export function loadPieceModels(scene, onReady) {
   let loaded = 0;
   PIECE_TYPES.forEach((type) => {
     loader.load(
-      `../files/${type}.stl`,
+      `files/${type}.stl`,
       (geometry) => {
         geometry.rotateX(-Math.PI / 2);
         geometry.computeBoundingBox();

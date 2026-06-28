@@ -1,0 +1,17 @@
+node_modules/
+.git/
+config.json
+.env
+*.log
+coverage/
+dist/
+chart/
+test/
+review*.md
+*.key
+*.crt
+*.pem
+.dockerignore
+.gitignore
+.prettierignore
+.prettierrc

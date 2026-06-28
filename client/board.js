@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { serverBoard, serverTurn } from './network.js';
-import { findKing, isInCheck } from '../shared/chess.mjs';
+import { findKing, isInCheck } from './chess.mjs';
 
 // Materials — created in app.js, referenced here
 let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck;

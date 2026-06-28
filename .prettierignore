@@ -1,5 +1,5 @@
 node_modules/
-shared/chess.mjs
+client/chess.mjs
 coverage/
 dist/
 chart/

@@ -1,4 +1,4 @@
-// Generates shared/chess.mjs (ES module) from shared/chess.js (CommonJS source of truth)
+// Generates client/chess.mjs (ES module) from shared/chess.js (CommonJS source of truth)
 const fs = require('fs');
 const path = require('path');
 
@@ -48,5 +48,5 @@ if (requireMatches && requireMatches.some((m) => !m.includes('try') && !m.includ
   }
 }
 
-fs.writeFileSync(path.join(__dirname, 'shared', 'chess.mjs'), mjs);
-console.log('Generated shared/chess.mjs');
+fs.writeFileSync(path.join(__dirname, 'client', 'chess.mjs'), mjs);
+console.log('Generated client/chess.mjs');

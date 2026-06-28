@@ -44,7 +44,7 @@ vi.mock('/home/robert/mpchess/client/board.js', () => ({
   highlightCheck: vi.fn(),
 }));
 
-vi.mock('/home/robert/mpchess/shared/chess.mjs', () => ({
+vi.mock('/home/robert/mpchess/client/chess.mjs', () => ({
   pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => []),
   findKing: vi.fn(() => null),
@@ -67,7 +67,7 @@ describe('controls.js', () => {
     network = await import('/home/robert/mpchess/client/network.js');
     ui = await import('/home/robert/mpchess/client/ui.js');
     board = await import('/home/robert/mpchess/client/board.js');
-    chess = await import('/home/robert/mpchess/shared/chess.mjs');
+    chess = await import('/home/robert/mpchess/client/chess.mjs');
     controls = await import('/home/robert/mpchess/client/controls.js');
   });
 
