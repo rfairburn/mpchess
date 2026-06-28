@@ -4,34 +4,7 @@ release:
 templates:
   - templates/httproute.yaml
 tests:
-  - it: renders HTTPRoute when gateway type is httproute (default)
-    asserts:
-      - hasDocuments:
-          count: 2
-      - isKind:
-          of: HTTPRoute
-      - equal:
-          documentIndex: 0
-          path: spec.hostnames[0]
-          value: chess.example.com
-      - equal:
-          documentIndex: 0
-          path: spec.parentRefs[0].name
-          value: envoy-gateway
-      - equal:
-          documentIndex: 0
-          path: spec.parentRefs[0].namespace
-          value: envoy-gateway
-      - equal:
-          documentIndex: 0
-          path: spec.rules[0].backendRefs[0].name
-          value: mpchess
-      - equal:
-          documentIndex: 0
-          path: spec.rules[0].backendRefs[0].port
-          value: 3000
-
-  - it: no documents when gateway type is ingress
+  - it: no documents when gateway type is ingress (default)
     set:
       gateway:
         type: ingress
@@ -39,51 +12,106 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: custom host
+  - it: renders HTTPS route and HTTP redirect when type is httproute
     set:
       gateway:
-        host: my-chess.game.devop.ninja
+        type: httproute
     asserts:
-      - equal:
-          documentIndex: 0
-          path: spec.hostnames[0]
-          value: my-chess.game.devop.ninja
-      - equal:
-          documentIndex: 1
-          path: spec.hostnames[0]
-          value: my-chess.game.devop.ninja
+      - hasDocuments:
+          count: 2
+      - isKind:
+          of: HTTPRoute
 
-  - it: custom gateway name and namespace
+  - it: HTTPS route attaches to correct gateway and listener
     set:
       gateway:
-        gatewayName: my-gateway
-        gatewayNamespace: my-gateway-ns
+        type: httproute
+    documentIndex: 0
     asserts:
       - equal:
-          documentIndex: 0
+          path: metadata.name
+          value: mpchess
+      - equal:
           path: spec.parentRefs[0].name
-          value: my-gateway
-      - equal:
-          documentIndex: 0
-          path: spec.parentRefs[0].namespace
-          value: my-gateway-ns
-
-  - it: TLS HTTPRoute references correct secret
-    set:
-      gateway:
-        tlsSecretName: custom-tls-secret
-    documentIndex: 1
-    asserts:
+          value: mpchess
       - equal:
           path: spec.parentRefs[0].sectionName
-          value: custom-tls-secret
+          value: https
+      - equal:
+          path: spec.hostnames[0]
+          value: chess.example.com
+      - equal:
+          path: spec.rules[0].backendRefs[0].name
+          value: mpchess
+      - equal:
+          path: spec.rules[0].backendRefs[0].port
+          value: 3000
 
-  - it: TLS HTTPRoute uses fullname-based secret by default
+  - it: HTTP redirect route attaches to http listener
+    set:
+      gateway:
+        type: httproute
     documentIndex: 1
     asserts:
       - equal:
           path: metadata.name
-          value: mpchess-tls
+          value: mpchess-http-redirect
+      - equal:
+          path: spec.parentRefs[0].name
+          value: mpchess
       - equal:
           path: spec.parentRefs[0].sectionName
-          value: mpchess-tls
+          value: http
+      - equal:
+          path: spec.rules[0].filters[0].type
+          value: RequestRedirect
+      - equal:
+          path: spec.rules[0].filters[0].requestRedirect.scheme
+          value: https
+      - equal:
+          path: spec.rules[0].filters[0].requestRedirect.statusCode
+          value: 301
+
+  - it: custom gateway name propagates to both routes
+    set:
+      gateway:
+        type: httproute
+        name: chess-gateway
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].name
+          value: chess-gateway
+
+  - it: custom gateway name propagates to redirect route
+    set:
+      gateway:
+        type: httproute
+        name: chess-gateway
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.parentRefs[0].name
+          value: chess-gateway
+
+  - it: custom host propagates to both routes
+    set:
+      gateway:
+        type: httproute
+        host: my-chess.example.com
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.hostnames[0]
+          value: my-chess.example.com
+
+  - it: custom host propagates to redirect route
+    set:
+      gateway:
+        type: httproute
+        host: my-chess.example.com
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.hostnames[0]
+          value: my-chess.example.com

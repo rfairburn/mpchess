@@ -1,4 +1,5 @@
 {{- if eq .Values.gateway.type "httproute" }}
+# HTTPS route — serves traffic on the Gateway's HTTPS listener
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -7,8 +8,8 @@ metadata:
     {{- include "mpchess.labels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.gatewayName }}
-      namespace: {{ .Values.gateway.gatewayNamespace }}
+    - name: {{ .Values.gateway.name }}
+      sectionName: https
   hostnames:
     - "{{ .Values.gateway.host }}"
   rules:
@@ -20,26 +21,23 @@ spec:
             type: PathPrefix
             value: /
 ---
-# TLS section on the HTTPRoute (references existing secret)
+# HTTP-to-HTTPS redirect
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: {{ include "mpchess.fullname" . }}-tls
+  name: {{ include "mpchess.fullname" . }}-http-redirect
   labels:
     {{- include "mpchess.labels" . | nindent 4 }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.gatewayName }}
-      namespace: {{ .Values.gateway.gatewayNamespace }}
-      sectionName: {{ .Values.gateway.tlsSecretName | default (printf "%s-tls" (include "mpchess.fullname" .)) }}
+    - name: {{ .Values.gateway.name }}
+      sectionName: http
   hostnames:
     - "{{ .Values.gateway.host }}"
   rules:
-    - backendRefs:
-        - name: {{ include "mpchess.fullname" . }}
-          port: {{ .Values.service.port }}
-      matches:
-        - path:
-            type: PathPrefix
-            value: /
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
 {{- end }}

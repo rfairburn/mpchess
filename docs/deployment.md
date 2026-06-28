@@ -1,63 +1,50 @@
 # Deployment Guide
 
-This guide covers deploying mpchess with Docker and Kubernetes (microk8s + Envoy Gateway).
+This guide covers deploying mpchess on [microk8s](https://microk8s.io/) with Traefik Gateway and automatic TLS via cert-manager.
 
 ## Table of Contents
 
+- [Prerequisites](#prerequisites)
 - [Building the Docker Image](#building-the-docker-image)
-- [Local Kubernetes with microk8s](#local-kubernetes-with-microk8s)
-- [Envoy Gateway Setup](#envoy-gateway-setup)
-- [TLS with Certbot](#tls-with-certbot)
+- [Gateway & TLS Setup](#gateway--tls-setup)
 - [Deploying with Helm](#deploying-with-helm)
 - [Helm Values Reference](#helm-values-reference)
+- [Ingress (Alternative)](#ingress-alternative)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## Building the Docker Image
-
-```bash
-# Build locally
-docker build -t mpchess:latest .
-
-# Tag for microk8s import (optional)
-docker tag mpchess:latest mpchess:$(git rev-parse --short HEAD)
-```
-
-The Dockerfile uses a multi-stage build:
-
-1. **Builder stage**: installs dependencies, builds the shared ESM module
-2. **Production stage**: copies only runtime files, runs as non-root user, includes healthcheck
-
-### Import into microk8s
-
-microk8s uses `containerd` (ctr) instead of Docker. To avoid pulling from a registry:
-
-```bash
-# Export from Docker
-docker save mpchess:latest | gzip > mpchess-latest.tar.gz
-
-# Import into microk8s
-microk8s ctr image import mpchess-latest.tar.gz
-
-# Verify
-microk8s ctr images ls | grep mpchess
-```
-
-The deployment defaults to `imagePullPolicy: IfNotPresent`, so it will use the imported image. For production with a registry, set `image.pullPolicy: Always` in `values.yaml`.
-
----
-
-## Local Kubernetes with microk8s
+## Prerequisites
 
 ### Install microk8s
 
 ```bash
 sudo snap install microk8s --classic
 
-# Enable required addons
-microk8s enable helm helm3 registry
-microk8s enable dns
+# Wait for it to be ready
+microk8s status --wait-ready
 ```
+
+### Enable required addons
+
+```bash
+# Core addons
+microk8s enable helm3 dns hostpath-storage
+
+# Traefik Gateway (implements the Gateway API)
+microk8s enable traefik
+
+# Automatic TLS certificates
+microk8s enable cert-manager
+```
+
+Verify everything is running:
+
+```bash
+microk8s kubectl get pods -A
+```
+
+You should see pods in `traefik` and `cert-manager` namespaces.
 
 ### Configure `kubectl`
 
@@ -71,130 +58,42 @@ echo "alias kubectl='microk8s kubectl'" >> ~/.bashrc
 
 ---
 
-## Envoy Gateway Setup
-
-Envoy Gateway is the modern replacement for ingress-nginx. It uses the Gateway API (CRDs) instead of the legacy Ingress resource.
-
-### Install Envoy Gateway on microk8s
+## Building the Docker Image
 
 ```bash
-# Add the Envoy Gateway Helm repo
-helm repo add envoy-gateway https://charts.envoyproxy.io
-helm repo update
+# Build locally
+docker build -t mpchess:latest .
+```
 
-# Install Envoy Gateway
-helm install envoy-gateway envoy-gateway/envoy-gateway \
-  --namespace envoy-gateway \
-  --create-namespace
+The Dockerfile uses a multi-stage build:
+
+1. **Builder stage**: installs dependencies, builds the shared ESM module
+2. **Production stage**: copies only runtime files, runs as non-root user
+
+### Import into microk8s
+
+microk8s uses `containerd` (ctr) instead of Docker. To avoid pulling from a registry:
+
+```bash
+# Export from Docker and import into microk8s
+docker save mpchess:latest | microk8s ctr image import -
 
 # Verify
-kubectl get pods -n envoy-gateway
-kubectl get gatewayclass
+microk8s ctr images ls | grep mpchess
 ```
 
-### Create a Gateway
-
-The Gateway resource tells Envoy Gateway to listen on a port and route traffic:
-
-```yaml
-# gateway.yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: envoy-gateway
-  namespace: envoy-gateway
-spec:
-  gatewayClassName: envoy-gateway
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: All
-    - name: https
-      protocol: HTTPS
-      port: 443
-      allowedRoutes:
-        namespaces:
-          from: All
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: mpchess-tls
-            kind: Secret
-```
-
-```bash
-kubectl apply -f gateway.yaml
-```
-
-### Verify the Gateway
-
-```bash
-# Check Gateway status
-kubectl get gateway -n envoy-gateway
-
-# Check the Envoy proxy pod
-kubectl get pods -n envoy-gateway
-
-# Get the external IP (for microk8s, use NodePort)
-kubectl get svc -n envoy-gateway
-```
-
-For microk8s, the gateway service is typically a LoadBalancer. Get the IP:
-
-```bash
-kubectl get svc -n envoy-gateway -o jsonpath='{.items[0].status.loadBalancer.ingress[0].ip}'
-```
-
-If using `NodePort`, find the port:
-
-```bash
-kubectl get svc -n envoy-gateway -o jsonpath='{.items[0].spec.ports[0].nodePort}'
-```
-
-Then access via `http://<microk8s-ip>:<nodeport>`.
+The deployment defaults to `imagePullPolicy: IfNotPresent`, so it will use the imported image.
 
 ---
 
-## TLS with Certbot
+## Gateway & TLS Setup
 
-For production, terminate TLS at the Envoy Gateway using a Let's Encrypt certificate.
+### Create a ClusterIssuer for Let's Encrypt
 
-### Option A: Certbot standalone (recommended for microk8s/local)
-
-```bash
-# Install certbot
-sudo apt install certbot
-
-# Get certificate (standalone mode — stops any web server on port 80 temporarily)
-sudo certbot certonly --standalone -d chess.example.com
-
-# Certs are stored at:
-#   /etc/letsencrypt/live/chess.example.com/fullchain.pem
-#   /etc/letsencrypt/live/chess.example.com/privkey.pem
-```
-
-### Create the TLS Secret
+cert-manager is already enabled via `microk8s enable cert-manager`. Create a ClusterIssuer so it knows how to obtain certificates:
 
 ```bash
-kubectl create secret tls mpchess-tls \
-  --cert=/etc/letsencrypt/live/chess.example.com/fullchain.pem \
-  --key=/etc/letsencrypt/live/chess.example.com/privkey.pem \
-  -n envoy-gateway
-```
-
-### Option B: cert-manager (production clusters)
-
-For automatic certificate renewal, use [cert-manager](https://cert-manager.io/):
-
-```bash
-# Install cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
-
-# Create a ClusterIssuer for Let's Encrypt
-cat << 'EOF' | kubectl apply -f -
+cat << EOF | microk8s kubectl apply -f -
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -208,86 +107,112 @@ spec:
     solvers:
       - http01:
           ingress:
-            class: envoy-gateway
+            class: traefik
 EOF
 ```
 
-Then reference the issuer in a `Certificate` resource. Note: Envoy Gateway HTTP01 challenge support depends on your version — check the [Envoy Gateway docs](https://gateway.envoyproxy.io/docs/tasks/traffic_management/_tls/).
-
-### Auto-renewal
-
-Certbot certificates expire in 90 days. Set up renewal:
+For testing with Let's Encrypt staging (won't get real certs, but avoids rate limits):
 
 ```bash
-# Test renewal
-sudo certbot renew --dry-run
-
-# Add cron job (runs twice daily, renews only if expiring)
-echo "0 0,12 * * * root certbot renew --quiet --deploy-hook 'kubectl create secret tls mpchess-tls --cert=/etc/letsencrypt/live/chess.example.com/fullchain.pem --key=/etc/letsencrypt/live/chess.example.com/privkey.pem -n envoy-gateway --dry-run || kubectl create secret tls mpchess-tls --cert=/etc/letsencrypt/live/chess.example.com/fullchain.pem --key=/etc/letsencrypt/live/chess.example.com/privkey.pem -n envoy-gateway --dry-run=client || true'" | sudo tee /etc/cron.d/certbot-renew
+cat << EOF | microk8s kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: your@email.com
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+      - http01:
+          ingress:
+            class: traefik
+EOF
 ```
 
-Or simpler — use a systemd timer or the built-in certbot timer:
+### How it works
+
+The Helm chart creates a `Gateway` resource in your namespace with the annotation `cert-manager.io/cluster-issuer: letsencrypt-prod`. When you deploy:
+
+1. cert-manager sees the annotation on the Gateway
+2. It provisions a Let's Encrypt certificate via HTTP-01 challenge
+3. It stores the certificate in a `Secret` (named `mpchess-tls` by default)
+4. The Gateway references that Secret for TLS termination
+5. The HTTPRoute routes traffic to your service
+
+The chart also creates an HTTP-to-HTTPS redirect route, so `http://` automatically redirects to `https://`.
+
+**No manual certificate management needed.** cert-manager renews automatically before expiry.
+
+### Finding your gateway IP
 
 ```bash
-sudo systemctl enable --now certbot.timer
+# Get the Traefik load balancer IP or NodePort
+microk8s kubectl get svc -n traefik
+
+# The gateway is accessible at:
+# http://<microk8s-node-ip>:<nodeport>
+# or with DNS pointing to the node IP
 ```
+
+For a real domain, point your DNS A record at the microk8s node's IP.
 
 ---
 
 ## Deploying with Helm
 
-### Quick start (local microk8s)
+### Quick start (local, no TLS)
 
 ```bash
-# 1. Build and import the image
-docker build -t mpchess:latest .
-docker save mpchess:latest | gzip > mpchess.tar.gz
-microk8s ctr image import mpchess.tar.gz
+# 1. Create a namespace
+microk8s kubectl create namespace mpchess
 
-# 2. Create a namespace
-kubectl create namespace mpchess
-
-# 3. Deploy with Helm
-helm install mpchess ./chart \
+# 2. Deploy with Helm (disable gateway for direct access)
+microk8s helm3 install mpchess ./chart \
   --namespace mpchess \
-  --set gateway.host=localhost \
-  --set gateway.enabled=false \
+  --set gateway.type=none \
   --set image.tag=latest
 
-# 4. Access the game
-kubectl port-forward -n mpchess svc/mpchess-mpchess 3000:3000
+# 3. Access via port-forward
+microk8s kubectl port-forward -n mpchess svc/mpchess 3000:3000
 # Open http://localhost:3000
 ```
 
-### With Envoy Gateway + TLS
+### Production (Gateway + automatic TLS)
 
 ```bash
-# 1. Create TLS secret (from certbot or self-signed)
-kubectl create secret tls mpchess-tls \
-  --cert=/path/to/fullchain.pem \
-  --key=/path/to/privkey.pem \
-  -n envoy-gateway
+# 1. Create namespace
+microk8s kubectl create namespace mpchess
 
-# 2. Deploy
-helm install mpchess ./chart \
+# 2. Deploy with defaults (Gateway API + cert-manager)
+microk8s helm3 install mpchess ./chart \
   --namespace mpchess \
-  --set gateway.enabled=true \
   --set gateway.host=chess.example.com \
-  --set gateway.tlsSecretName=mpchess-tls \
-  --set tls.enabled=true \
   --set server.allowedOrigins=chess.example.com
 
-# 3. Verify
-kubectl get httproute -n mpchess
-kubectl get pods -n mpchess
+# 3. Wait for cert-manager to provision the certificate
+microk8s kubectl get certificate -n mpchess
+microk8s kubectl get secret mpchess-tls -n mpchess
 
 # 4. Access at https://chess.example.com
+```
+
+### With staging certificates (testing)
+
+```bash
+microk8s helm3 install mpchess ./chart \
+  --namespace mpchess \
+  --set gateway.host=chess.example.com \
+  --set gateway.issuer=letsencrypt-staging \
+  --set server.allowedOrigins=chess.example.com
 ```
 
 ### Upgrade
 
 ```bash
-helm upgrade mpchess ./chart \
+microk8s helm3 upgrade mpchess ./chart \
   --namespace mpchess \
   --set image.tag=v1.0.1
 ```
@@ -295,33 +220,33 @@ helm upgrade mpchess ./chart \
 ### Uninstall
 
 ```bash
-helm uninstall mpchess --namespace mpchess
+microk8s helm3 uninstall mpchess --namespace mpchess
 ```
 
 ---
 
 ## Helm Values Reference
 
-| Parameter                  | Description                               | Default             |
-| -------------------------- | ----------------------------------------- | ------------------- |
-| `replicaCount`             | Number of pods                            | `1`                 |
-| `image.repository`         | Image name                                | `mpchess`           |
-| `image.tag`                | Image tag                                 | `latest`            |
-| `image.pullPolicy`         | Pull policy                               | `IfNotPresent`      |
-| `service.type`             | Kubernetes service type                   | `ClusterIP`         |
-| `service.port`             | Service port                              | `3000`              |
-| `gateway.enabled`          | Create HTTPRoute for Envoy Gateway        | `true`              |
-| `gateway.host`             | Hostname for the route                    | `chess.example.com` |
-| `gateway.gatewayName`      | Gateway resource name                     | `envoy-gateway`     |
-| `gateway.gatewayNamespace` | Gateway namespace                         | `envoy-gateway`     |
-| `gateway.tlsSecretName`    | TLS secret name                           | `mpchess-tls`       |
-| `server.port`              | Server listen port                        | `3000`              |
-| `server.fen`               | Custom starting FEN                       | _(none)_            |
-| `server.allowedOrigins`    | Allowed WebSocket origins                 | _(none)_            |
-| `config.enabled`           | Mount config.json from ConfigMap          | `false`             |
-| `config.content`           | JSON config content                       | _(none)_            |
-| `tls.enabled`              | Mount TLS certs and pass `--cert`/`--key` | `false`             |
-| `resources`                | Kubernetes resource limits/requests       | see values.yaml     |
+| Parameter               | Description                               | Default             |
+| ----------------------- | ----------------------------------------- | ------------------- |
+| `image.repository`      | Image name                                | `mpchess`           |
+| `image.tag`             | Image tag                                 | `latest`            |
+| `image.pullPolicy`      | Pull policy                               | `IfNotPresent`      |
+| `service.type`          | Kubernetes service type                   | `ClusterIP`         |
+| `service.port`          | Service port                              | `3000`              |
+| `gateway.type`          | Gateway type: `httproute` or `ingress`    | `httproute`         |
+| `gateway.name`          | Gateway resource name                     | `mpchess`           |
+| `gateway.className`     | Gateway class (Traefik, Envoy, etc.)      | `traefik`           |
+| `gateway.host`          | Hostname for the route                    | `chess.example.com` |
+| `gateway.tlsSecretName` | TLS secret name                           | `mpchess-tls`       |
+| `gateway.issuer`        | cert-manager ClusterIssuer name           | `letsencrypt-prod`  |
+| `server.port`           | Server listen port                        | `3000`              |
+| `server.fen`            | Custom starting FEN                       | _(none)_            |
+| `server.allowedOrigins` | Allowed WebSocket origins                 | _(none)_            |
+| `config.enabled`        | Mount config.json from ConfigMap          | `false`             |
+| `config.content`        | JSON config content                       | _(none)_            |
+| `tls.enabled`           | Mount TLS certs and pass `--cert`/`--key` | `false`             |
+| `resources`             | Kubernetes resource limits/requests       | see values.yaml     |
 
 ### Using a config file
 
@@ -335,7 +260,7 @@ config:
     }
 ```
 
-### Using TLS from secret
+### Using TLS from secret (server-side TLS)
 
 ```yaml
 tls:
@@ -345,6 +270,22 @@ gateway:
 ```
 
 This mounts the TLS secret at `/etc/tls/` and passes `--cert=/etc/tls/tls.crt --key=/etc/tls/tls.key` to the server. The secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`).
+
+---
+
+## Ingress (Alternative)
+
+If you prefer the legacy Ingress resource over the Gateway API:
+
+```bash
+microk8s helm3 install mpchess ./chart \
+  --namespace mpchess \
+  --set gateway.type=ingress \
+  --set gateway.host=chess.example.com \
+  --set gateway.ingressClassName=nginx \
+  --set gateway.ingressAnnotations.'cert-manager\.io/cluster-issuer'=letsencrypt-prod \
+  --set server.allowedOrigins=chess.example.com
+```
 
 ---
 
@@ -362,35 +303,60 @@ microk8s ctr images ls | grep mpchess
 docker save mpchess:latest | microk8s ctr image import -
 ```
 
+### Certificate not issued
+
+```bash
+# Check certificate status
+microk8s kubectl describe certificate -n mpchess
+
+# Check cert-manager pods
+microk8s kubectl get pods -n cert-manager
+
+# Check ClusterIssuer
+microk8s kubectl describe clusterissuer letsencrypt-prod
+
+# Check Gateway status
+microk8s kubectl describe gateway -n mpchess
+```
+
+Common issues:
+
+- DNS not pointing to the microk8s node
+- Port 80 not accessible from the internet (HTTP-01 challenge requires it)
+- Wrong email in ClusterIssuer
+
 ### Gateway not routing
 
 ```bash
 # Check Gateway status
-kubectl describe gateway envoy-gateway -n envoy-gateway
+microk8s kubectl describe gateway -n mpchess
 
 # Check HTTPRoute
-kubectl describe httproute -n mpchess
+microk8s kubectl describe httproute -n mpchess
 
-# Check Envoy proxy logs
-kubectl logs -n envoy-gateway -l app=envoy-gateway
-```
+# Check Traefik pods
+microk8s kubectl get pods -n traefik
 
-### TLS errors
-
-```bash
-# Verify the secret exists
-kubectl get secret mpchess-tls -n envoy-gateway
-
-# Check cert contents
-kubectl get secret mpchess-tls -n envoy-gateway -o jsonpath='{.data.tls\.crt}' | base64 -d | openssl x509 -text -noout
+# Check Traefik logs
+microk8s kubectl logs -n traefik -l app.kubernetes.io/name=traefik
 ```
 
 ### WebSocket connection refused
 
-Make sure `server.allowedOrigins` includes your domain. Without it, the server rejects connections from unknown origins.
+Make sure `server.allowedOrigins` includes your domain. Without it, the server rejects connections from unknown origins:
 
 ```bash
-helm upgrade mpchess ./chart \
+microk8s helm3 upgrade mpchess ./chart \
   --namespace mpchess \
   --set server.allowedOrigins=chess.example.com
+```
+
+### Check all resources
+
+```bash
+microk8s kubectl get all -n mpchess
+microk8s kubectl get gateway -n mpchess
+microk8s kubectl get httproute -n mpchess
+microk8s kubectl get certificate -n mpchess
+microk8s kubectl get secret mpchess-tls -n mpchess
 ```

@@ -14,25 +14,21 @@ service:
   port: 3000
   targetPort: 3000
 
-# Gateway: "httproute" (Envoy Gateway) or "ingress" (ingress-nginx)
+# Gateway API (Gateway + HTTPRoute, default) or Ingress
 gateway:
   type: httproute
+  name: mpchess
+  className: traefik
   host: chess.example.com
-
-  # --- HTTPRoute (Envoy Gateway) ---
-  # Gateway name (created by Envoy Gateway controller)
-  gatewayName: envoy-gateway
-  gatewayNamespace: envoy-gateway
+  tlsSecretName: mpchess-tls
+  # cert-manager ClusterIssuer name (added as annotation on the Gateway)
+  issuer: letsencrypt-prod
 
   # --- Ingress (ingress-nginx) ---
+  # When type=ingress, these are used instead:
   # ingressClassName: nginx
   # ingressAnnotations:
-  #   nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
-  #   nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
-
-  # --- Shared ---
-  # TLS secret name (must exist in the same namespace)
-  tlsSecretName: mpchess-tls
+  #   cert-manager.io/cluster-issuer: letsencrypt-prod
 
 resources:
   limits:

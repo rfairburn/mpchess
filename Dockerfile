@@ -36,7 +36,11 @@ VOLUME ["/app/config"]
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/ || exit 1
+# Healthcheck is out-of-scope for the Dockerfile:
+# - Port is configurable at runtime (--port)
+# - TLS vs HTTP is a runtime decision
+# - Certificates will never be for localhost
+# Kubernetes probes handle health checking when deployed.
+# For standalone Docker: docker run --health-cmd="wget -qO- http://localhost:$PORT/" ...
 
 CMD ["node", "server.js"]

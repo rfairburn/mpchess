@@ -13,6 +13,11 @@ tests:
     set:
       gateway:
         type: ingress
+        ingressClassName: nginx
+        ingressAnnotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     asserts:
       - hasDocuments:
           count: 1
@@ -37,15 +42,34 @@ tests:
           path: spec.rules[0].http.paths[0].backend.service.port.number
           value: 3000
 
+  - it: has cert-manager and nginx annotations
+    set:
+      gateway:
+        type: ingress
+        ingressAnnotations:
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+          nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    asserts:
+      - equal:
+          path: metadata.annotations["cert-manager.io/cluster-issuer"]
+          value: letsencrypt-prod
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-read-timeout"]
+          value: "3600"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"]
+          value: "3600"
+
   - it: custom host
     set:
       gateway:
         type: ingress
-        host: my-chess.game.devop.ninja
+        host: my-chess.example.com
     asserts:
       - equal:
           path: spec.rules[0].host
-          value: my-chess.game.devop.ninja
+          value: my-chess.example.com
 
   - it: custom ingressClassName
     set:
