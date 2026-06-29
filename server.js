@@ -555,9 +555,9 @@ Options:
 
 Config sources (highest priority first):
   1. CLI arguments
-  2. Config file (config.json or --config=<path>)
-  3. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
+  2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
      MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS)
+  3. Config file (config.json or --config=<path>)
   4. Built-in defaults
 
 Examples:

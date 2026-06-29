@@ -1147,7 +1147,7 @@ function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, full
 
 function fromFen(fen) {
   const parts = fen.trim().split(/\s+/);
-  if (parts.length < 6) throw new Error('Invalid FEN: too few parts');
+  if (parts.length !== 6) throw new Error('Invalid FEN: must have exactly 6 parts');
 
   const [placementStr, turn, castlingStr, epStr, hmStr, fmStr] = parts;
 
@@ -1175,17 +1175,21 @@ function fromFen(fen) {
   // Validate turn
   if (turn !== 'w' && turn !== 'b') throw new Error('Invalid FEN: turn must be w or b');
 
-  // Parse castling rights
+  // Parse castling rights — must be '-' or a unique subset of KQkq
   const castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+  const castlingSeen = new Set();
   for (const ch of castlingStr) {
+    if (ch === '-') continue;
+    if (castlingSeen.has(ch)) throw new Error(`Invalid FEN: duplicate castling flag '${ch}'`);
+    castlingSeen.add(ch);
     if (ch === 'K') castlingRights.wK = true;
     else if (ch === 'Q') castlingRights.wQ = true;
     else if (ch === 'k') castlingRights.bK = true;
     else if (ch === 'q') castlingRights.bQ = true;
-    else if (ch !== '-') throw new Error(`Invalid castling character: ${ch}`);
+    else throw new Error(`Invalid castling character: ${ch}`);
   }
 
-  // Parse en passant target
+  // Parse en passant target — must be '-' or a valid square on rank 3 or 6
   let enPassantTarget = null;
   if (epStr !== '-') {
     if (epStr.length !== 2) throw new Error('Invalid FEN: en passant must be 2 chars');
@@ -1193,13 +1197,31 @@ function fromFen(fen) {
     const er = epStr.charCodeAt(1) - '1'.charCodeAt(0);
     if (ef < 0 || ef > 7 || er < 0 || er > 7)
       throw new Error('Invalid FEN: en passant out of range');
+    if (er !== 2 && er !== 5)
+      throw new Error('Invalid FEN: en passant rank must be 3 or 6');
     enPassantTarget = { file: ef, rank: er };
   }
 
+  // Validate halfmove clock — must be a non-negative integer
+  if (!/^\d+$/.test(hmStr)) throw new Error('Invalid FEN: halfmove clock must be a non-negative integer');
   const halfmoveClock = parseInt(hmStr, 10);
+
+  // Validate fullmove number — must be a positive integer
+  if (!/^\d+$/.test(fmStr)) throw new Error('Invalid FEN: fullmove number must be a positive integer');
   const fullmoveNumber = parseInt(fmStr, 10);
-  if (isNaN(halfmoveClock) || isNaN(fullmoveNumber))
-    throw new Error('Invalid FEN: clocks must be numbers');
+  if (fullmoveNumber < 1) throw new Error('Invalid FEN: fullmove number must be >= 1');
+
+  // Validate exactly one white king and one black king
+  let whiteKingCount = 0;
+  let blackKingCount = 0;
+  for (let r = 0; r < 8; r++) {
+    for (let f = 0; f < 8; f++) {
+      if (board[r][f] === W_KING) whiteKingCount++;
+      if (board[r][f] === B_KING) blackKingCount++;
+    }
+  }
+  if (whiteKingCount !== 1) throw new Error('Invalid FEN: must have exactly one white king');
+  if (blackKingCount !== 1) throw new Error('Invalid FEN: must have exactly one black king');
 
   return {
     board,

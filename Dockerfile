@@ -14,19 +14,22 @@ RUN npm run build:chess
 # ── Production stage ─────────────────────────────────────────
 FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS production
 
-# Security: run as non-root
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
-
 WORKDIR /app
 
+# Install production-only dependencies (no devDependencies)
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+
 # Copy only what's needed from builder
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/loadConfig.js ./
 COPY --from=builder /app/shared/chess.js ./shared/
 COPY --from=builder /app/client ./client/
-COPY --from=builder /app/package.json ./
+
+# Security: run as non-root
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup && \
+    chown -R appuser:appgroup /app
+USER appuser
 
 # TLS certs are mounted at runtime (not baked in)
 # Volume for config (optional)
