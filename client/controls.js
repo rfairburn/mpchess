@@ -180,6 +180,29 @@ export function setClickHandler(renderer) {
     const piece = serverBoard[rank][file];
 
     if (selectedSquare) {
+      const isValid = validMoves.some((m) => m.file === file && m.rank === rank);
+      if (!isValid) {
+        // Clicked an invalid square — if it's one of our pieces on our turn, select it instead
+        if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
+          selectedSquare = { file, rank };
+          validMoves = getValidMoves(
+            serverBoard.map((r) => [...r]),
+            file,
+            rank,
+            castlingRights,
+            enPassantTarget
+          );
+          clearHighlights();
+          highlightSelected(file, rank);
+          highlightValidMoves(validMoves);
+        } else {
+          selectedSquare = null;
+          validMoves = [];
+          clearHighlights();
+          highlightCheck();
+        }
+        return;
+      }
       sendMove(selectedSquare.file, selectedSquare.rank, file, rank);
       selectedSquare = null;
       validMoves = [];
