@@ -16,14 +16,27 @@ class MockWebSocket {
     this.sentMessages = [];
     this._listeners = {};
     this._closed = false;
+    this.bufferedAmount = 0;
   }
 
   send(data) {
-    this.sentMessages.push(JSON.parse(data));
+    this.sentMessages.push(data);
   }
 
   getSent(type) {
-    return this.sentMessages.filter((m) => m.type === type);
+    return this.sentMessages
+      .filter((m) => {
+        try {
+          return JSON.parse(m).type === type;
+        } catch {
+          return false;
+        }
+      })
+      .map((m) => JSON.parse(m));
+  }
+
+  getRawSent() {
+    return this.sentMessages;
   }
 
   on(event, fn) {
@@ -1170,6 +1183,109 @@ describe('Rate limiter — malformed messages count toward limit', () => {
     // Bucket should only have the join message
     const bucket = handlers.rateLimitBuckets.get(ws);
     assert.strictEqual(bucket.length, 1);
+  });
+});
+
+describe('Malformed JSON handling', () => {
+  function makeServer() {
+    const wss = new MockWebSocketServer();
+    const game = new Game();
+    const handlers = setupWebSocketHandlers(wss, game, { rateLimitMax: 9999, rateLimitWindow: 60_000 });
+    return { wss, game, handlers };
+  }
+
+  test('sends error frame for malformed JSON', () => {
+    const { wss } = makeServer();
+    const ws = wss.simulateConnection();
+    // Send non-JSON data
+    ws.emit('message', 'not json at all');
+    const errors = ws.getRawSent().filter((m) => {
+      try {
+        return JSON.parse(m).type === 'error';
+      } catch {
+        return false;
+      }
+    });
+    assert.strictEqual(errors.length, 1);
+    const err = JSON.parse(errors[0]);
+    assert.strictEqual(err.reason, 'Malformed message');
+  });
+
+  test('sends error frame for broken JSON', () => {
+    const { wss } = makeServer();
+    const ws = wss.simulateConnection();
+    ws.emit('message', '{broken');
+    const errors = ws.getRawSent().filter((m) => {
+      try {
+        return JSON.parse(m).type === 'error';
+      } catch {
+        return false;
+      }
+    });
+    assert.strictEqual(errors.length, 1);
+  });
+
+  test('valid JSON after malformed message still works', () => {
+    const { wss } = makeServer();
+    const ws = wss.simulateConnection();
+    ws.emit('message', 'not json');
+    // Now send a valid join
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    const joined = ws.getSent('joined');
+    assert.strictEqual(joined.length, 1);
+    assert.strictEqual(joined[0].color, 'white');
+  });
+});
+
+describe('WebSocket backpressure', () => {
+  function makeServer() {
+    const wss = new MockWebSocketServer();
+    const game = new Game();
+    const handlers = setupWebSocketHandlers(wss, game, { rateLimitMax: 9999, rateLimitWindow: 60_000 });
+    return { wss, game, handlers };
+  }
+
+  test('send skips slow client', () => {
+    const { wss, game } = makeServer();
+    const ws = wss.simulateConnection();
+    // Join as white
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    const statesBefore = ws.getSent('state').length;
+    // Make client slow
+    ws.bufferedAmount = 2 * 1024 * 1024; // 2 MB
+    // Trigger a state broadcast by having another client join
+    const ws2 = wss.simulateConnection();
+    ws2.emit('message', JSON.stringify({ type: 'join', color: 'black' }));
+    // Slow client should NOT receive additional state
+    const statesAfter = ws.getSent('state').length;
+    assert.strictEqual(statesAfter, statesBefore);
+  });
+
+  test('send delivers to normal client', () => {
+    const { wss, game } = makeServer();
+    const ws = wss.simulateConnection();
+    // Normal bufferedAmount (0)
+    ws.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    // Should receive state
+    const stateMessages = ws.getSent('state');
+    assert.ok(stateMessages.length > 0);
+  });
+
+  test('broadcast skips slow clients but delivers to normal ones', () => {
+    const { wss, game } = makeServer();
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    const ws1StatesBefore = ws1.getSent('state').length;
+    // Make ws1 slow
+    ws1.bufferedAmount = 2 * 1024 * 1024;
+    const ws2 = wss.simulateConnection();
+    ws2.emit('message', JSON.stringify({ type: 'join', color: 'black' }));
+    // ws1 (slow) should not get additional state from ws2 joining
+    const ws1StatesAfter = ws1.getSent('state').length;
+    assert.strictEqual(ws1StatesAfter, ws1StatesBefore);
+    // ws2 (normal) should get state
+    const ws2States = ws2.getSent('state');
+    assert.ok(ws2States.length > 0);
   });
 });
 

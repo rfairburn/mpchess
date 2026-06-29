@@ -692,6 +692,21 @@ describe('Game state management', () => {
     assert.strictEqual(result.ok, false);
     assert.strictEqual(result.reason, 'Game over');
   });
+
+  test('completePromotion rejected after game over', () => {
+    const { game, white } = makeGame();
+    // Set up a pending promotion
+    game.promotingPiece = { file: 4, rank: 0, color: 'white', fromFile: 4, fromRank: 1, enPassant: false, captured: 0 };
+    game.turn = 'white';
+    // End the game before completing promotion
+    game.concede(white);
+    assert.strictEqual(game.gameOver, true);
+    // completePromotion should return false and not flip the turn
+    const turnBefore = game.turn;
+    const result = game.completePromotion(white, 'queen');
+    assert.strictEqual(result, false);
+    assert.strictEqual(game.turn, turnBefore); // turn must NOT have changed
+  });
 });
 
 describe('Static file server — requestHandler', () => {
