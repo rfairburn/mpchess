@@ -24,17 +24,23 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   const rateLimitBuckets = new Map();
   let bothDisconnectedTimer = null;
 
+  const SLOW_CLIENT_THRESHOLD = 1 * 1024 * 1024; // 1 MB
+
+  function isClientSlow(ws) {
+    return ws.bufferedAmount > SLOW_CLIENT_THRESHOLD;
+  }
+
   function broadcast(data, excludeWs) {
     const msg = JSON.stringify(data);
     for (const c of wss.clients) {
-      if (c !== excludeWs && c.readyState === 1) {
+      if (c !== excludeWs && c.readyState === 1 && !isClientSlow(c)) {
         c.send(msg);
       }
     }
   }
 
   function send(ws, data) {
-    if (ws.readyState === 1) {
+    if (ws.readyState === 1 && !isClientSlow(ws)) {
       ws.send(JSON.stringify(data));
     }
   }
@@ -291,6 +297,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       try {
         msg = JSON.parse(raw);
       } catch {
+        console.warn(`Malformed JSON from client: ${raw.slice(0, 120)}`);
+        try {
+          ws.send(JSON.stringify({ type: 'error', reason: 'Malformed message' }));
+        } catch {
+          /* client already disconnected — nothing to send */
+        }
         return;
       }
 

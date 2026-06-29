@@ -849,6 +849,7 @@ class Game {
 
   completePromotion(ws, pieceType) {
     if (!this.promotingPiece || this.players.get(ws) !== this.promotingPiece.color) return false;
+    if (this.gameOver) return false;
     const { file, rank, color, fromFile, fromRank, enPassant, captured } = this.promotingPiece;
     const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
     if (!(pieceType in pieceMap)) return false;
