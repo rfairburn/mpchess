@@ -187,20 +187,23 @@ export function rebuildPieces(scene, force = false) {
     }
   }
 
-  // Rebuild the pieceMeshes array: keep animating pieces + pieces in desired state
-  const finalMeshes = [];
+  // Rebuild the pieceMeshes array: keep animating pieces + pieces in desired state.
+  // De-duplicate by position — if two meshes occupy the same square, the last one
+  // wins (newest data is most correct).
+  const animating = [];
+  const byPosition = new Map();
   for (const pm of pieceMeshes) {
     if (animatingPieces.has(pm)) {
-      finalMeshes.push(pm); // keep animating pieces alive
+      animating.push(pm);
     } else {
       const key = `${pm.file},${pm.rank}`;
       if (desired.has(key)) {
-        finalMeshes.push(pm);
+        byPosition.set(key, pm); // overwrite on duplicate — last wins
       }
     }
   }
   pieceMeshes.length = 0;
-  pieceMeshes.push(...finalMeshes);
+  pieceMeshes.push(...animating, ...byPosition.values());
 
   // Debug: Log final pieceMeshes state
   if (typeof console !== 'undefined' && console.debug) {
