@@ -79,6 +79,15 @@ export function rebuildPieces(scene, force = false) {
     }
   }
 
+  // Debug: Log desired board state
+  if (typeof console !== 'undefined' && console.debug) {
+    const desiredState = [];
+    for (const [key, piece] of desired) {
+      desiredState.push({ key, type: piece.type, color: piece.color });
+    }
+    console.debug('[rebuildPieces] DESIRED board state:', desiredState);
+  }
+
   // Build a list of existing meshes by position (not a Map — multiple pieces
   // can occupy the same square during animations, e.g. capture).
   const existing = [];
@@ -98,20 +107,38 @@ export function rebuildPieces(scene, force = false) {
 
   for (const pm of existing) {
     const isAnimating = animatingPieces.has(pm);
+    const key = `${pm.file},${pm.rank}`;
+    
+    // Debug: Log each piece being processed
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[rebuildPieces] Processing piece:', {
+        key,
+        type: pm.type,
+        color: pm.color,
+        isAnimating,
+        force
+      });
+    }
+    
     // When force=true (promotion / restart), update animating pieces too so
     // the mesh type matches the authoritative serverBoard immediately.
     // Otherwise skip animating pieces — let animations handle their own cleanup
     // (capture fade-out, slide completion, etc.)
     if (isAnimating && !force) {
-      const key = `${pm.file},${pm.rank}`;
       toKeep.add(key);
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[rebuildPieces] SKIPPED (animating, force=false):', key);
+      }
       continue;
     }
-    const key = `${pm.file},${pm.rank}`;
+    
     const desiredPiece = desired.get(key);
     if (!desiredPiece) {
       // Piece no longer exists — remove
       scene.remove(pm.mesh);
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[rebuildPieces] REMOVED (no longer on board):', key);
+      }
     } else if (desiredPiece.type !== pm.type || desiredPiece.color !== pm.color) {
       // Piece changed type or color — recreate the mesh
       scene.remove(pm.mesh);
@@ -123,9 +150,19 @@ export function rebuildPieces(scene, force = false) {
       pm.type = desiredPiece.type;
       pm.color = desiredPiece.color;
       toKeep.add(key);
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[rebuildPieces] REPLACED:', {
+          key,
+          old: { type: pm.type, color: pm.color },
+          new: { type: desiredPiece.type, color: desiredPiece.color }
+        });
+      }
     } else {
       // Unchanged
       toKeep.add(key);
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[rebuildPieces] KEPT (unchanged):', key);
+      }
     }
   }
 
@@ -144,6 +181,9 @@ export function rebuildPieces(scene, force = false) {
         type: desiredPiece.type,
         color: desiredPiece.color,
       });
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[rebuildPieces] CREATED NEW:', { key, type: desiredPiece.type, color: desiredPiece.color });
+      }
     }
   }
 
@@ -161,6 +201,15 @@ export function rebuildPieces(scene, force = false) {
   }
   pieceMeshes.length = 0;
   pieceMeshes.push(...finalMeshes);
+
+  // Debug: Log final pieceMeshes state
+  if (typeof console !== 'undefined' && console.debug) {
+    const finalState = [];
+    for (const pm of pieceMeshes) {
+      finalState.push({ key: `${pm.file},${pm.rank}`, type: pm.type, color: pm.color });
+    }
+    console.debug('[rebuildPieces] FINAL pieceMeshes:', finalState);
+  }
 }
 
 export function updatePiecePosition(pieceObj, file, rank) {

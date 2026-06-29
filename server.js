@@ -26,12 +26,31 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   const SLOW_CLIENT_THRESHOLD = 1 * 1024 * 1024; // 1 MB
 
+  // Debug mode
+  const DEBUG = options.debug || false;
+
+  function debugLog(...args) {
+    if (DEBUG) {
+      console.log('[DEBUG]', ...args);
+    }
+  }
+
   function isClientSlow(ws) {
     return ws.bufferedAmount > SLOW_CLIENT_THRESHOLD;
   }
 
   function broadcast(data, excludeWs) {
     const msg = JSON.stringify(data);
+    for (const c of wss.clients) {
+      if (c !== excludeWs && c.readyState === 1 && !isClientSlow(c)) {
+        c.send(msg);
+      }
+    }
+  }
+
+  function broadcastDebug(data, excludeWs) {
+    if (!DEBUG) return;
+    const msg = JSON.stringify({ type: 'debug', ...data });
     for (const c of wss.clients) {
       if (c !== excludeWs && c.readyState === 1 && !isClientSlow(c)) {
         c.send(msg);
@@ -346,8 +365,20 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             return;
           const result = game.tryMove(ws, fromFile, fromRank, toFile, toRank);
           if (result.ok) {
+            debugLog('Move:', {
+              from: { file: fromFile, rank: fromRank },
+              to: { file: toFile, rank: toRank },
+              result
+            });
+            debugLog('Board after move:', game.board);
             broadcast({ type: 'move', ...result });
             broadcastState();
+            broadcastDebug({
+              category: 'move',
+              from: { file: fromFile, rank: fromRank },
+              to: { file: toFile, rank: toRank },
+              message: `Move: ${result.notation}`
+            });
           } else {
             send(ws, { type: 'error', reason: result.reason });
           }
@@ -365,9 +396,20 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         case 'restart': {
           if (game.players.has(ws)) {
+            const oldFen = game.currentFen();
+            debugLog('Game restart: OLD FEN:', oldFen);
             game.reset();
+            const newFen = game.currentFen();
+            debugLog('Game restart: NEW FEN:', newFen);
+            debugLog('Game restart: NEW board state:', game.board);
             broadcastState();
             broadcast({ type: 'restart' });
+            broadcastDebug({
+              category: 'gameRestart',
+              oldFen,
+              newFen,
+              message: 'Game restarted'
+            });
           }
           break;
         }
@@ -403,9 +445,20 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             break;
           }
           try {
+            const oldFen = game.currentFen();
+            debugLog('FEN import: OLD FEN:', oldFen);
+            debugLog('FEN import: NEW FEN:', fen.trim());
             game.loadFromFen(fen.trim());
+            const newFen = game.currentFen();
+            debugLog('FEN import: NEW board state:', game.board);
             broadcastState();
             broadcast({ type: 'restart' });
+            broadcastDebug({
+              category: 'fenImport',
+              oldFen,
+              newFen,
+              message: `FEN imported: ${fen.trim()}`
+            });
           } catch (e) {
             send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });
           }
@@ -537,11 +590,12 @@ Options:
   --key=<path>            TLS private key file (required with --cert)
   --chain=<path>          TLS certificate chain file (optional, PEM format)
   --allowed-origins=<o1,o2>  Comma-separated list of allowed WebSocket origins
+  --debug=<true|false>      Enable debug logging for piece rebuilding
 
 Config sources (highest priority first):
   1. CLI arguments
   2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
-     MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS)
+     MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS, MPCHESS_DEBUG)
   3. Config file (config.json or --config=<path>)
   4. Built-in defaults
 
@@ -550,7 +604,9 @@ Examples:
   node server.js --config=prod.json --port=8443
   node server.js --cert=server.crt --key=server.key
   node server.js --allowed-origins=games.devop.ninja,localhost
+  node server.js --debug=true
   MPCHESS_PORT=8080 node server.js
+  MPCHESS_DEBUG=true node server.js
 `);
     process.exit(0);
   }
@@ -628,7 +684,7 @@ Examples:
     }
   }
 
-  setupWebSocketHandlers(wss, game);
+  setupWebSocketHandlers(wss, game, { debug: config.debug });
 
   server.listen(PORT, HOST, () => {
     const os = require('os');

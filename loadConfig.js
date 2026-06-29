@@ -12,6 +12,7 @@ const DEFAULTS = {
   key: undefined,
   chain: undefined,
   allowedOrigins: [],
+  debug: false,
 };
 
 const ENV_MAP = {
@@ -21,6 +22,7 @@ const ENV_MAP = {
   key: 'MPCHESS_KEY',
   chain: 'MPCHESS_CHAIN',
   allowedOrigins: 'MPCHESS_ALLOWED_ORIGINS',
+  debug: 'MPCHESS_DEBUG',
 };
 
 // CLI flag (kebab-case) → config key (camelCase)
@@ -31,6 +33,7 @@ const CLI_FLAG_MAP = [
   ['--key=', 'key'],
   ['--chain=', 'chain'],
   ['--allowed-origins=', 'allowedOrigins'],
+  ['--debug=', 'debug'],
 ];
 
 function convertType(key, value) {
@@ -47,6 +50,13 @@ function convertType(key, value) {
         .map((s) => s.trim())
         .filter(Boolean);
     return [];
+  }
+  if (key === 'debug') {
+    // Accept 'true', '1', 'yes' as truthy
+    if (typeof value === 'string') {
+      return ['true', '1', 'yes'].includes(value.toLowerCase());
+    }
+    return Boolean(value);
   }
   return value;
 }

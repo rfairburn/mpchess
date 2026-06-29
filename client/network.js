@@ -174,6 +174,14 @@ function connect() {
       return;
     }
     switch (msg.type) {
+      case 'debug': {
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[DEBUG]', msg);
+        } else {
+          console.log('[DEBUG]', msg);
+        }
+        break;
+      }
       case 'state': {
         myRole = msg.role;
         serverBoard = msg.board;
