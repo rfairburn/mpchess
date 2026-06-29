@@ -260,55 +260,39 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
         if (dr === 0 && df === 0) continue;
         addMove(file + df, rank + dr);
       }
-    if (color === 'white' && rank === 0 && file === 4) {
-      if (castlingRights.wK && board[0][5] === 0 && board[0][6] === 0 && board[0][7] === W_ROOK) {
+    // Castling — parameterized for white/black
+    if (file === 4) {
+      const kRight = color === 'white' ? 'wK' : 'bK';
+      const qRight = color === 'white' ? 'wQ' : 'bQ';
+      const rookVal = color === 'white' ? W_ROOK : B_ROOK;
+      const enemy = color === 'white' ? 'black' : 'white';
+      if (
+        castlingRights[kRight] &&
+        board[rank][5] === 0 &&
+        board[rank][6] === 0 &&
+        board[rank][7] === rookVal
+      ) {
         if (
-          !isInCheck(board, 'white') &&
-          !isAttacked(board, 5, 0, 'black') &&
-          !isAttacked(board, 6, 0, 'black')
+          !isInCheck(board, color) &&
+          !isAttacked(board, 5, rank, enemy) &&
+          !isAttacked(board, 6, rank, enemy)
         ) {
-          moves.push({ file: 6, rank: 0, castle: 'K' });
+          moves.push({ file: 6, rank, castle: 'K' });
         }
       }
       if (
-        castlingRights.wQ &&
-        board[0][3] === 0 &&
-        board[0][2] === 0 &&
-        board[0][1] === 0 &&
-        board[0][0] === W_ROOK
+        castlingRights[qRight] &&
+        board[rank][3] === 0 &&
+        board[rank][2] === 0 &&
+        board[rank][1] === 0 &&
+        board[rank][0] === rookVal
       ) {
         if (
-          !isInCheck(board, 'white') &&
-          !isAttacked(board, 3, 0, 'black') &&
-          !isAttacked(board, 2, 0, 'black')
+          !isInCheck(board, color) &&
+          !isAttacked(board, 3, rank, enemy) &&
+          !isAttacked(board, 2, rank, enemy)
         ) {
-          moves.push({ file: 2, rank: 0, castle: 'Q' });
-        }
-      }
-    }
-    if (color === 'black' && rank === 7 && file === 4) {
-      if (castlingRights.bK && board[7][5] === 0 && board[7][6] === 0 && board[7][7] === B_ROOK) {
-        if (
-          !isInCheck(board, 'black') &&
-          !isAttacked(board, 5, 7, 'white') &&
-          !isAttacked(board, 6, 7, 'white')
-        ) {
-          moves.push({ file: 6, rank: 7, castle: 'K' });
-        }
-      }
-      if (
-        castlingRights.bQ &&
-        board[7][3] === 0 &&
-        board[7][2] === 0 &&
-        board[7][1] === 0 &&
-        board[7][0] === B_ROOK
-      ) {
-        if (
-          !isInCheck(board, 'black') &&
-          !isAttacked(board, 3, 7, 'white') &&
-          !isAttacked(board, 2, 7, 'white')
-        ) {
-          moves.push({ file: 2, rank: 7, castle: 'Q' });
+          moves.push({ file: 2, rank, castle: 'Q' });
         }
       }
     }
@@ -644,6 +628,26 @@ class Game {
     return '*';
   }
 
+  // Append check (+) or checkmate (#) suffix to the last move in history
+  _appendMoveSuffix() {
+    if (this.gameOver && this.gameResult.includes('Checkmate')) {
+      this.moveHistory[this.moveHistory.length - 1] += '#';
+    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
+      this.moveHistory[this.moveHistory.length - 1] += '+';
+    }
+  }
+
+  // Revoke both king-side and queen-side castling rights for a color
+  _revokeKingCastlingRights(color) {
+    if (color === 'white') {
+      this.castlingRights.wK = false;
+      this.castlingRights.wQ = false;
+    } else {
+      this.castlingRights.bK = false;
+      this.castlingRights.bQ = false;
+    }
+  }
+
   tryMove(ws, fromFile, fromRank, toFile, toRank) {
     // Validate coordinates are integers in [0, 7]
     for (const v of [fromFile, fromRank, toFile, toRank]) {
@@ -765,24 +769,12 @@ class Game {
         this.board[toRank][3] = this.board[toRank][0];
         this.board[toRank][0] = 0;
       }
-      if (color === 'white') {
-        this.castlingRights.wK = false;
-        this.castlingRights.wQ = false;
-      } else {
-        this.castlingRights.bK = false;
-        this.castlingRights.bQ = false;
-      }
+      this._revokeKingCastlingRights(color);
     }
 
     // Any king move revokes castling rights (not just castling itself)
     if (type === 'king') {
-      if (color === 'white') {
-        this.castlingRights.wK = false;
-        this.castlingRights.wQ = false;
-      } else {
-        this.castlingRights.bK = false;
-        this.castlingRights.bQ = false;
-      }
+      this._revokeKingCastlingRights(color);
     }
 
     // Rook moved
@@ -828,11 +820,7 @@ class Game {
 
     // Check game end and append check/mate symbol
     this.checkGameEnd();
-    if (this.gameOver && this.gameResult.includes('Checkmate')) {
-      this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
-      this.moveHistory[this.moveHistory.length - 1] += '+';
-    }
+    this._appendMoveSuffix();
 
     return {
       ok: true,
@@ -899,11 +887,7 @@ class Game {
     });
 
     this.checkGameEnd();
-    if (this.gameOver && this.gameResult.includes('Checkmate')) {
-      this.moveHistory[this.moveHistory.length - 1] += '#';
-    } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
-      this.moveHistory[this.moveHistory.length - 1] += '+';
-    }
+    this._appendMoveSuffix();
     return true;
   }
 
@@ -1198,17 +1182,18 @@ function fromFen(fen) {
     const er = epStr.charCodeAt(1) - '1'.charCodeAt(0);
     if (ef < 0 || ef > 7 || er < 0 || er > 7)
       throw new Error('Invalid FEN: en passant out of range');
-    if (er !== 2 && er !== 5)
-      throw new Error('Invalid FEN: en passant rank must be 3 or 6');
+    if (er !== 2 && er !== 5) throw new Error('Invalid FEN: en passant rank must be 3 or 6');
     enPassantTarget = { file: ef, rank: er };
   }
 
   // Validate halfmove clock — must be a non-negative integer
-  if (!/^\d+$/.test(hmStr)) throw new Error('Invalid FEN: halfmove clock must be a non-negative integer');
+  if (!/^\d+$/.test(hmStr))
+    throw new Error('Invalid FEN: halfmove clock must be a non-negative integer');
   const halfmoveClock = parseInt(hmStr, 10);
 
   // Validate fullmove number — must be a positive integer
-  if (!/^\d+$/.test(fmStr)) throw new Error('Invalid FEN: fullmove number must be a positive integer');
+  if (!/^\d+$/.test(fmStr))
+    throw new Error('Invalid FEN: fullmove number must be a positive integer');
   const fullmoveNumber = parseInt(fmStr, 10);
   if (fullmoveNumber < 1) throw new Error('Invalid FEN: fullmove number must be >= 1');
 

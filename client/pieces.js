@@ -168,6 +168,38 @@ export const animations = [];
 // which would cause duplicate pieces or kill capture fade-out animations.
 const animatingPieces = new Set();
 
+// Create a slide animation for a piece from one square to another.
+// arcHeight adds a vertical arc (default 0 = flat slide).
+function createSlideAnimation(
+  piece,
+  startX,
+  startY,
+  startZ,
+  endX,
+  endY,
+  endZ,
+  startTime,
+  duration,
+  arcHeight = 0
+) {
+  animations.push({
+    update(time) {
+      const t = Math.min((time - startTime) / duration, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      piece.mesh.position.set(
+        startX + (endX - startX) * ease,
+        startY + (endY - startY) * ease + arcHeight * Math.sin(t * Math.PI),
+        startZ + (endZ - startZ) * ease
+      );
+      if (t >= 1) {
+        animatingPieces.delete(piece);
+        return true;
+      }
+      return false;
+    },
+  });
+}
+
 export function animateMove(
   scene,
   fromFile,
@@ -196,22 +228,18 @@ export function animateMove(
   const duration = 300;
   const startTime = performance.now();
 
-  animations.push({
-    update(time) {
-      const t = Math.min((time - startTime) / duration, 1);
-      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      fromPiece.mesh.position.set(
-        startX + (endX - startX) * ease,
-        startY + (endY - startY) * ease + Math.sin(t * Math.PI) * 0.3,
-        startZ + (endZ - startZ) * ease
-      );
-      if (t >= 1) {
-        animatingPieces.delete(fromPiece);
-        return true;
-      }
-      return false;
-    },
-  });
+  createSlideAnimation(
+    fromPiece,
+    startX,
+    startY,
+    startZ,
+    endX,
+    endY,
+    endZ,
+    startTime,
+    duration,
+    0.3
+  );
 
   // Animate castled rook
   if (castled) {
@@ -222,28 +250,17 @@ export function animateMove(
       rook.file = castled.to;
       rook.rank = castled.rank;
       animatingPieces.add(rook);
-      const rookStartX = castled.from - 3.5,
-        rookStartY = 0.01,
-        rookStartZ = 3.5 - castled.rank;
-      const rookEndX = castled.to - 3.5,
-        rookEndY = 0.01,
-        rookEndZ = 3.5 - castled.rank;
-      animations.push({
-        update(time) {
-          const t = Math.min((time - startTime) / duration, 1);
-          const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-          rook.mesh.position.set(
-            rookStartX + (rookEndX - rookStartX) * ease,
-            rookStartY + (rookEndY - rookStartY) * ease,
-            rookStartZ + (rookEndZ - rookStartZ) * ease
-          );
-          if (t >= 1) {
-            animatingPieces.delete(rook);
-            return true;
-          }
-          return false;
-        },
-      });
+      createSlideAnimation(
+        rook,
+        castled.from - 3.5,
+        0.01,
+        3.5 - castled.rank,
+        castled.to - 3.5,
+        0.01,
+        3.5 - castled.rank,
+        startTime,
+        duration
+      );
     }
   }
 

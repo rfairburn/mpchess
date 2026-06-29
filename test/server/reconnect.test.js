@@ -100,8 +100,15 @@ function test(name, fn) {
     if (result && typeof result.then === 'function') {
       pendingPromises.push(
         result.then(
-          () => { passed++; results[idx].ok = true; },
-          (e) => { failed++; results[idx].ok = false; results[idx].err = e.message; }
+          () => {
+            passed++;
+            results[idx].ok = true;
+          },
+          (e) => {
+            failed++;
+            results[idx].ok = false;
+            results[idx].err = e.message;
+          }
         )
       );
     } else {
@@ -1190,7 +1197,10 @@ describe('Malformed JSON handling', () => {
   function makeServer() {
     const wss = new MockWebSocketServer();
     const game = new Game();
-    const handlers = setupWebSocketHandlers(wss, game, { rateLimitMax: 9999, rateLimitWindow: 60_000 });
+    const handlers = setupWebSocketHandlers(wss, game, {
+      rateLimitMax: 9999,
+      rateLimitWindow: 60_000,
+    });
     return { wss, game, handlers };
   }
 
@@ -1241,7 +1251,10 @@ describe('WebSocket backpressure', () => {
   function makeServer() {
     const wss = new MockWebSocketServer();
     const game = new Game();
-    const handlers = setupWebSocketHandlers(wss, game, { rateLimitMax: 9999, rateLimitWindow: 60_000 });
+    const handlers = setupWebSocketHandlers(wss, game, {
+      rateLimitMax: 9999,
+      rateLimitWindow: 60_000,
+    });
     return { wss, game, handlers };
   }
 

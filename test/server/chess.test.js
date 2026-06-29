@@ -57,8 +57,15 @@ function test(name, fn) {
     if (result && typeof result.then === 'function') {
       pendingPromises.push(
         result.then(
-          () => { passed++; results[idx].ok = true; },
-          (e) => { failed++; results[idx].ok = false; results[idx].err = e.message; }
+          () => {
+            passed++;
+            results[idx].ok = true;
+          },
+          (e) => {
+            failed++;
+            results[idx].ok = false;
+            results[idx].err = e.message;
+          }
         )
       );
     } else {
@@ -696,7 +703,15 @@ describe('Game state management', () => {
   test('completePromotion rejected after game over', () => {
     const { game, white } = makeGame();
     // Set up a pending promotion
-    game.promotingPiece = { file: 4, rank: 0, color: 'white', fromFile: 4, fromRank: 1, enPassant: false, captured: 0 };
+    game.promotingPiece = {
+      file: 4,
+      rank: 0,
+      color: 'white',
+      fromFile: 4,
+      fromRank: 1,
+      enPassant: false,
+      captured: 0,
+    };
     game.turn = 'white';
     // End the game before completing promotion
     game.concede(white);
@@ -738,7 +753,10 @@ describe('Static file server — requestHandler', () => {
     const res = mockRes();
     requestHandler(mockReq('/'), res);
     assert.strictEqual(res.statusCode, 200);
-    assert.ok(res.body.includes('<!doctype html>') || res.body.includes('<html'), 'should serve HTML');
+    assert.ok(
+      res.body.includes('<!doctype html>') || res.body.includes('<html'),
+      'should serve HTML'
+    );
   });
 
   // ── Allowed extensions ──
@@ -873,7 +891,10 @@ describe('Static file server — requestHandler', () => {
   // ── CLIENT_ROOT is under project root ──
 
   test('CLIENT_ROOT resolves to client/ directory', () => {
-    assert.ok(CLIENT_ROOT.endsWith('client'), `CLIENT_ROOT should end with 'client', got ${CLIENT_ROOT}`);
+    assert.ok(
+      CLIENT_ROOT.endsWith('client'),
+      `CLIENT_ROOT should end with 'client', got ${CLIENT_ROOT}`
+    );
   });
 
   // ── MIME allowlist is exhaustive ──
@@ -2367,7 +2388,9 @@ describe('TLS CLI arguments', () => {
   const childProcesses = [];
   const killAllChildren = () => {
     for (const child of childProcesses) {
-      try { child.kill('SIGKILL'); } catch {}
+      try {
+        child.kill('SIGKILL');
+      } catch {}
     }
     childProcesses.length = 0;
   };

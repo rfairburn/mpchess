@@ -81,51 +81,51 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     return arr;
   }
 
+  function seatStatusForColor(color, clientWs) {
+    // Check if actively occupied
+    let occupiedWs = null;
+    for (const [ws, c] of game.players) {
+      if (c === color) {
+        occupiedWs = ws;
+        break;
+      }
+    }
+    if (occupiedWs) {
+      const clientSession = sessions.get(clientWs);
+      const occupiedSession = sessions.get(occupiedWs);
+      const clientToken = clientSession?.token;
+      const canReconnect = !!(clientToken && occupiedSession?.token === clientToken);
+      return { status: 'occupied', canReconnect };
+    }
+    // Check if held by disconnected player
+    let heldEntry = null;
+    let heldToken = null;
+    for (const [token, entry] of disconnectedPlayers) {
+      if (entry.color === color) {
+        heldEntry = entry;
+        heldToken = token;
+        break;
+      }
+    }
+    if (heldEntry) {
+      const freesAt = heldEntry.disconnectedAt + seatTimeout;
+      const clientSession = sessions.get(clientWs);
+      const clientToken = clientSession?.token;
+      const canReconnect = clientToken === heldToken;
+      return {
+        status: 'held',
+        freesAt,
+        remaining: Math.max(0, freesAt - Date.now()),
+        canReconnect,
+      };
+    }
+    return { status: 'free', canReconnect: false };
+  }
+
   function buildSeatStatus(clientWs) {
     const seats = {};
     for (const color of ['white', 'black']) {
-      // Check if actively occupied
-      let occupiedWs = null;
-      for (const [ws, c] of game.players) {
-        if (c === color) {
-          occupiedWs = ws;
-          break;
-        }
-      }
-      if (occupiedWs) {
-        // Check if this client holds the active session (browser refresh)
-        const clientSession = sessions.get(clientWs);
-        const occupiedSession = sessions.get(occupiedWs);
-        const clientToken = clientSession?.token;
-        const canReconnect = !!(clientToken && occupiedSession?.token === clientToken);
-        seats[color] = { status: 'occupied', canReconnect };
-      } else {
-        // Check if held by disconnected player
-        let heldEntry = null;
-        let heldToken = null;
-        for (const [token, entry] of disconnectedPlayers) {
-          if (entry.color === color) {
-            heldEntry = entry;
-            heldToken = token;
-            break;
-          }
-        }
-        if (heldEntry) {
-          const freesAt = heldEntry.disconnectedAt + seatTimeout;
-          // Check if this client's stored token matches the held seat
-          const clientSession = sessions.get(clientWs);
-          const clientToken = clientSession?.token;
-          const canReconnect = clientToken === heldToken;
-          seats[color] = {
-            status: 'held',
-            freesAt,
-            remaining: Math.max(0, freesAt - Date.now()),
-            canReconnect,
-          };
-        } else {
-          seats[color] = { status: 'free', canReconnect: false };
-        }
-      }
+      seats[color] = seatStatusForColor(color, clientWs);
     }
     return seats;
   }
@@ -142,6 +142,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     });
   }
 
+  function broadcastState(excludeWs) {
+    for (const c of wss.clients) {
+      if (c !== excludeWs && c.readyState === 1) sendState(c);
+    }
+  }
+
   function bothDisconnected() {
     return disconnectedPlayers.size >= 2 && game.players.size === 0;
   }
@@ -156,9 +162,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         disconnectedPlayers.delete(token);
       }
       game.reset();
-      for (const c of wss.clients) {
-        if (c.readyState === 1) sendState(c);
-      }
+      broadcastState();
       for (const c of wss.clients) {
         if (c.readyState === 1 && game.spectators.has(c)) {
           send(c, { type: 'gameAvailable' });
@@ -179,18 +183,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (!entry) return;
     disconnectedPlayers.delete(token);
     stopBothDisconnectedTimer();
-    for (const c of wss.clients) {
-      if (c.readyState === 1) sendState(c);
-    }
+    broadcastState();
   }
 
   function finishReconnect(ws, color, token) {
     game.players.set(ws, color);
     sessions.set(ws, { token, color });
     send(ws, { type: 'reconnected', color });
-    for (const c of wss.clients) {
-      if (c.readyState === 1) sendState(c);
-    }
+    broadcastState();
   }
 
   function handleReconnect(ws, data) {
@@ -231,15 +231,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function isColorFree(color) {
-    // Check if actively occupied
-    for (const [, c] of game.players) {
-      if (c === color) return false;
-    }
-    // Check if held
-    for (const [, entry] of disconnectedPlayers) {
-      if (entry.color === color) return false;
-    }
-    return true;
+    return seatStatusForColor(color).status === 'free';
   }
 
   function handleJoin(ws, data) {
@@ -267,9 +259,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     }
 
     sendState(ws);
-    for (const c of wss.clients) {
-      if (c !== ws && c.readyState === 1) sendState(c);
-    }
+    broadcastState(ws);
     maybeStartBothDisconnectedTimer();
   }
 
@@ -362,9 +352,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           const result = game.tryMove(ws, fromFile, fromRank, toFile, toRank);
           if (result.ok) {
             broadcast({ type: 'move', ...result });
-            for (const c of wss.clients) {
-              if (c.readyState === 1) sendState(c);
-            }
+            broadcastState();
           } else {
             send(ws, { type: 'error', reason: result.reason });
           }
@@ -376,18 +364,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           const ok = game.completePromotion(ws, msg.pieceType);
           if (ok) {
             broadcast({ type: 'promotion', pieceType: msg.pieceType });
-            for (const c of wss.clients) {
-              if (c.readyState === 1) sendState(c);
-            }
+            broadcastState();
           }
           break;
         }
         case 'restart': {
           if (game.players.has(ws)) {
             game.reset();
-            for (const c of wss.clients) {
-              if (c.readyState === 1) sendState(c);
-            }
+            broadcastState();
             broadcast({ type: 'restart' });
           }
           break;
@@ -397,9 +381,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (!color) return;
           const ok = game.concede(ws);
           if (ok) {
-            for (const c of wss.clients) {
-              if (c.readyState === 1) sendState(c);
-            }
+            broadcastState();
           }
           break;
         }
@@ -427,9 +409,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           }
           try {
             game.loadFromFen(fen.trim());
-            for (const c of wss.clients) {
-              if (c.readyState === 1) sendState(c);
-            }
+            broadcastState();
             broadcast({ type: 'restart' });
           } catch (e) {
             send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });
@@ -469,9 +449,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         game.spectators.delete(ws);
       }
 
-      for (const c of wss.clients) {
-        if (c.readyState === 1) sendState(c);
-      }
+      broadcastState();
     });
   });
 
