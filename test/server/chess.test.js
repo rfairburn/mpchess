@@ -532,38 +532,6 @@ describe('Promotion — P0 fix regression tests', () => {
     assert.strictEqual(g.castlingRights.wQ, true, 'wQ unchanged');
   });
 
-  test('promotion via en passant does not revoke castling rights (synthetic)', () => {
-    const g = new Game();
-    const ws1 = {};
-    const ws2 = {};
-    g.addPlayer(ws1);
-    g.addPlayer(ws2);
-
-    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][1] = W_PAWN; // b7 — white pawn
-    g.board[6][0] = B_PAWN; // a7 — black pawn to be captured via en passant
-    g.board[7][4] = B_KING; // e8
-    g.turn = 'white';
-    g.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
-
-    // Synthetic en passant promotion (bypasses move validation)
-    g.promotingPiece = {
-      file: 0,
-      rank: 7,
-      color: 'white',
-      fromFile: 1,
-      fromRank: 6,
-      enPassant: true,
-      captured: 0,
-    };
-
-    g.completePromotion(ws1, 'rook');
-    assert.strictEqual(g.board[7][0], W_ROOK, 'rook at a8');
-    assert.strictEqual(g.board[6][0], 0, 'en passant captured pawn removed');
-    assert.strictEqual(g.castlingRights.bK, true, 'bK unchanged for en passant');
-    assert.strictEqual(g.castlingRights.bQ, true, 'bQ unchanged for en passant');
-  });
-
   test('promotion without capture does not affect castling rights', () => {
     const g = new Game();
     const ws1 = {};
@@ -1449,51 +1417,17 @@ describe('Algebraic notation disambiguation', () => {
     g.turn = 'white';
     g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
 
-    // Push pawn to e8 — triggers promotion
+    // Push pawn to e8 — tryMove moves the pawn immediately
     const result = g.tryMove(ws1, 4, 6, 4, 7);
     assert.strictEqual(result.ok, true);
     assert.strictEqual(result.promotion, true);
-    // Pawn should still be at source (server doesn't mutate board for promotions)
-    assert.strictEqual(g.board[6][4], W_PAWN, 'pawn still at source before completePromotion');
-    assert.strictEqual(g.board[7][4], 0, 'destination empty before completePromotion');
+    // Pawn is already at destination (tryMove handles the move like any other move)
+    assert.strictEqual(g.board[6][4], 0, 'source square cleared by tryMove');
+    assert.strictEqual(g.board[7][4], W_PAWN, 'pawn at destination before completePromotion');
 
-    // Complete promotion
+    // Complete promotion — swaps pawn for queen
     g.completePromotion(ws1, 'queen');
-    assert.strictEqual(g.board[6][4], 0, 'source square cleared after promotion');
     assert.strictEqual(g.board[7][4], W_QUEEN, 'queen at destination');
-  });
-
-  test('promotion via en passant removes captured pawn (synthetic)', () => {
-    // Note: en passant promotion is impossible in real chess (geometry prevents
-    // en passant targets from landing on the promotion rank), but the code path
-    // exists and must be correct. Test with a synthetic board state.
-    const g = new Game();
-    const ws1 = {};
-    const ws2 = {};
-    g.addPlayer(ws1);
-    g.addPlayer(ws2);
-
-    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[6][1] = W_PAWN; // white pawn at source
-    g.board[6][0] = B_PAWN; // black pawn to be captured (synthetic en passant)
-    g.turn = 'white';
-    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
-
-    // Manually set up a promotion with enPassant flag (bypasses move validation)
-    g.promotingPiece = {
-      file: 0,
-      rank: 7,
-      color: 'white',
-      fromFile: 1,
-      fromRank: 6,
-      enPassant: true,
-    };
-
-    // Complete promotion — should clear source AND en passant captured pawn
-    g.completePromotion(ws1, 'rook');
-    assert.strictEqual(g.board[6][1], 0, 'source square cleared');
-    assert.strictEqual(g.board[6][0], 0, 'en passant captured pawn removed (rank-1 for white)');
-    assert.strictEqual(g.board[7][0], W_ROOK, 'rook at destination');
   });
 
   test('promotingPiece stores source coordinates for client sync', () => {

@@ -717,6 +717,16 @@ class Game {
       this.enPassantTarget
     );
 
+    // En passant capture
+    if (isEnPassant) {
+      const capturedRank = color === 'white' ? toRank - 1 : toRank + 1;
+      this.board[capturedRank][toFile] = 0;
+    }
+
+    this.board[toRank][toFile] = piece;
+    this.board[fromRank][fromFile] = 0;
+
+    // Handle promotion: place pawn at destination, defer piece swap to completePromotion
     if (isPromotion) {
       this.promotingPiece = {
         file: toFile,
@@ -724,14 +734,21 @@ class Game {
         color,
         fromFile,
         fromRank,
-        enPassant: isEnPassant,
-        captured,
       };
       // Record the pawn move; promotion suffix added later
       const promoNotation = notation + '=P'; // P for pawn (will be replaced with actual piece in completePromotion)
       this.moveHistory.push(promoNotation);
       // Pawn move resets half-move clock (position recorded in completePromotion)
       this.halfmoveClock = 0;
+      // Update en passant target (promotion can't set it, but keep the logic consistent)
+      this.enPassantTarget = null;
+      // Captured rook on home square — revoke castling rights
+      if (captured && pieceType(captured) === 'rook') {
+        if (captured === W_ROOK && toRank === 0 && toFile === 0) this.castlingRights.wQ = false;
+        if (captured === W_ROOK && toRank === 0 && toFile === 7) this.castlingRights.wK = false;
+        if (captured === B_ROOK && toRank === 7 && toFile === 0) this.castlingRights.bQ = false;
+        if (captured === B_ROOK && toRank === 7 && toFile === 7) this.castlingRights.bK = false;
+      }
       return {
         ok: true,
         promotion: true,
@@ -744,15 +761,6 @@ class Game {
         castled,
       };
     }
-
-    // En passant capture
-    if (isEnPassant) {
-      const capturedRank = color === 'white' ? toRank - 1 : toRank + 1;
-      this.board[capturedRank][toFile] = 0;
-    }
-
-    this.board[toRank][toFile] = piece;
-    this.board[fromRank][fromFile] = 0;
 
     // Update en passant target
     this.enPassantTarget = null;
@@ -838,27 +846,12 @@ class Game {
   completePromotion(ws, pieceType) {
     if (!this.promotingPiece || this.players.get(ws) !== this.promotingPiece.color) return false;
     if (this.gameOver) return false;
-    const { file, rank, color, fromFile, fromRank, enPassant, captured } = this.promotingPiece;
+    const { file, rank, color, fromFile, fromRank } = this.promotingPiece;
     const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
     if (!(pieceType in pieceMap)) return false;
     const val = color === 'white' ? pieceMap[pieceType] : pieceMap[pieceType] + 6;
-    // Place promoted piece at destination, remove pawn from source
+    // Swap the pawn (already at destination from tryMove) for the promoted piece
     this.board[rank][file] = val;
-    this.board[fromRank][fromFile] = 0;
-    // Handle en passant capture during promotion
-    if (enPassant) {
-      const capturedRank = color === 'white' ? rank - 1 : rank + 1;
-      this.board[capturedRank][file] = 0;
-    }
-
-    // Revoke castling rights for captured rook on home square
-    // (tryMove returns early for promotions, so this is handled here)
-    if (captured) {
-      if (captured === W_ROOK && rank === 0 && file === 0) this.castlingRights.wQ = false;
-      if (captured === W_ROOK && rank === 0 && file === 7) this.castlingRights.wK = false;
-      if (captured === B_ROOK && rank === 7 && file === 0) this.castlingRights.bQ = false;
-      if (captured === B_ROOK && rank === 7 && file === 7) this.castlingRights.bK = false;
-    }
 
     this.promotingPiece = null;
 

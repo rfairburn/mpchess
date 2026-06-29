@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { serverBoard, onStateUpdate, onRestart } from './network.js';
+import { serverBoard, onStateUpdate, onRestart, onPromotion } from './network.js';
 import { clearHighlights, highlightCheck } from './board.js';
 import { pieceColor, pieceType } from './chess.mjs';
 
@@ -79,10 +79,9 @@ export function rebuildPieces(scene) {
     }
   }
 
-  // Build a map of existing meshes by position (skip animating pieces)
+  // Build a map of existing meshes by position
   const existing = new Map();
   for (const pm of pieceMeshes) {
-    if (animatingPieces.has(pm)) continue; // let animations finish undisturbed
     const key = `${pm.file},${pm.rank}`;
     existing.set(key, pm);
   }
@@ -328,4 +327,10 @@ onStateUpdate(() => {
 onRestart(() => {
   if (_scene && serverBoard && modelsLoaded) rebuildPieces(_scene);
   clearHighlights();
+});
+
+onPromotion((msg) => {
+  // The server confirmed the promoted piece type. rebuildPieces will
+  // update the mesh (even if animating) to match the new piece type.
+  if (_scene) rebuildPieces(_scene);
 });

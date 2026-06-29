@@ -36,6 +36,7 @@ export let currentFen = '';
 const onStateUpdateCallbacks = [];
 const onMoveCallbacks = [];
 const onRestartCallbacks = [];
+const onPromotionCallbacks = [];
 const onErrorCallbacks = [];
 const onInfoCallbacks = []; // info/success notifications (green toast)
 const onReconnectingCallbacks = [];
@@ -55,6 +56,9 @@ export function onMove(fn) {
 }
 export function onRestart(fn) {
   onRestartCallbacks.push(fn);
+}
+export function onPromotion(fn) {
+  onPromotionCallbacks.push(fn);
 }
 export function onError(fn) {
   onErrorCallbacks.push(fn);
@@ -189,18 +193,22 @@ function connect() {
         break;
       }
       case 'move': {
-        // For promotion moves, update the local board immediately so
-        // rebuildPieces doesn't recreate the pawn at the source square
-        // (the server doesn't mutate the board until completePromotion).
-        if (msg.promotion && serverBoard) {
-          serverBoard[msg.fromRank][msg.fromFile] = 0;
-          if (msg.enPassant) {
-            const promoColor = serverTurn; // it's the moving side's turn
-            const capturedRank = promoColor === 'white' ? msg.toRank - 1 : msg.toRank + 1;
-            serverBoard[capturedRank][msg.toFile] = 0;
+        fireCallbacks(onMoveCallbacks, msg);
+        break;
+      }
+      case 'promotion': {
+        // Server confirmed the promoted piece type. Update serverBoard
+        // so the pawn at the destination is replaced with the promoted piece.
+        if (serverPromotingPiece && serverBoard) {
+          const pp = serverPromotingPiece;
+          const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
+          const base = pieceMap[msg.pieceType];
+          if (base !== undefined) {
+            const val = pp.color === 'white' ? base : base + 6;
+            serverBoard[pp.rank][pp.file] = val;
           }
         }
-        fireCallbacks(onMoveCallbacks, msg);
+        fireCallbacks(onPromotionCallbacks, msg);
         break;
       }
       case 'error': {
