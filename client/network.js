@@ -31,6 +31,7 @@ export let validatedTokens = {}; // { white: true/false, black: true/false } —
 export let halfmoveClock = 0;
 export let threefoldCount = 0;
 export let currentFen = '';
+export let debugEnabled = false; // set by server in state message
 
 // Callbacks registered by other modules
 const onStateUpdateCallbacks = [];
@@ -175,10 +176,12 @@ function connect() {
     }
     switch (msg.type) {
       case 'debug': {
-        if (typeof console !== 'undefined' && console.debug) {
-          console.debug('[DEBUG]', msg);
-        } else {
-          console.log('[DEBUG]', msg);
+        if (debugEnabled) {
+          if (typeof console !== 'undefined' && console.debug) {
+            console.debug('[DEBUG]', msg);
+          } else {
+            console.log('[DEBUG]', msg);
+          }
         }
         break;
       }
@@ -197,6 +200,7 @@ function connect() {
         halfmoveClock = msg.halfmoveClock ?? 0;
         threefoldCount = msg.threefoldCount ?? 0;
         currentFen = msg.fen || '';
+        if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
         fireCallbacks(onStateUpdateCallbacks, msg);
         break;
       }

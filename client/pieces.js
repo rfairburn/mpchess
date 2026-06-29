@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { serverBoard, onStateUpdate, onRestart, onPromotion } from './network.js';
+import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from './network.js';
 import { clearHighlights, highlightCheck } from './board.js';
 import { pieceColor, pieceType } from './chess.mjs';
 
@@ -80,7 +80,7 @@ export function rebuildPieces(scene, force = false) {
   }
 
   // Debug: Log desired board state
-  if (typeof console !== 'undefined' && console.debug) {
+  if (debugEnabled && typeof console !== 'undefined' && console.debug) {
     const desiredState = [];
     for (const [key, piece] of desired) {
       desiredState.push({ key, type: piece.type, color: piece.color });
@@ -110,7 +110,7 @@ export function rebuildPieces(scene, force = false) {
     const key = `${pm.file},${pm.rank}`;
     
     // Debug: Log each piece being processed
-    if (typeof console !== 'undefined' && console.debug) {
+    if (debugEnabled && typeof console !== 'undefined' && console.debug) {
       console.debug('[rebuildPieces] Processing piece:', {
         key,
         type: pm.type,
@@ -126,7 +126,7 @@ export function rebuildPieces(scene, force = false) {
     // (capture fade-out, slide completion, etc.)
     if (isAnimating && !force) {
       toKeep.add(key);
-      if (typeof console !== 'undefined' && console.debug) {
+      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] SKIPPED (animating, force=false):', key);
       }
       continue;
@@ -136,7 +136,7 @@ export function rebuildPieces(scene, force = false) {
     if (!desiredPiece) {
       // Piece no longer exists — remove
       scene.remove(pm.mesh);
-      if (typeof console !== 'undefined' && console.debug) {
+      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] REMOVED (no longer on board):', key);
       }
     } else if (desiredPiece.type !== pm.type || desiredPiece.color !== pm.color) {
@@ -150,7 +150,7 @@ export function rebuildPieces(scene, force = false) {
       pm.type = desiredPiece.type;
       pm.color = desiredPiece.color;
       toKeep.add(key);
-      if (typeof console !== 'undefined' && console.debug) {
+      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] REPLACED:', {
           key,
           old: { type: pm.type, color: pm.color },
@@ -160,7 +160,7 @@ export function rebuildPieces(scene, force = false) {
     } else {
       // Unchanged
       toKeep.add(key);
-      if (typeof console !== 'undefined' && console.debug) {
+      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] KEPT (unchanged):', key);
       }
     }
@@ -181,7 +181,7 @@ export function rebuildPieces(scene, force = false) {
         type: desiredPiece.type,
         color: desiredPiece.color,
       });
-      if (typeof console !== 'undefined' && console.debug) {
+      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] CREATED NEW:', { key, type: desiredPiece.type, color: desiredPiece.color });
       }
     }
@@ -206,7 +206,7 @@ export function rebuildPieces(scene, force = false) {
   pieceMeshes.push(...animating, ...byPosition.values());
 
   // Debug: Log final pieceMeshes state
-  if (typeof console !== 'undefined' && console.debug) {
+  if (debugEnabled && typeof console !== 'undefined' && console.debug) {
     const finalState = [];
     for (const pm of pieceMeshes) {
       finalState.push({ key: `${pm.file},${pm.rank}`, type: pm.type, color: pm.color });

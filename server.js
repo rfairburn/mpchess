@@ -157,6 +157,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       role,
       seats: buildSeatStatus(ws),
       disconnectedPlayers: buildDisconnectedPlayersArray(),
+      debug: DEBUG,
       ...state,
     });
   }
