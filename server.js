@@ -263,20 +263,15 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     maybeStartBothDisconnectedTimer();
   }
 
-  function assignAndNotify(ws) {
+  wss.on('connection', (ws) => {
     // Don't auto-assign players — just send state with seat info
     // Client will explicitly choose via 'join' message
     sendState(ws);
-  }
-
-  wss.on('connection', (ws) => {
-    // Assign immediately — no timeout needed
-    assignAndNotify(ws);
 
     // Fallback timeout: if for some reason the client has no role, re-assign
     const joinTimeout = setTimeout(() => {
       if (!getRole(ws)) {
-        assignAndNotify(ws);
+        sendState(ws);
       }
     }, joinTimeoutMs);
 

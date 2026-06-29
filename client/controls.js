@@ -22,6 +22,7 @@ import {
   hidePromotionPicker,
   hideConcedeConfirm,
   mouseSensitivity,
+  showError,
 } from './ui.js';
 import {
   squares,
@@ -228,6 +229,10 @@ export function setClickHandler(renderer) {
       validMoves = [];
       clearHighlights();
       highlightCheck();
+      // Immediate local feedback when clicking on own piece but it's not your turn
+      if (myRole && piece !== 0 && pieceColor(piece) === myRole && myRole !== serverTurn) {
+        showError('Not your turn');
+      }
     }
   });
 }

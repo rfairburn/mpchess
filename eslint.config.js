@@ -146,6 +146,13 @@ module.exports = [
   },
   // Ignore auto-generated files and config files
   {
-    ignores: ['shared/chess.mjs', 'node_modules/', 'coverage/', 'dist/', 'vitest.config.js'],
+    ignores: [
+      'shared/chess.mjs',
+      'client/chess.mjs',
+      'node_modules/',
+      'coverage/',
+      'dist/',
+      'vitest.config.js',
+    ],
   },
 ];

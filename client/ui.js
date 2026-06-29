@@ -109,16 +109,22 @@ let dropButtonTimer = null;
 let secondDisconnectedToken = null;
 
 // ── Mouse sensitivity ────────────────────────────────────
+// Logarithmic scale: slider 1–100 maps to ~0.0002–~0.004.
+// Linear mapping (v * 0.0001) gave 0.0001–0.01, where the upper end was
+// too fast for most users.  The exponential curve keeps low values precise
+// and caps the top at a comfortable speed.
 
 const sensitivitySlider = document.getElementById('sensitivity-slider');
 const sensitivityValue = document.getElementById('sensitivity-value');
 export let mouseSensitivity = parseFloat(localStorage.getItem('mouseSensitivity') || '0.002');
 
 function sliderToSens(v) {
-  return v * 0.0001;
+  // Exponential: 1 → 0.0002, 50 → 0.002, 100 → 0.004
+  return 0.0002 * Math.pow(20, (v - 1) / 99);
 }
 function sensToSlider(s) {
-  return Math.round(s / 0.0001);
+  // Inverse of sliderToSens
+  return Math.round(1 + (99 * Math.log(s / 0.0002)) / Math.log(20));
 }
 sensitivitySlider.value = sensToSlider(mouseSensitivity);
 sensitivityValue.textContent = sensitivitySlider.value;
@@ -570,10 +576,16 @@ function startDropButtonCountdown(disconnectedAt) {
   dropButtonTimer = setInterval(updateButton, 1000);
 }
 
+// ── Unified disconnected-banner helpers (D7) ───────────
+
+function buildDisconnectedText(color) {
+  const icon = color === 'white' ? '♔' : '♚';
+  return `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
+}
+
 function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
   disconnectedOpponentToken = token;
-  const icon = color === 'white' ? '♔' : '♚';
-  opponentDisconnectedText.textContent = `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
+  opponentDisconnectedText.textContent = buildDisconnectedText(color);
   opponentDisconnectedBanner.classList.add('visible');
   // Spectators see the banner but the drop button is hidden entirely
   if (myRole === 'white' || myRole === 'black') {
@@ -598,8 +610,7 @@ function hideOpponentDisconnectedBanner() {
 
 function showSecondDisconnectedBanner(color, token) {
   secondDisconnectedToken = token;
-  const icon = color === 'white' ? '♔' : '♚';
-  secondDisconnectedText.textContent = `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
+  secondDisconnectedText.textContent = buildDisconnectedText(color);
   secondDisconnectedBanner.classList.add('visible');
 }
 

@@ -329,7 +329,7 @@ onRestart(() => {
   clearHighlights();
 });
 
-onPromotion((msg) => {
+onPromotion((_msg) => {
   // The server confirmed the promoted piece type. rebuildPieces will
   // update the mesh (even if animating) to match the new piece type.
   if (_scene) rebuildPieces(_scene);

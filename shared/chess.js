@@ -648,6 +648,17 @@ class Game {
     }
   }
 
+  // Revoke castling right for a specific rook at (file, rank)
+  _revokeRookCastlingRights(color, file, rank) {
+    if (color === 'white') {
+      if (rank === 0 && file === 0) this.castlingRights.wQ = false;
+      if (rank === 0 && file === 7) this.castlingRights.wK = false;
+    } else {
+      if (rank === 7 && file === 0) this.castlingRights.bQ = false;
+      if (rank === 7 && file === 7) this.castlingRights.bK = false;
+    }
+  }
+
   tryMove(ws, fromFile, fromRank, toFile, toRank) {
     // Validate coordinates are integers in [0, 7]
     for (const v of [fromFile, fromRank, toFile, toRank]) {
@@ -744,10 +755,8 @@ class Game {
       this.enPassantTarget = null;
       // Captured rook on home square — revoke castling rights
       if (captured && pieceType(captured) === 'rook') {
-        if (captured === W_ROOK && toRank === 0 && toFile === 0) this.castlingRights.wQ = false;
-        if (captured === W_ROOK && toRank === 0 && toFile === 7) this.castlingRights.wK = false;
-        if (captured === B_ROOK && toRank === 7 && toFile === 0) this.castlingRights.bQ = false;
-        if (captured === B_ROOK && toRank === 7 && toFile === 7) this.castlingRights.bK = false;
+        const capColor = pieceColor(captured);
+        this._revokeRookCastlingRights(capColor, toFile, toRank);
       }
       return {
         ok: true,
@@ -785,23 +794,15 @@ class Game {
       this._revokeKingCastlingRights(color);
     }
 
-    // Rook moved
+    // Rook moved — revoke its castling right
     if (type === 'rook') {
-      if (color === 'white') {
-        if (fromRank === 0 && fromFile === 0) this.castlingRights.wQ = false;
-        if (fromRank === 0 && fromFile === 7) this.castlingRights.wK = false;
-      } else {
-        if (fromRank === 7 && fromFile === 0) this.castlingRights.bQ = false;
-        if (fromRank === 7 && fromFile === 7) this.castlingRights.bK = false;
-      }
+      this._revokeRookCastlingRights(color, fromFile, fromRank);
     }
 
-    // Captured rook
+    // Captured rook on home square — revoke opponent's castling right
     if (captured && pieceType(captured) === 'rook') {
-      if (captured === W_ROOK && toRank === 0 && toFile === 0) this.castlingRights.wQ = false;
-      if (captured === W_ROOK && toRank === 0 && toFile === 7) this.castlingRights.wK = false;
-      if (captured === B_ROOK && toRank === 7 && toFile === 0) this.castlingRights.bQ = false;
-      if (captured === B_ROOK && toRank === 7 && toFile === 7) this.castlingRights.bK = false;
+      const capColor = pieceColor(captured);
+      this._revokeRookCastlingRights(capColor, toFile, toRank);
     }
 
     // Update half-move clock: reset on pawn move or capture, increment otherwise
