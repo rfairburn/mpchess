@@ -79,11 +79,11 @@ export function rebuildPieces(scene) {
     }
   }
 
-  // Build a map of existing meshes by position
-  const existing = new Map();
+  // Build a list of existing meshes by position (not a Map — multiple pieces
+  // can occupy the same square during animations, e.g. capture).
+  const existing = [];
   for (const pm of pieceMeshes) {
-    const key = `${pm.file},${pm.rank}`;
-    existing.set(key, pm);
+    existing.push(pm);
   }
 
   // Remove meshes no longer on the board, update changed ones, keep unchanged
@@ -96,7 +96,15 @@ export function rebuildPieces(scene) {
     }
   }
 
-  for (const [key, pm] of existing) {
+  for (const pm of existing) {
+    // Never touch pieces that are mid-animation — let animations handle
+    // their own cleanup (capture fade-out, slide completion, etc.)
+    if (animatingPieces.has(pm)) {
+      const key = `${pm.file},${pm.rank}`;
+      toKeep.add(key);
+      continue;
+    }
+    const key = `${pm.file},${pm.rank}`;
     const desiredPiece = desired.get(key);
     if (!desiredPiece) {
       // Piece no longer exists — remove
@@ -266,7 +274,6 @@ export function animateMove(
   // Animate captured piece fading out
   function animateCapture(target) {
     if (!target) return;
-    animatingPieces.add(target);
     const startY = target.mesh.position.y;
     const child = target.mesh.children[0];
     // Clone the material so the shared matWhite/matBlack is not mutated
@@ -298,6 +305,9 @@ export function animateMove(
     const capPiece = pieceMeshes.find(
       (p) => p !== fromPiece && p.file === toFile && p.rank === toRank
     );
+    // Mark captured piece as animating IMMEDIATELY so rebuildPieces won't
+    // remove it from the scene before the fade-out animation starts.
+    if (capPiece) animatingPieces.add(capPiece);
     animateCapture(capPiece);
   }
 
@@ -306,6 +316,7 @@ export function animateMove(
     const epPawn = pieceMeshes.find(
       (p) => p.file === toFile && p.rank === epRank && p.type === 'pawn'
     );
+    if (epPawn) animatingPieces.add(epPawn);
     animateCapture(epPawn);
   }
 }
