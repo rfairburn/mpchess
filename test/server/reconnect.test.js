@@ -1302,6 +1302,116 @@ describe('WebSocket backpressure', () => {
   });
 });
 
+describe('Import FEN — broadcast order guarantees client sync', () => {
+  test('state message is sent before restart so clients get the new board', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    const fen = '4k3/8/8/8/8/8/8/4K2R w K - 0 1';
+    ws1.emit('message', JSON.stringify({ type: 'importFen', fen }));
+    // Both clients should receive state messages
+    const ws2States = ws2.getSent('state');
+    const ws2Restarts = ws2.getSent('restart');
+    assert.ok(ws2States.length >= 1, 'non-importing client must receive state');
+    assert.ok(ws2Restarts.length >= 1, 'non-importing client must receive restart');
+    // The last state message must contain the imported board
+    const lastState = ws2States[ws2States.length - 1];
+    assert.strictEqual(lastState.board[0][4], 6, 'W_KING at e1');
+    assert.strictEqual(lastState.board[0][7], 4, 'W_ROOK at h1');
+    assert.strictEqual(lastState.board[7][4], 12, 'B_KING at e8');
+  });
+
+  test('state after importFen has correct board for all pieces', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    // Complex FEN with pieces on many squares
+    const fen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1';
+    ws1.emit('message', JSON.stringify({ type: 'importFen', fen }));
+    const ws2States = ws2.getSent('state');
+    const lastState = ws2States[ws2States.length - 1];
+    // Verify a few key pieces (board[rank][file], rank 0 = white's back rank)
+    assert.strictEqual(lastState.board[3][4], 1, 'white pawn at e4 (rank 3, file 4)');
+    assert.strictEqual(lastState.board[1][4], 0, 'e2 is empty');
+    assert.strictEqual(lastState.board[1][3], 1, 'white pawn at d2');
+    assert.strictEqual(lastState.turn, 'black');
+    assert.strictEqual(lastState.enPassantTarget.file, 4);
+    assert.strictEqual(lastState.enPassantTarget.rank, 2); // e3 = rank 2 (0-indexed)
+  });
+
+  test('importFen resets moveHistory in broadcast state', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    game.tryMove(ws1, 4, 1, 4, 3); // e4
+    assert.strictEqual(game.moveHistory.length, 1);
+    const fen = '4k3/8/8/8/8/8/8/4K2R w K - 0 1';
+    ws1.emit('message', JSON.stringify({ type: 'importFen', fen }));
+    const ws2States = ws2.getSent('state');
+    const lastState = ws2States[ws2States.length - 1];
+    assert.strictEqual(lastState.moveHistory.length, 0);
+  });
+});
+
+describe('Promotion — broadcast order guarantees client sync', () => {
+  test('promotion message and state are both broadcast to all clients', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    game.board[6][4] = 1; // W_PAWN at e7
+    game.turn = 'white';
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    game.tryMove(ws1, 4, 6, 4, 7); // e7-e8, triggers promotion
+    assert.ok(game.promotingPiece !== null);
+    ws1.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'queen' }));
+    // Opponent client should receive both promotion and state
+    const ws2Promotions = ws2.getSent('promotion');
+    const ws2States = ws2.getSent('state');
+    assert.ok(ws2Promotions.length >= 1, 'opponent must receive promotion message');
+    assert.strictEqual(ws2Promotions[ws2Promotions.length - 1].pieceType, 'queen');
+    assert.ok(ws2States.length >= 1, 'opponent must receive state');
+    // State board must show the promoted piece
+    const lastState = ws2States[ws2States.length - 1];
+    assert.strictEqual(lastState.board[7][4], 5, 'W_QUEEN at e8');
+    assert.strictEqual(lastState.promotingPiece, null, 'promotingPiece cleared');
+  });
+
+  test('promotion state includes correct turn after completion', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    game.board[6][4] = 1;
+    game.turn = 'white';
+    game.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    game.tryMove(ws1, 4, 6, 4, 7);
+    ws1.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'knight' }));
+    const ws2States = ws2.getSent('state');
+    const lastState = ws2States[ws2States.length - 1];
+    assert.strictEqual(lastState.turn, 'black', 'turn should switch to black');
+    assert.strictEqual(lastState.board[7][4], 2, 'W_KNIGHT at e8');
+  });
+
+  test('promotion via capture broadcasts correct board state', () => {
+    const { game, wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    game.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    game.board[6][1] = 1; // W_PAWN at b7
+    game.board[7][0] = 10; // B_ROOK at a8
+    game.board[7][4] = 12; // B_KING at e8
+    game.turn = 'white';
+    game.castlingRights = { wK: false, wQ: false, bK: true, bQ: true };
+    game.tryMove(ws1, 1, 6, 0, 7); // b7xa8, promotion capture
+    ws1.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'queen' }));
+    const ws2States = ws2.getSent('state');
+    const lastState = ws2States[ws2States.length - 1];
+    assert.strictEqual(lastState.board[7][0], 5, 'W_QUEEN at a8');
+    assert.strictEqual(lastState.castlingRights.bQ, false, 'bQ revoked');
+  });
+});
+
 // ── Results — print everything in declaration order ──────
 
 async function printResults() {

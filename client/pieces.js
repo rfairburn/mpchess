@@ -65,7 +65,7 @@ function createPiece(type, color) {
   return group;
 }
 
-export function rebuildPieces(scene) {
+export function rebuildPieces(scene, force = false) {
   if (!serverBoard || !modelsLoaded) return;
 
   // Build a map of what should be on the board: "file,rank" -> {type, color}
@@ -97,9 +97,12 @@ export function rebuildPieces(scene) {
   }
 
   for (const pm of existing) {
-    // Never touch pieces that are mid-animation — let animations handle
-    // their own cleanup (capture fade-out, slide completion, etc.)
-    if (animatingPieces.has(pm)) {
+    const isAnimating = animatingPieces.has(pm);
+    // When force=true (promotion / restart), update animating pieces too so
+    // the mesh type matches the authoritative serverBoard immediately.
+    // Otherwise skip animating pieces — let animations handle their own cleanup
+    // (capture fade-out, slide completion, etc.)
+    if (isAnimating && !force) {
       const key = `${pm.file},${pm.rank}`;
       toKeep.add(key);
       continue;
@@ -336,12 +339,19 @@ onStateUpdate(() => {
 });
 
 onRestart(() => {
-  if (_scene && serverBoard && modelsLoaded) rebuildPieces(_scene);
+  // Force rebuild: clear all animations so stale meshes from the old game
+  // don't survive the FEN import / restart.
+  if (_scene && serverBoard && modelsLoaded) {
+    // Cancel in-flight slide animations for the old game
+    animations.length = 0;
+    animatingPieces.clear();
+    rebuildPieces(_scene, true);
+  }
   clearHighlights();
 });
 
 onPromotion((_msg) => {
-  // The server confirmed the promoted piece type. rebuildPieces will
-  // update the mesh (even if animating) to match the new piece type.
-  if (_scene) rebuildPieces(_scene);
+  // The server confirmed the promoted piece type. Force rebuild so the
+  // animating pawn mesh is immediately updated to the promoted piece type.
+  if (_scene) rebuildPieces(_scene, true);
 });
