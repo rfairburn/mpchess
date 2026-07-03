@@ -369,7 +369,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             debugLog('Move:', {
               from: { file: fromFile, rank: fromRank },
               to: { file: toFile, rank: toRank },
-              result
+              result,
             });
             debugLog('Board after move:', game.board);
             broadcast({ type: 'move', ...result });
@@ -378,7 +378,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               category: 'move',
               from: { file: fromFile, rank: fromRank },
               to: { file: toFile, rank: toRank },
-              message: `Move: ${result.notation}`
+              message: `Move: ${result.notation}`,
             });
           } else {
             send(ws, { type: 'error', reason: result.reason });
@@ -409,7 +409,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               category: 'gameRestart',
               oldFen,
               newFen,
-              message: 'Game restarted'
+              message: 'Game restarted',
             });
           }
           break;
@@ -458,7 +458,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               category: 'fenImport',
               oldFen,
               newFen,
-              message: `FEN imported: ${fen.trim()}`
+              message: `FEN imported: ${fen.trim()}`,
             });
           } catch (e) {
             send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });

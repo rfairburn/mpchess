@@ -22,8 +22,11 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- $args := include "mpchess.serverArgs" . | trim }}
+          {{- if $args }}
           args:
-            {{- include "mpchess.serverArgs" . | nindent 12 }}
+            {{- $args | nindent 12 }}
+          {{- end }}
           ports:
             - name: {{ include "mpchess.portName" . }}
               containerPort: {{ .Values.server.port }}
@@ -41,18 +44,18 @@ spec:
             httpGet:
               path: /
               port: {{ include "mpchess.portName" . }}
-            {{- if .Values.tls.enabled }}
-            scheme: HTTPS
-            {{- end }}
+              {{- if .Values.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
               path: /
               port: {{ include "mpchess.portName" . }}
-            {{- if .Values.tls.enabled }}
-            scheme: HTTPS
-            {{- end }}
+              {{- if .Values.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
             initialDelaySeconds: 5
             periodSeconds: 10
           resources:

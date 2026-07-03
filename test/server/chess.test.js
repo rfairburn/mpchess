@@ -2526,7 +2526,10 @@ describe('Client-side rebuildPieces — force rebuild for promotion', () => {
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         if (board[r][f] !== 0) {
-          desired.set(`${f},${r}`, { type: pieceType(board[r][f]), color: pieceColor(board[r][f]) });
+          desired.set(`${f},${r}`, {
+            type: pieceType(board[r][f]),
+            color: pieceColor(board[r][f]),
+          });
         }
       }
     }
@@ -2555,7 +2558,10 @@ describe('Client-side rebuildPieces — force rebuild for promotion', () => {
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         if (board[r][f] !== 0) {
-          desired.set(`${f},${r}`, { type: pieceType(board[r][f]), color: pieceColor(board[r][f]) });
+          desired.set(`${f},${r}`, {
+            type: pieceType(board[r][f]),
+            color: pieceColor(board[r][f]),
+          });
         }
       }
     }
@@ -2579,7 +2585,10 @@ describe('Client-side rebuildPieces — force rebuild for promotion', () => {
     for (let r = 0; r < 8; r++) {
       for (let f = 0; f < 8; f++) {
         if (board[r][f] !== 0) {
-          desired.set(`${f},${r}`, { type: pieceType(board[r][f]), color: pieceColor(board[r][f]) });
+          desired.set(`${f},${r}`, {
+            type: pieceType(board[r][f]),
+            color: pieceColor(board[r][f]),
+          });
         }
       }
     }

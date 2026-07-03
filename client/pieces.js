@@ -108,7 +108,7 @@ export function rebuildPieces(scene, force = false) {
   for (const pm of existing) {
     const isAnimating = animatingPieces.has(pm);
     const key = `${pm.file},${pm.rank}`;
-    
+
     // Debug: Log each piece being processed
     if (debugEnabled && typeof console !== 'undefined' && console.debug) {
       console.debug('[rebuildPieces] Processing piece:', {
@@ -116,10 +116,10 @@ export function rebuildPieces(scene, force = false) {
         type: pm.type,
         color: pm.color,
         isAnimating,
-        force
+        force,
       });
     }
-    
+
     // When force=true (promotion / restart), update animating pieces too so
     // the mesh type matches the authoritative serverBoard immediately.
     // Otherwise skip animating pieces — let animations handle their own cleanup
@@ -131,7 +131,7 @@ export function rebuildPieces(scene, force = false) {
       }
       continue;
     }
-    
+
     const desiredPiece = desired.get(key);
     if (!desiredPiece) {
       // Piece no longer exists — remove
@@ -154,7 +154,7 @@ export function rebuildPieces(scene, force = false) {
         console.debug('[rebuildPieces] REPLACED:', {
           key,
           old: { type: pm.type, color: pm.color },
-          new: { type: desiredPiece.type, color: desiredPiece.color }
+          new: { type: desiredPiece.type, color: desiredPiece.color },
         });
       }
     } else {
@@ -182,7 +182,11 @@ export function rebuildPieces(scene, force = false) {
         color: desiredPiece.color,
       });
       if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-        console.debug('[rebuildPieces] CREATED NEW:', { key, type: desiredPiece.type, color: desiredPiece.color });
+        console.debug('[rebuildPieces] CREATED NEW:', {
+          key,
+          type: desiredPiece.type,
+          color: desiredPiece.color,
+        });
       }
     }
   }

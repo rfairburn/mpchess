@@ -59,9 +59,14 @@ config:
       "allowedOrigins": ["chess.example.com"]
     }
 
-# Inter-pod TLS — when enabled, the app serves HTTPS and kubelet probes use HTTPS.
-# The TLS secret is mounted at /etc/tls and MPCHESS_CERT / MPCHESS_KEY env vars
-# are set to point the app at the mounted files.
+# Pod-level TLS — when enabled, the app serves HTTPS inside the pod and
+# kubelet probes use HTTPS. The TLS secret is mounted at /etc/tls and
+# MPCHESS_CERT / MPCHESS_KEY env vars are set to point the app at the
+# mounted files.
+#
+# This is independent of Gateway/Ingress TLS termination. For the common
+# case where the Gateway or Ingress terminates TLS and forwards plain HTTP
+# to the pod, keep tls.enabled=false (the default).
 tls:
   enabled: false
   # Kubernetes TLS secret name (must contain tls.crt and tls.key)

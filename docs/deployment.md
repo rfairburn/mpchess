@@ -170,7 +170,7 @@ For a real domain, point your DNS A record at the microk8s node's IP.
 microk8s kubectl create namespace mpchess
 
 # 2. Deploy with Helm (disable gateway for direct access)
-microk8s helm3 install mpchess ./chart \
+microk8s helm install mpchess ./chart \
   --namespace mpchess \
   --set gateway.type=none \
   --set image.tag=latest
@@ -187,7 +187,7 @@ microk8s kubectl port-forward -n mpchess svc/mpchess 3000:3000
 microk8s kubectl create namespace mpchess
 
 # 2. Deploy with defaults (Gateway API + cert-manager)
-microk8s helm3 install mpchess ./chart \
+microk8s helm install mpchess ./chart \
   --namespace mpchess \
   --set gateway.host=chess.example.com \
   --set server.allowedOrigins=chess.example.com
@@ -202,7 +202,7 @@ microk8s kubectl get secret mpchess-tls -n mpchess
 ### With staging certificates (testing)
 
 ```bash
-microk8s helm3 install mpchess ./chart \
+microk8s helm install mpchess ./chart \
   --namespace mpchess \
   --set gateway.host=chess.example.com \
   --set gateway.issuer=letsencrypt-staging \
@@ -212,7 +212,7 @@ microk8s helm3 install mpchess ./chart \
 ### Upgrade
 
 ```bash
-microk8s helm3 upgrade mpchess ./chart \
+microk8s helm upgrade mpchess ./chart \
   --namespace mpchess \
   --set image.tag=v1.0.1
 ```
@@ -220,7 +220,7 @@ microk8s helm3 upgrade mpchess ./chart \
 ### Uninstall
 
 ```bash
-microk8s helm3 uninstall mpchess --namespace mpchess
+microk8s helm uninstall mpchess --namespace mpchess
 ```
 
 ---
@@ -245,7 +245,7 @@ microk8s helm3 uninstall mpchess --namespace mpchess
 | `server.allowedOrigins` | Allowed WebSocket origins                 | _(none)_            |
 | `config.enabled`        | Mount config.json from ConfigMap          | `false`             |
 | `config.content`        | JSON config content                       | _(none)_            |
-| `tls.enabled`           | Mount TLS certs and pass `--cert`/`--key` | `false`             |
+| `tls.enabled`           | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars) | `false`             |
 | `resources`             | Kubernetes resource limits/requests       | see values.yaml     |
 
 ### Using a config file
@@ -269,7 +269,9 @@ gateway:
   tlsSecretName: mpchess-tls
 ```
 
-This mounts the TLS secret at `/etc/tls/` and passes `--cert=/etc/tls/tls.crt --key=/etc/tls/tls.key` to the server. The secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`).
+This mounts the TLS secret at `/etc/tls/` and sets `MPCHESS_CERT=/etc/tls/tls.crt` and `MPCHESS_KEY=/etc/tls/tls.key` environment variables so the server serves HTTPS inside the pod. The secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`).
+
+**Note:** `tls.enabled` controls pod-level (server-side) TLS only. It is independent of Gateway/Ingress TLS termination. For the common case where the Gateway or Ingress terminates TLS and forwards plain HTTP to the pod, keep `tls.enabled=false` (the default).
 
 ---
 
@@ -278,7 +280,7 @@ This mounts the TLS secret at `/etc/tls/` and passes `--cert=/etc/tls/tls.crt --
 If you prefer the legacy Ingress resource over the Gateway API:
 
 ```bash
-microk8s helm3 install mpchess ./chart \
+microk8s helm install mpchess ./chart \
   --namespace mpchess \
   --set gateway.type=ingress \
   --set gateway.host=chess.example.com \
@@ -286,6 +288,8 @@ microk8s helm3 install mpchess ./chart \
   --set gateway.ingressAnnotations.'cert-manager\.io/cluster-issuer'=letsencrypt-prod \
   --set server.allowedOrigins=chess.example.com
 ```
+
+**Note on CLI escaping:** When passing comma-separated values like `server.allowedOrigins` or numeric annotation values via `--set`, Helm may parse them incorrectly. Use a values file or quote numeric annotation values (e.g., `"3600"`) to avoid issues.
 
 ---
 
@@ -346,7 +350,7 @@ microk8s kubectl logs -n traefik -l app.kubernetes.io/name=traefik
 Make sure `server.allowedOrigins` includes your domain. Without it, the server rejects connections from unknown origins:
 
 ```bash
-microk8s helm3 upgrade mpchess ./chart \
+microk8s helm upgrade mpchess ./chart \
   --namespace mpchess \
   --set server.allowedOrigins=chess.example.com
 ```

@@ -28,9 +28,8 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].env[0].value
           value: "3000"
-      - notContains:
+      - isNull:
           path: spec.template.spec.containers[0].args
-          content: --port=
       - equal:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 3000
@@ -46,9 +45,6 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 128Mi
-      - notContains:
-          path: spec.template.spec.containers[0].args
-          content: --cert=
       - isNull:
           path: spec.template.spec.containers[0].volumeMounts
       - isNull:
