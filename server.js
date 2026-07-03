@@ -179,10 +179,15 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       bothDisconnectedTimer = null;
       // Guard: if someone joined while timer was running, don't wipe them out
       if (game.players.size > 0) return;
-      // Clear all disconnected player sessions
-      for (const [token] of disconnectedPlayers) {
-        disconnectedPlayers.delete(token);
+      // Clear any session entries whose token matches a held disconnected-player token
+      const heldTokens = new Set(disconnectedPlayers.keys());
+      for (const [ws, session] of sessions) {
+        if (heldTokens.has(session.token)) {
+          sessions.delete(ws);
+        }
       }
+      // Clear all disconnected player entries
+      disconnectedPlayers.clear();
       game.reset();
       broadcastState();
       for (const c of wss.clients) {
