@@ -8,7 +8,8 @@ const fs = require('fs');
 const { UciTransport } = require('./uci');
 
 const SKILL_DEFAULTS = {
-  beginner: { skillLevel: 0, threads: 1, hash: 16, movetime: 500, depth: 5 },
+  beginner: { skillLevel: 0, threads: 1, hash: 16, movetime: 200, depth: 3 },
+  novice: { skillLevel: 0, threads: 1, hash: 16, movetime: 500, depth: 5 },
   intermediate: { skillLevel: 8, threads: 1, hash: 32, movetime: 1500, depth: 12 },
   advanced: { skillLevel: 14, threads: 1, hash: 64, movetime: 3000, depth: 18 },
   master: { skillLevel: 18, threads: 2, hash: 128, movetime: 5000, depth: 24 },

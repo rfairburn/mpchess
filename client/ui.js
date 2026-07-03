@@ -129,9 +129,10 @@ let errorTimeout = null;
 export let menuOpen = false;
 
 // Skill level definitions (must match server)
-const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'master', 'grandmaster'];
+const SKILL_LEVELS = ['beginner', 'novice', 'intermediate', 'advanced', 'master', 'grandmaster'];
 const SKILL_LABELS = {
   beginner: 'Beginner',
+  novice: 'Novice',
   intermediate: 'Intermediate',
   advanced: 'Advanced',
   master: 'Master',
