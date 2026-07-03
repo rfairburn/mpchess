@@ -1,0 +1,16 @@
+{{- if and (ne .Values.gateway.type "none") (eq .Values.gateway.type "ingress") (eq .Values.gateway.ingressController "traefik") (include "mpchess.backendTlsEnabled" .) }}
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: {{ include "mpchess.fullname" . }}-backend
+  labels:
+    {{- include "mpchess.labels" . | nindent 4 }}
+spec:
+  serverName: {{ .Values.gateway.host | quote }}
+  {{- if .Values.gateway.backendTls.insecureSkipVerify }}
+  insecureSkipVerify: true
+  {{- else }}
+  rootCAsSecrets:
+    - {{ include "mpchess.caSecretName" . }}
+  {{- end }}
+{{- end }}

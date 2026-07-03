@@ -1,0 +1,106 @@
+suite: backendtlspolicy
+release:
+  name: mpchess
+templates:
+  - templates/backendtlspolicy.yaml
+tests:
+  - it: no document when gateway type is none
+    set:
+      gateway:
+        type: none
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when gateway type is ingress
+    set:
+      gateway:
+        type: ingress
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when TLS is disabled (default)
+    set:
+      gateway:
+        type: httproute
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when backendTls explicitly disabled
+    set:
+      gateway:
+        type: httproute
+        backendTls:
+          enabled: false
+      tls:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders BackendTLSPolicy targeting Service when TLS enabled
+    set:
+      gateway:
+        type: httproute
+      tls:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: BackendTLSPolicy
+      - equal:
+          path: metadata.name
+          value: mpchess
+      - equal:
+          path: spec.targetRefs[0].group
+          value: ""
+      - equal:
+          path: spec.targetRefs[0].kind
+          value: Service
+      - equal:
+          path: spec.targetRefs[0].name
+          value: mpchess
+      - equal:
+          path: spec.targetRefs[0].sectionName
+          value: https
+      - equal:
+          path: spec.validation.caCertificateRefs[0].group
+          value: ""
+      - equal:
+          path: spec.validation.caCertificateRefs[0].kind
+          value: ConfigMap
+      - equal:
+          path: spec.validation.caCertificateRefs[0].name
+          value: mpchess-tls-ca
+      - equal:
+          path: spec.validation.hostname
+          value: chess.example.com
+
+  - it: uses custom caConfigMap when set
+    set:
+      gateway:
+        type: httproute
+      tls:
+        enabled: true
+        caConfigMap: my-ca-bundle
+    asserts:
+      - equal:
+          path: spec.validation.caCertificateRefs[0].name
+          value: my-ca-bundle
+
+  - it: "backendTls enabled: true forces policy even without tls.enabled"
+    set:
+      gateway:
+        type: httproute
+        backendTls:
+          enabled: true
+      tls:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: BackendTLSPolicy

@@ -1,0 +1,95 @@
+suite: serverstransport
+release:
+  name: mpchess
+templates:
+  - templates/serverstransport.yaml
+tests:
+  - it: no document when gateway type is none
+    set:
+      gateway:
+        type: none
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when gateway type is httproute
+    set:
+      gateway:
+        type: httproute
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when TLS is disabled
+    set:
+      gateway:
+        type: ingress
+        ingressController: traefik
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: no document when ingress controller is nginx
+    set:
+      gateway:
+        type: ingress
+        ingressController: nginx
+      tls:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders secure ServersTransport with serverName and rootCAsSecrets
+    set:
+      gateway:
+        type: ingress
+        ingressController: traefik
+      tls:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServersTransport
+      - equal:
+          path: metadata.name
+          value: mpchess-backend
+      - equal:
+          path: spec.serverName
+          value: chess.example.com
+      - equal:
+          path: spec.rootCAsSecrets[0]
+          value: mpchess-tls-ca
+      - isNull:
+          path: spec.insecureSkipVerify
+      - isNull:
+          path: spec.rootCAs
+
+  - it: renders insecure ServersTransport when insecureSkipVerify
+    set:
+      gateway:
+        type: ingress
+        ingressController: traefik
+        backendTls:
+          insecureSkipVerify: true
+      tls:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ServersTransport
+      - equal:
+          path: metadata.name
+          value: mpchess-backend
+      - equal:
+          path: spec.serverName
+          value: chess.example.com
+      - equal:
+          path: spec.insecureSkipVerify
+          value: true
+      - isNull:
+          path: spec.rootCAsSecrets
+      - isNull:
+          path: spec.rootCAs
