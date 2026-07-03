@@ -131,17 +131,26 @@ loadPieceModels(scene, () => {
 
 // ── Move animation handler ───────────────────────────────
 
+const MIN_MOVE_DELAY = 500; // ms — ensures animations finish before next move
+let lastMoveTime = -MIN_MOVE_DELAY;
+
 onMove((msg) => {
-  animateMove(
-    scene,
-    msg.fromFile,
-    msg.fromRank,
-    msg.toFile,
-    msg.toRank,
-    msg.castled,
-    msg.enPassant,
-    msg.captured
-  );
+  const now = performance.now();
+  const scheduledAt = Math.max(now, lastMoveTime + MIN_MOVE_DELAY);
+  lastMoveTime = scheduledAt;
+
+  setTimeout(() => {
+    animateMove(
+      scene,
+      msg.fromFile,
+      msg.fromRank,
+      msg.toFile,
+      msg.toRank,
+      msg.castled,
+      msg.enPassant,
+      msg.captured
+    );
+  }, scheduledAt - now);
 });
 
 // ── Animation loop ───────────────────────────────────────
