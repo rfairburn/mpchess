@@ -36,6 +36,15 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   let computerSkill = null; // skill level key
   const engine = getStockfishEngine(options.computerPlayer || {});
 
+  // Monotonic game revision — increments on every board/state change.
+  // Used to detect stale engine results: if the revision changed while
+  // Stockfish was thinking, the result is discarded even if the FEN matches.
+  let gameRevision = 0;
+
+  function bumpRevision() {
+    gameRevision++;
+  }
+
   // ── Draw offer state ──
   let drawOffer = null; // { from: ws, to: ws } or null
 
@@ -78,6 +87,23 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (game.players.has(ws)) return game.players.get(ws);
     if (game.spectators.has(ws)) return 'spectator';
     return null;
+  }
+
+  // ── Minimum delay between moves ──
+  // Ensures at least 500ms between moves so client animations finish.
+  // Human moves broadcast immediately and update the timestamp.
+  // Computer moves delay the entire server-side handling (tryMove + broadcast)
+  // if < 500ms since the last move was broadcast.
+  const MIN_MOVE_DELAY = 500;
+  let lastMoveTime = -MIN_MOVE_DELAY;
+
+  function remainingMoveDelay() {
+    const elapsed = Date.now() - lastMoveTime;
+    return Math.max(0, MIN_MOVE_DELAY - elapsed);
+  }
+
+  function noteMoveBroadcast() {
+    lastMoveTime = Date.now();
   }
 
   // ── Rate limiter (sliding window per connection) ──
@@ -296,13 +322,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (!computerColor) return;
     computerColor = null;
     computerSkill = null;
+    bumpRevision();
   }
 
   async function executeComputerMove() {
     if (!computerColor || game.gameOver) return;
     if (game.turn !== computerColor) return;
 
-    // Mark that the computer is thinking so we don't double-trigger
     const thinkingColor = computerColor;
 
     try {
@@ -325,9 +351,25 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // Notify clients that computer is thinking
       broadcast({ type: 'computerThinking', color: thinkingColor });
 
-      // Get the best move
-      const fen = game.currentFen();
-      const uciMove = await engine.getBestMove(fen, computerSkill);
+      // Get the best move from Stockfish
+      const requestFen = game.currentFen();
+      const requestRevision = gameRevision;
+      const uciMove = await engine.getBestMove(requestFen, computerSkill);
+
+      // Guard: game may have changed while Stockfish was thinking
+      if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
+      if (gameRevision !== requestRevision) return; // state changed (restart, FEN import, etc.)
+
+      // Delay so client animations from the previous move have time to finish.
+      // Stockfish usually takes well over 500ms, so this rarely adds extra wait.
+      const delay = remainingMoveDelay();
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+
+      // Guard again after the delay
+      if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
+      if (gameRevision !== requestRevision) return;
 
       // Parse UCI move (e.g. "e2e4" → fromFile=4, fromRank=1, toFile=4, toRank=3)
       const fromFile = uciMove.charCodeAt(0) - 97;
@@ -358,6 +400,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         // Remove virtual player only after promotion is complete
         game.players.delete(virtualWs);
 
+        noteMoveBroadcast();
         broadcast({ type: 'move', ...result, color: thinkingColor });
         broadcastState();
       } else {
@@ -365,7 +408,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         console.warn(`[Stockfish] Illegal move ${uciMove}: ${result.reason}`);
         // Retry up to 2 more times
         for (let retry = 0; retry < 2; retry++) {
-          const retryMove = await engine.getBestMove(game.currentFen(), computerSkill);
+          const retryFen = game.currentFen();
+          const retryRevision = gameRevision;
+          const retryMove = await engine.getBestMove(retryFen, computerSkill);
+          // Guard: state may have changed during the retry await
+          if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
+          if (gameRevision !== retryRevision) return;
           const rf = retryMove.charCodeAt(0) - 97;
           const rr = parseInt(retryMove[1]) - 1;
           const tf = retryMove.charCodeAt(2) - 97;
@@ -381,6 +429,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               }
             }
             game.players.delete(virtualWs);
+            noteMoveBroadcast();
             broadcast({ type: 'move', ...retryResult, color: thinkingColor });
             broadcastState();
             break;
@@ -511,6 +560,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (accepted) {
       game.gameOver = true;
       game.gameResult = 'Draw by agreement';
+      bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
     } else {
@@ -581,6 +631,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // Both players agree — end the game as a draw
       game.gameOver = true;
       game.gameResult = 'Draw by agreement';
+      bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
     } else {
@@ -709,6 +760,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               result,
             });
             debugLog('Board after move:', game.board);
+            bumpRevision();
+            noteMoveBroadcast();
             broadcast({ type: 'move', ...result });
             broadcastState();
             broadcastDebug({
@@ -731,6 +784,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (!['queen', 'rook', 'bishop', 'knight'].includes(msg.pieceType)) return;
           const ok = game.completePromotion(ws, msg.pieceType);
           if (ok) {
+            bumpRevision();
             broadcast({ type: 'promotion', pieceType: msg.pieceType });
             broadcastState();
           }
@@ -763,6 +817,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (!color) return;
           const ok = game.concede(ws);
           if (ok) {
+            bumpRevision();
             clearDrawOffer();
             broadcastState();
           }
@@ -796,6 +851,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             debugLog('FEN import: OLD FEN:', oldFen);
             debugLog('FEN import: NEW FEN:', fen.trim());
             game.loadFromFen(fen.trim());
+            bumpRevision();
             const newFen = game.currentFen();
             debugLog('FEN import: NEW board state:', game.board);
             broadcastState();
