@@ -28,12 +28,37 @@
         <h2>♔ 3D Chess ♚</h2>
         <button id="btn-resume">Resume Game</button>
         <button id="btn-restart">New Game</button>
+        <button id="btn-offer-draw">Offer Draw</button>
         <button id="btn-concede">Concede Game</button>
         <div id="export-row">
           <button id="btn-export-fen">Export FEN</button>
           <button id="btn-export-pgn">Export PGN</button>
         </div>
         <button id="btn-import-fen">Import FEN</button>
+        <!-- Computer player section — shown when no computer opponent active -->
+        <div id="menu-computer-section" class="hidden">
+          <div id="menu-computer-label">Play vs Computer</div>
+          <select id="menu-computer-skill-dropdown">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="master" selected>Master</option>
+            <option value="grandmaster">Grandmaster</option>
+          </select>
+          <button id="btn-menu-activate-computer">Start Game</button>
+        </div>
+        <!-- Skill change section — shown when computer opponent is active -->
+        <div id="menu-skill-change-section" class="hidden">
+          <div id="menu-skill-change-label">Change Computer Skill</div>
+          <select id="menu-skill-change-dropdown">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="master" selected>Master</option>
+            <option value="grandmaster">Grandmaster</option>
+          </select>
+          <button id="btn-menu-change-skill">Change Skill</button>
+        </div>
         <div id="sensitivity-row">
           <label for="sensitivity-slider">Mouse Sensitivity</label>
           <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
@@ -62,6 +87,18 @@
         <div id="concede-actions">
           <button id="btn-concede-cancel" class="cancel">Cancel</button>
           <button id="btn-concede-confirm">Concede</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Draw offer received overlay -->
+    <div id="draw-offer-overlay">
+      <div id="draw-offer-box">
+        <h3>Draw Offer</h3>
+        <p id="draw-offer-text">Your opponent offers a draw.</p>
+        <div id="draw-offer-actions">
+          <button id="btn-draw-decline" class="cancel">Decline</button>
+          <button id="btn-draw-accept">Accept</button>
         </div>
       </div>
     </div>
@@ -113,18 +150,6 @@
             <span class="join-label">Spectate</span>
             <span class="join-status">Always available</span>
           </button>
-        </div>
-        <!-- Computer player skill selector — shown when one seat is occupied -->
-        <div id="computer-skill-select" class="hidden">
-          <div id="computer-skill-label">Play vs Computer</div>
-          <select id="computer-skill-dropdown">
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="master" selected>Master</option>
-            <option value="grandmaster">Grandmaster</option>
-          </select>
-          <button id="btn-activate-computer">Start Game</button>
         </div>
       </div>
     </div>

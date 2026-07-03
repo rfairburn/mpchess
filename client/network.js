@@ -53,6 +53,9 @@ const onComputerActivatedCallbacks = [];
 const onComputerThinkingCallbacks = [];
 const onComputerSkillChangedCallbacks = [];
 const onComputerUnavailableCallbacks = [];
+const onDrawOfferCallbacks = [];
+const onDrawResultCallbacks = [];
+const onDrawOfferCancelledCallbacks = [];
 
 export function onStateUpdate(fn) {
   onStateUpdateCallbacks.push(fn);
@@ -107,6 +110,15 @@ export function onComputerSkillChanged(fn) {
 }
 export function onComputerUnavailable(fn) {
   onComputerUnavailableCallbacks.push(fn);
+}
+export function onDrawOffer(fn) {
+  onDrawOfferCallbacks.push(fn);
+}
+export function onDrawResult(fn) {
+  onDrawResultCallbacks.push(fn);
+}
+export function onDrawOfferCancelled(fn) {
+  onDrawOfferCancelledCallbacks.push(fn);
 }
 
 function fireCallbacks(arr, data) {
@@ -361,6 +373,18 @@ function connect() {
         fireCallbacks(onComputerUnavailableCallbacks, msg);
         break;
       }
+      case 'drawOffer': {
+        fireCallbacks(onDrawOfferCallbacks, msg);
+        break;
+      }
+      case 'drawResult': {
+        fireCallbacks(onDrawResultCallbacks, msg);
+        break;
+      }
+      case 'drawOfferCancelled': {
+        fireCallbacks(onDrawOfferCancelledCallbacks, msg);
+        break;
+      }
     }
   };
 }
@@ -472,6 +496,18 @@ export function sendActivateComputer(color, skill) {
 export function sendChangeSkill(skill) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'changeSkill', skill }));
+  }
+}
+
+export function sendOfferDraw() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'offerDraw' }));
+  }
+}
+
+export function sendDrawResponse(accepted) {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'drawResponse', accepted }));
   }
 }
 

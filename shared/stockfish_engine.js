@@ -154,6 +154,46 @@ class StockfishEngine {
   }
 
   /**
+   * Evaluate the current position and return the score in centipawns.
+   * Positive = advantage for side to move, negative = disadvantage.
+   * Returns null if the engine is not available.
+   * @param {string} fen - Current FEN string
+   * @returns {Promise<number|null>} Score in centipawns, or null if unavailable
+   */
+  async getEvaluation(fen) {
+    if (!this.isReady) {
+      return null;
+    }
+
+    this.transport.send(`position fen ${fen}`);
+    this.transport.send('go movetime 500');
+
+    let lastScore = null;
+    const deadline = Date.now() + 3000;
+    while (Date.now() < deadline) {
+      const line = await this.transport.nextRaw(Math.max(100, deadline - Date.now()));
+      if (line.startsWith('bestmove')) {
+        break;
+      }
+      // Parse info line for score
+      if (line.startsWith('info ') && line.includes('score ')) {
+        const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
+        if (scoreMatch) {
+          const type = scoreMatch[1];
+          const value = parseInt(scoreMatch[2], 10);
+          if (type === 'cp') {
+            lastScore = value;
+          } else {
+            // Mate in N — treat as very large score
+            lastScore = value > 0 ? 10000 : -10000;
+          }
+        }
+      }
+    }
+    return lastScore;
+  }
+
+  /**
    * Gracefully shut down the Stockfish process.
    */
   async quit() {

@@ -913,72 +913,10 @@ canvas {
   background: #3aa33a;
 }
 
-/* ═══ Computer player skill selector ═══ */
-#computer-skill-select {
-  display: none;
-  margin-top: 20px;
-  padding-top: 18px;
-  border-top: 1px solid rgba(181, 136, 99, 0.3);
-}
-#computer-skill-select.visible {
-  display: block;
-}
-#computer-skill-label {
-  font-size: 14px;
-  color: #a08060;
-  margin-bottom: 8px;
-}
-#computer-skill-dropdown {
-  width: 220px;
-  padding: 10px 14px;
-  font-size: 16px;
-  font-family: inherit;
-  color: #f0d9b5;
-  background: rgba(60, 42, 28, 0.8);
-  border: 2px solid rgba(181, 136, 99, 0.4);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  appearance: none;
-  -webkit-appearance: none;
-  text-align: center;
-}
-#computer-skill-dropdown:hover {
-  border-color: rgba(240, 217, 181, 0.6);
-  background: rgba(80, 56, 38, 0.9);
-}
-#computer-skill-dropdown:focus {
-  outline: none;
-  border-color: #f0d9b5;
-}
-#computer-skill-dropdown option {
-  background: #2a1f14;
-  color: #f0d9b5;
-}
-#btn-activate-computer {
-  display: block;
-  width: 220px;
-  margin-top: 10px;
-  padding: 10px 14px;
-  font-size: 16px;
-  font-family: inherit;
-  font-weight: bold;
-  color: #f0d9b5;
-  background: rgba(60, 42, 28, 0.9);
-  border: 2px solid rgba(181, 136, 99, 0.5);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-#btn-activate-computer:hover {
-  background: rgba(80, 56, 38, 0.95);
-  border-color: #f0d9b5;
-}
-
 /* ═══ Computer thinking indicator ═══ */
 #computer-thinking {
   position: fixed;
-  top: 60px;
+  top: 80px;
   left: 50%;
   transform: translateX(-50%);
   color: #f0d9b5;
@@ -1007,4 +945,133 @@ canvas {
   50% {
     opacity: 0.6;
   }
+}
+
+/* ═══ Menu computer player section ═══ */
+#menu-computer-section,
+#menu-skill-change-section {
+  display: none;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(181, 136, 99, 0.3);
+}
+#menu-computer-section.visible,
+#menu-skill-change-section.visible {
+  display: block;
+}
+#menu-computer-label,
+#menu-skill-change-label {
+  font-size: 14px;
+  color: #a08060;
+  margin-bottom: 8px;
+}
+#menu-computer-skill-dropdown,
+#menu-skill-change-dropdown {
+  width: 220px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #f0d9b5;
+  background: rgba(60, 42, 28, 0.8);
+  border: 2px solid rgba(181, 136, 99, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+  margin-bottom: 8px;
+}
+#menu-computer-skill-dropdown:hover,
+#menu-skill-change-dropdown:hover {
+  border-color: rgba(240, 217, 181, 0.6);
+}
+#menu-computer-skill-dropdown:focus,
+#menu-skill-change-dropdown:focus {
+  outline: none;
+  border-color: #f0d9b5;
+}
+#menu-computer-skill-dropdown option,
+#menu-skill-change-dropdown option {
+  background: #2a1f14;
+  color: #f0d9b5;
+}
+#btn-menu-activate-computer,
+#btn-menu-change-skill {
+  display: block;
+  width: 220px;
+  margin: 0 auto;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  font-weight: bold;
+  color: #f0d9b5;
+  background: rgba(60, 42, 28, 0.9);
+  border: 2px solid rgba(181, 136, 99, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#btn-menu-activate-computer:hover,
+#btn-menu-change-skill:hover {
+  background: rgba(80, 56, 38, 0.95);
+  border-color: #f0d9b5;
+}
+
+/* ═══ Draw offer overlay ═══ */
+#draw-offer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 5, 0.75);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+}
+#draw-offer-overlay.visible {
+  display: flex;
+}
+#draw-offer-box {
+  background: rgba(30, 22, 14, 0.97);
+  border: 2px solid rgba(181, 136, 99, 0.6);
+  border-radius: 14px;
+  padding: 28px 36px;
+  text-align: center;
+  color: #f0d9b5;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#draw-offer-box h3 {
+  margin-bottom: 14px;
+  font-size: 20px;
+}
+#draw-offer-text {
+  margin-bottom: 22px;
+  font-size: 14px;
+  color: #a08060;
+}
+#draw-offer-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+#draw-offer-actions button {
+  padding: 10px 28px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #1a1410;
+  background: #f0d9b5;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+#draw-offer-actions button:hover {
+  background: #d4bc94;
+}
+#draw-offer-actions button.cancel {
+  background: #555;
+  color: #ccc;
+}
+#draw-offer-actions button.cancel:hover {
+  background: #666;
 }

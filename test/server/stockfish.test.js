@@ -239,6 +239,40 @@ describe('UciTransport — quit', () => {
   });
 });
 
+describe('StockfishEngine — evaluation', () => {
+  test('getEvaluation returns a score for startpos', async () => {
+    const { getStockfishEngine, resetStockfishEngine } = require('../../shared/stockfish_engine');
+    const engine = getStockfishEngine({ stockfishPath: STOCKFISH });
+    try {
+      await engine.spawn();
+      const score = await engine.getEvaluation('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      assert.ok(typeof score === 'number', `expected number, got ${typeof score}: ${score}`);
+      // Starting position should be near 0 (slight white advantage expected)
+      assert.ok(Math.abs(score) < 50, `startpos score should be near 0, got ${score}`);
+    } finally {
+      await engine.quit().catch(() => {});
+      resetStockfishEngine();
+    }
+  });
+
+  test('getEvaluation then getBestMove does not leave stale bestmove', async () => {
+    const { getStockfishEngine, resetStockfishEngine } = require('../../shared/stockfish_engine');
+    const engine = getStockfishEngine({ stockfishPath: STOCKFISH });
+    try {
+      await engine.spawn();
+      // First: evaluation
+      const score = await engine.getEvaluation('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      assert.ok(typeof score === 'number', `expected number, got ${typeof score}`);
+      // Second: getBestMove — should work cleanly without stale data
+      const move = await engine.getBestMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'beginner');
+      assert.ok(typeof move === 'string' && move.length >= 4, `expected UCI move, got: ${move}`);
+    } finally {
+      await engine.quit().catch(() => {});
+      resetStockfishEngine();
+    }
+  });
+});
+
 // ── Run ──────────────────────────────────────────────────
 run().catch((err) => {
   console.error(`FATAL: ${err.message}`);

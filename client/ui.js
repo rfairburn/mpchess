@@ -26,6 +26,8 @@ import {
   sendImportFen,
   sendActivateComputer,
   sendChangeSkill,
+  sendOfferDraw,
+  sendDrawResponse,
   onStateUpdate,
   onMove,
   onRestart,
@@ -43,6 +45,9 @@ import {
   onComputerThinking,
   onComputerSkillChanged,
   onComputerUnavailable,
+  onDrawOffer,
+  onDrawResult,
+  onDrawOfferCancelled,
   retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
@@ -58,6 +63,7 @@ const menuOverlay = document.getElementById('menu-overlay');
 const btnResume = document.getElementById('btn-resume');
 const btnRestart = document.getElementById('btn-restart');
 const btnConcede = document.getElementById('btn-concede');
+const btnOfferDraw = document.getElementById('btn-offer-draw');
 const promoOverlay = document.getElementById('promo-overlay');
 const promoButtons = document.querySelectorAll('#promo-choices button');
 const concedeOverlay = document.getElementById('concede-overlay');
@@ -103,8 +109,21 @@ const btnJoinBlack = document.getElementById('btn-join-black');
 const btnJoinSpectator = document.getElementById('btn-join-spectator');
 
 // Computer player UI
-const computerSkillSelect = document.getElementById('computer-skill-select');
 const computerThinkingIndicator = document.getElementById('computer-thinking');
+
+// Menu computer player section
+const menuComputerSection = document.getElementById('menu-computer-section');
+const menuSkillChangeSection = document.getElementById('menu-skill-change-section');
+const menuComputerSkillDropdown = document.getElementById('menu-computer-skill-dropdown');
+const menuSkillChangeDropdown = document.getElementById('menu-skill-change-dropdown');
+const btnMenuActivateComputer = document.getElementById('btn-menu-activate-computer');
+const btnMenuChangeSkill = document.getElementById('btn-menu-change-skill');
+
+// Draw offer overlay
+const drawOfferOverlay = document.getElementById('draw-offer-overlay');
+const drawOfferText = document.getElementById('draw-offer-text');
+const btnDrawAccept = document.getElementById('btn-draw-accept');
+const btnDrawDecline = document.getElementById('btn-draw-decline');
 
 let errorTimeout = null;
 export let menuOpen = false;
@@ -278,9 +297,36 @@ export function showMenu() {
   menuOverlay.classList.add('visible');
   if (document.pointerLockElement) document.exitPointerLock();
   const isSpectator = myRole === 'spectator';
+  const isPlayer = myRole === 'white' || myRole === 'black';
   btnRestart.disabled = isSpectator;
   btnConcede.disabled = isSpectator || serverGameOver;
   btnImportFen.disabled = isSpectator;
+  btnOfferDraw.disabled = !isPlayer || serverGameOver;
+
+  // Show/hide computer player sections in menu
+  if (isPlayer && !serverGameOver) {
+    const opponentColor = myRole === 'white' ? 'black' : 'white';
+    const opponentSeat = seatStatus[opponentColor];
+    const opponentSeatFree = opponentSeat?.status === 'free';
+
+    if (computerPlayer) {
+      // Computer opponent is active — show skill change section
+      menuComputerSection.classList.remove('visible');
+      menuSkillChangeSection.classList.add('visible');
+      menuSkillChangeDropdown.value = computerPlayer.skill || 'master';
+    } else if (opponentSeatFree) {
+      // No computer opponent and opponent seat is free — show activate section
+      menuComputerSection.classList.add('visible');
+      menuSkillChangeSection.classList.remove('visible');
+    } else {
+      // Opponent seat is occupied, held, or computer — hide both sections
+      menuComputerSection.classList.remove('visible');
+      menuSkillChangeSection.classList.remove('visible');
+    }
+  } else {
+    menuComputerSection.classList.remove('visible');
+    menuSkillChangeSection.classList.remove('visible');
+  }
 }
 
 export function hideMenu() {
@@ -314,6 +360,31 @@ btnRestart.addEventListener('click', () => {
   sendRestart();
   hideMenu();
 });
+
+// Offer draw button
+btnOfferDraw.addEventListener('click', () => {
+  sendOfferDraw();
+  hideMenu();
+});
+
+// Menu computer player activation
+if (btnMenuActivateComputer) {
+  btnMenuActivateComputer.addEventListener('click', () => {
+    const skill = menuComputerSkillDropdown?.value || 'master';
+    const opponentColor = myRole === 'white' ? 'black' : 'white';
+    sendActivateComputer(opponentColor, skill);
+    hideMenu();
+  });
+}
+
+// Menu skill change
+if (btnMenuChangeSkill) {
+  btnMenuChangeSkill.addEventListener('click', () => {
+    const skill = menuSkillChangeDropdown?.value || 'master';
+    sendChangeSkill(skill);
+    hideMenu();
+  });
+}
 
 // Export buttons
 const btnExportFen = document.getElementById('btn-export-fen');
@@ -373,6 +444,27 @@ btnConcedeConfirm.addEventListener('click', () => {
   hideConcedeConfirm();
 });
 btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
+
+// ── Draw offer ───────────────────────────────────────────
+
+export function showDrawOffer(fromColor) {
+  const colorLabel = fromColor === 'white' ? 'White' : 'Black';
+  drawOfferText.textContent = `${colorLabel} offers a draw.`;
+  drawOfferOverlay.classList.add('visible');
+}
+
+export function hideDrawOffer() {
+  drawOfferOverlay.classList.remove('visible');
+}
+
+btnDrawAccept.addEventListener('click', () => {
+  sendDrawResponse(true);
+  hideDrawOffer();
+});
+btnDrawDecline.addEventListener('click', () => {
+  sendDrawResponse(false);
+  hideDrawOffer();
+});
 
 // ── Import FEN ───────────────────────────────────────────
 
@@ -465,6 +557,11 @@ onStateUpdate((msg) => {
   updateCapturedPieces(msg.capturedPieces);
   hideConcedeConfirm();
 
+  // Hide draw offer popup when game ends
+  if (serverGameOver) {
+    hideDrawOffer();
+  }
+
   // Game over
   if (serverGameOver && serverGameResult) {
     document.getElementById('game-over-text').textContent = serverGameResult;
@@ -498,6 +595,7 @@ onRestart(() => {
   updateCapturedPieces(null);
   hidePromotionPicker();
   hideConcedeConfirm();
+  hideDrawOffer();
   document.getElementById('game-over-overlay').classList.remove('visible');
 });
 
@@ -707,21 +805,7 @@ function updateJoinButtons() {
   setJoinButton(btnJoinBlack, seatStatus.black, 'Black');
   btnJoinSpectator.disabled = false;
 
-  // Show/hide computer skill selector based on whether one seat is occupied
-  const whiteOccupied = seatStatus.white?.status === 'occupied';
-  const blackOccupied = seatStatus.black?.status === 'occupied';
-  const whiteComputer = seatStatus.white?.status === 'computer';
-  const blackComputer = seatStatus.black?.status === 'computer';
-  const exactlyOneHuman = (whiteOccupied && !blackOccupied && !blackComputer) || (!whiteOccupied && !whiteComputer && blackOccupied);
-  const exactlyOneSeatFree = (seatStatus.white?.status === 'free') !== (seatStatus.black?.status === 'free');
-
-  if (computerSkillSelect) {
-    if (exactlyOneHuman && exactlyOneSeatFree) {
-      computerSkillSelect.classList.add('visible');
-    } else {
-      computerSkillSelect.classList.remove('visible');
-    }
-  }
+  // Computer skill selector is now in the ESC menu, not the join overlay
 }
 
 function setJoinButton(btn, seat, colorName) {
@@ -787,24 +871,6 @@ btnJoinSpectator.addEventListener('click', () => {
 
 // ── Computer player callbacks ───────────────────────────
 
-function getFreeSeatColor() {
-  if (seatStatus.white?.status === 'free') return 'white';
-  if (seatStatus.black?.status === 'free') return 'black';
-  return null;
-}
-
-// Computer activation button — reads the dropdown value explicitly
-const btnActivateComputer = document.getElementById('btn-activate-computer');
-if (btnActivateComputer) {
-  btnActivateComputer.addEventListener('click', () => {
-    const freeColor = getFreeSeatColor();
-    if (!freeColor) return;
-    const skillDropdown = document.getElementById('computer-skill-dropdown');
-    const skill = skillDropdown?.value || 'master';
-    sendActivateComputer(freeColor, skill);
-  });
-}
-
 onComputerActivated((msg) => {
   showInfo(`Computer player activated (${SKILL_LABELS[msg.skill] || msg.skill})`);
 });
@@ -839,4 +905,24 @@ onComputerUnavailable((msg) => {
 onReconnectFailed(() => {
   showJoinOverlay();
   updateJoinButtons();
+});
+
+// ── Draw offer callbacks ────────────────────────────────
+
+onDrawOffer((msg) => {
+  showDrawOffer(msg.fromColor);
+});
+
+onDrawResult((msg) => {
+  hideDrawOffer();
+  if (msg.accepted) {
+    showInfo('Draw accepted — game ended in a draw.');
+  } else {
+    showError(msg.reason || 'Draw offer declined.');
+  }
+});
+
+onDrawOfferCancelled(() => {
+  hideDrawOffer();
+  showInfo('Draw offer was cancelled.');
 });

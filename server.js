@@ -36,6 +36,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   let computerSkill = null; // skill level key
   const engine = getStockfishEngine(options.computerPlayer || {});
 
+  // ── Draw offer state ──
+  let drawOffer = null; // { from: ws, to: ws } or null
+
   function debugLog(...args) {
     if (DEBUG) {
       console.log('[DEBUG]', ...args);
@@ -474,6 +477,119 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     })();
   }
 
+  function clearDrawOffer() {
+    if (!drawOffer) return;
+    // Notify the intended responder that the offer has been cancelled
+    if (drawOffer.to && drawOffer.to.readyState === 1) {
+      send(drawOffer.to, { type: 'drawOfferCancelled' });
+    }
+    drawOffer = null;
+  }
+
+  async function handleComputerDrawOffer(offererWs) {
+    // Use Stockfish to evaluate the position and decide on the draw
+    let accepted = false;
+    let reason = 'Computer declined the draw offer';
+
+    try {
+      if (!engine.isReady) {
+        try { await engine.spawn(); } catch { /* engine unavailable — decline */ }
+      }
+      if (engine.isReady) {
+        const fen = game.currentFen();
+        const evalScore = await engine.getEvaluation(fen);
+        // Accept draw if evaluation is within ±50 centipawns (roughly half a pawn)
+        if (evalScore !== null && Math.abs(evalScore) <= 50) {
+          accepted = true;
+          reason = 'Computer accepted the draw offer';
+        }
+      }
+    } catch (err) {
+      console.error(`[Stockfish] Draw evaluation error: ${err.message}`);
+    }
+
+    if (accepted) {
+      game.gameOver = true;
+      game.gameResult = 'Draw by agreement';
+      broadcast({ type: 'drawResult', accepted: true });
+      broadcastState();
+    } else {
+      send(offererWs, { type: 'drawResult', accepted: false, reason });
+    }
+  }
+
+  function handleOfferDraw(ws, data) {
+    const callerColor = game.players.get(ws);
+    if (!callerColor) {
+      send(ws, { type: 'error', reason: 'Only seated players can offer a draw' });
+      return;
+    }
+    if (game.gameOver) {
+      send(ws, { type: 'error', reason: 'Game is already over' });
+      return;
+    }
+
+    // Check if there's an opponent
+    let opponentWs = null;
+    for (const [c] of game.players) {
+      if (c !== ws) { opponentWs = c; break; }
+    }
+    if (!opponentWs && computerColor) {
+      // Opponent is computer — evaluate position via Stockfish
+      clearDrawOffer();
+      handleComputerDrawOffer(ws);
+      return;
+    }
+    if (!opponentWs) {
+      send(ws, { type: 'error', reason: 'No opponent to offer a draw to' });
+      return;
+    }
+
+    // Send draw offer to opponent — track both offerer and intended responder
+    drawOffer = { from: ws, to: opponentWs };
+    send(opponentWs, { type: 'drawOffer', fromColor: callerColor });
+  }
+
+  function handleDrawResponse(ws, data) {
+    if (!drawOffer) {
+      send(ws, { type: 'error', reason: 'No draw offer pending' });
+      return;
+    }
+    if (game.gameOver) {
+      send(ws, { type: 'error', reason: 'Game is already over' });
+      clearDrawOffer();
+      return;
+    }
+
+    // Only the intended responder may answer — reject the offerer and any third party
+    if (ws !== drawOffer.to) {
+      send(ws, { type: 'error', reason: 'You did not receive this draw offer' });
+      return;
+    }
+
+    const responderColor = game.players.get(ws);
+    if (!responderColor) {
+      send(ws, { type: 'error', reason: 'Only seated players can respond to draw offers' });
+      return;
+    }
+
+    const { accepted } = data;
+    const offererWs = drawOffer.from;
+    clearDrawOffer();
+
+    if (accepted) {
+      // Both players agree — end the game as a draw
+      game.gameOver = true;
+      game.gameResult = 'Draw by agreement';
+      broadcast({ type: 'drawResult', accepted: true });
+      broadcastState();
+    } else {
+      // Declined — notify the offerer
+      send(offererWs, { type: 'drawResult', accepted: false, reason: 'Opponent declined the draw offer' });
+      send(ws, { type: 'drawResult', accepted: false, reason: 'You declined the draw offer' });
+    }
+  }
+
   function handleJoin(ws, data) {
     const { color } = data;
     if (color !== 'white' && color !== 'black' && color !== 'spectator') return;
@@ -626,6 +742,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             debugLog('Game restart: OLD FEN:', oldFen);
             // Evict computer player on restart
             evictComputerPlayer();
+            clearDrawOffer();
             game.reset();
             const newFen = game.currentFen();
             debugLog('Game restart: NEW FEN:', newFen);
@@ -646,6 +763,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (!color) return;
           const ok = game.concede(ws);
           if (ok) {
+            clearDrawOffer();
             broadcastState();
           }
           break;
@@ -673,6 +791,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             break;
           }
           try {
+            clearDrawOffer();
             const oldFen = game.currentFen();
             debugLog('FEN import: OLD FEN:', oldFen);
             debugLog('FEN import: NEW FEN:', fen.trim());
@@ -726,11 +845,23 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           })();
           break;
         }
+        case 'offerDraw': {
+          handleOfferDraw(ws, msg);
+          break;
+        }
+        case 'drawResponse': {
+          handleDrawResponse(ws, msg);
+          break;
+        }
       }
     });
 
     ws.on('close', () => {
       rateLimitBuckets.delete(ws);
+      // Clear any pending draw offer involving this player
+      if (drawOffer && (drawOffer.from === ws || drawOffer.to === ws)) {
+        clearDrawOffer();
+      }
       const session = sessions.get(ws);
       if (session) {
         const { token, color } = session;

@@ -1512,6 +1512,210 @@ describe('Promotion — broadcast order guarantees client sync', () => {
   });
 });
 
+describe('Draw offer — basic flow', () => {
+  test('player offers draw, opponent receives drawOffer', () => {
+    const { wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Opponent should receive the draw offer
+    const drawOffers = ws2.getSent('drawOffer');
+    assert.strictEqual(drawOffers.length, 1);
+    assert.strictEqual(drawOffers[0].fromColor, 'white');
+  });
+
+  test('opponent accepts draw — game ends in draw', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Black accepts
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    // Both should receive drawResult with accepted: true
+    const ws1Results = ws1.getSent('drawResult');
+    const ws2Results = ws2.getSent('drawResult');
+    assert.ok(ws1Results.length >= 1);
+    assert.ok(ws2Results.length >= 1);
+    assert.strictEqual(ws1Results[ws1Results.length - 1].accepted, true);
+    assert.strictEqual(ws2Results[ws2Results.length - 1].accepted, true);
+    // Game should be over
+    assert.strictEqual(game.gameOver, true);
+    assert.strictEqual(game.gameResult, 'Draw by agreement');
+  });
+
+  test('opponent declines draw — offerer notified', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Black declines
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: false }));
+    // Offerer should receive drawResult with accepted: false
+    const ws1Results = ws1.getSent('drawResult');
+    assert.ok(ws1Results.length >= 1);
+    assert.strictEqual(ws1Results[ws1Results.length - 1].accepted, false);
+    // Game should NOT be over
+    assert.strictEqual(game.gameOver, false);
+  });
+
+  test('spectator cannot offer draw', () => {
+    const { wss } = createTestEnv();
+    joinAs(wss, 'white');
+    joinAs(wss, 'black');
+    const ws3 = joinAs(wss, 'spectator');
+    ws3.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    const errors = ws3.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('seated'));
+  });
+
+  test('cannot offer draw after game over', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    game.gameOver = true;
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    const errors = ws1.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('over'));
+  });
+
+  test('draw offer cleared when offerer disconnects', () => {
+    const { wss, game } = createTestEnv(50);
+    const ws1 = joinAs(wss, 'white');
+    const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // White disconnects — draw offer should be cleared
+    wss.simulateDisconnect(ws1);
+    // White reconnects with token
+    const ws1_new = wss.simulateConnection();
+    ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token: token1 }));
+    assert.strictEqual(ws1_new.getSent('reconnected').length, 1);
+    // Reconnected white should not receive a stale draw offer
+    const drawOffers = ws1_new.getSent('drawOffer');
+    assert.strictEqual(drawOffers.length, 0);
+  });
+
+  test('cannot respond to draw offer when none pending', () => {
+    const { wss } = createTestEnv();
+    joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws2.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('pending'));
+  });
+
+  test('draw offer with no opponent (solo player) returns error', () => {
+    const { wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    // No black player, no computer
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    const errors = ws1.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('opponent'));
+  });
+
+  test('offerer cannot resolve their own draw offer', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // White (offerer) tries to accept their own offer
+    ws1.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws1.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('receive'));
+    // Game should NOT be over
+    assert.strictEqual(game.gameOver, false);
+  });
+
+  test('draw response rejected after game restart', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Restart the game before responding
+    ws1.emit('message', JSON.stringify({ type: 'restart' }));
+    // Stale draw response should be rejected
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws2.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('pending'));
+    // Game should NOT be a draw
+    assert.strictEqual(game.gameOver, false);
+  });
+
+  test('draw response rejected after concede', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // White concedes before black responds — clears the pending offer
+    ws1.emit('message', JSON.stringify({ type: 'concede' }));
+    assert.strictEqual(game.gameOver, true);
+    // Stale draw response should be rejected (offer was cleared by concede)
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws2.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('pending'));
+  });
+
+  test('draw offer cleared on FEN import', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Import FEN before responding
+    ws1.emit('message', JSON.stringify({ type: 'importFen', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1' }));
+    // Stale draw response should be rejected
+    ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws2.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('pending'));
+  });
+
+  test('responder receives drawOfferCancelled on restart', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    assert.strictEqual(ws2.getSent('drawOffer').length, 1);
+    // Restart clears the offer
+    ws1.emit('message', JSON.stringify({ type: 'restart' }));
+    // Responder should receive cancellation
+    const cancelled = ws2.getSent('drawOfferCancelled');
+    assert.strictEqual(cancelled.length, 1);
+  });
+
+  test('responder receives drawOfferCancelled on concede', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    assert.strictEqual(ws2.getSent('drawOffer').length, 1);
+    // Concede clears the offer
+    ws1.emit('message', JSON.stringify({ type: 'concede' }));
+    // Responder should receive cancellation
+    const cancelled = ws2.getSent('drawOfferCancelled');
+    assert.strictEqual(cancelled.length, 1);
+  });
+
+  test('responder receives drawOfferCancelled when offerer disconnects', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    assert.strictEqual(ws2.getSent('drawOffer').length, 1);
+    // Offerer disconnects
+    wss.simulateDisconnect(ws1);
+    // Responder should receive cancellation
+    const cancelled = ws2.getSent('drawOfferCancelled');
+    assert.strictEqual(cancelled.length, 1);
+  });
+});
+
 // ── Results — print everything in declaration order ──────
 
 async function printResults() {

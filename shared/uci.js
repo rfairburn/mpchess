@@ -19,8 +19,11 @@ class UciTransport {
   constructor(binaryPath) {
     this.binaryPath = binaryPath;
     this.proc = null;
+    // Single shared ordered buffer — all lines go here first.
+    // nextRaw() takes any line; next() skips info/option lines.
     this._buffer = [];
-    this._pending = [];
+    this._pending = null; // single pending reader for next()
+    this._pendingRaw = null; // single pending reader for nextRaw()
     this._partial = '';  // carry-over for lines split across chunks
   }
 
@@ -32,14 +35,19 @@ class UciTransport {
       });
 
       this.proc.on('error', (err) => {
-        if (this._pending.length > 0) {
-          this._pending.shift().reject(err);
+        // Reject any pending reader
+        if (this._pending) {
+          const p = this._pending; this._pending = null;
+          p.reject(err);
+        } else if (this._pendingRaw) {
+          const p = this._pendingRaw; this._pendingRaw = null;
+          p.reject(err);
         } else {
           reject(err);
         }
       });
 
-      // Line reader — filters out informational UCI output.
+      // Line reader — all lines go into the shared buffer.
       // Keeps a carry-over string so lines split across chunks are handled correctly.
       this.proc.stdout.on('data', (chunk) => {
         const text = this._partial + chunk.toString();
@@ -79,21 +87,42 @@ class UciTransport {
    * @returns {Promise<string>}
    */
   next(timeoutMs = 5000) {
-    if (this._buffer.length > 0) return Promise.resolve(this._buffer.shift());
+    // Try to resolve from the buffer immediately
+    const found = this._tryResolveNext();
+    if (found) return Promise.resolve(found);
 
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        const idx = this._pending.indexOf(p);
-        if (idx !== -1) this._pending.splice(idx, 1);
-        reject(new Error(`No response within ${timeoutMs}ms`));
+        if (this._pending === p) {
+          this._pending = null;
+          reject(new Error(`No response within ${timeoutMs}ms`));
+        }
       }, timeoutMs);
 
       const p = {
         resolve: (line) => { clearTimeout(timer); resolve(line); },
         reject: (err) => { clearTimeout(timer); reject(err); },
       };
-      this._pending.push(p);
+      this._pending = p;
     });
+  }
+
+  /**
+   * Try to resolve a next() call from the buffer.
+   * Skips info/option/blank lines (leaves them for nextRaw()).
+   * Returns the first non-filtered line if found, null otherwise.
+   */
+  _tryResolveNext() {
+    while (this._buffer.length > 0) {
+      const line = this._buffer[0];
+      if (line === '' || line.startsWith('option ') || line.startsWith('info ')) {
+        this._buffer.shift(); // discard filtered lines — next() doesn't want them
+        continue;
+      }
+      this._buffer.shift();
+      return line;
+    }
+    return null;
   }
 
   /**
@@ -114,6 +143,35 @@ class UciTransport {
     throw new Error(`Did not receive "${prefix}..." within ${timeoutMs}ms`);
   }
 
+  /**
+   * Read the next line from stdout without filtering info/option lines.
+   * Useful for capturing evaluation scores from info lines.
+   * Consumes from the same shared buffer as next().
+   * @param {number} [timeoutMs=5000]
+   * @returns {Promise<string>}
+   */
+  nextRaw(timeoutMs = 5000) {
+    // Try to resolve from the buffer immediately
+    if (this._buffer.length > 0) {
+      return Promise.resolve(this._buffer.shift());
+    }
+
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this._pendingRaw === p) {
+          this._pendingRaw = null;
+          reject(new Error(`No raw response within ${timeoutMs}ms`));
+        }
+      }, timeoutMs);
+
+      const p = {
+        resolve: (line) => { clearTimeout(timer); resolve(line); },
+        reject: (err) => { clearTimeout(timer); reject(err); },
+      };
+      this._pendingRaw = p;
+    });
+  }
+
   /** Quit the Stockfish process via UCI and wait for exit. */
   async quit() {
     if (!this.proc) return;
@@ -132,14 +190,32 @@ class UciTransport {
   // ── internal ───────────────────────────────────────────────
 
   _dispatch(line) {
-    // Filter informational lines that are not command responses.
-    if (line === '' || line.startsWith('option ') || line.startsWith('info ')) {
+    // If a raw reader is waiting, deliver to it (raw takes priority — it wants everything)
+    if (this._pendingRaw) {
+      const p = this._pendingRaw; this._pendingRaw = null;
+      p.resolve(line);
       return;
     }
-    if (this._pending.length > 0) {
-      this._pending.shift().resolve(line);
-    } else {
-      this._buffer.push(line);
+    // If a normal reader is waiting, try to satisfy it
+    if (this._pending) {
+      const filtered = (line === '' || line.startsWith('option ') || line.startsWith('info '));
+      if (!filtered) {
+        const p = this._pending; this._pending = null;
+        p.resolve(line);
+        return;
+      }
+      // Line is info/option — normal reader skips it, but we must keep it
+      // in the buffer so nextRaw() can consume it
+    }
+    // Buffer the line
+    this._buffer.push(line);
+    // If a normal reader is waiting, try again now that we have a new line
+    if (this._pending) {
+      const found = this._tryResolveNext();
+      if (found) {
+        const p = this._pending; this._pending = null;
+        p.resolve(found);
+      }
     }
   }
 }
