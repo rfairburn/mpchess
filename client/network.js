@@ -28,6 +28,7 @@ export let enPassantTarget = null;
 export let disconnectedPlayersInfo = [];
 export let seatStatus = { white: { status: 'unknown' }, black: { status: 'unknown' } };
 export let validatedTokens = {}; // { white: true/false, black: true/false } — server-confirmed
+export let computerPlayer = null; // { color: 'white'|'black', skill: string } | null
 export let halfmoveClock = 0;
 export let threefoldCount = 0;
 export let currentFen = '';
@@ -48,6 +49,10 @@ const onGameAvailableCallbacks = [];
 const onReconnectFailedCallbacks = [];
 const onConnectedCallbacks = []; // fires on raw WebSocket open (before any messages)
 const onConnectionErrorCallbacks = []; // fires when WebSocket connection fails entirely
+const onComputerActivatedCallbacks = [];
+const onComputerThinkingCallbacks = [];
+const onComputerSkillChangedCallbacks = [];
+const onComputerUnavailableCallbacks = [];
 
 export function onStateUpdate(fn) {
   onStateUpdateCallbacks.push(fn);
@@ -90,6 +95,18 @@ export function onConnected(fn) {
 }
 export function onConnectionError(fn) {
   onConnectionErrorCallbacks.push(fn);
+}
+export function onComputerActivated(fn) {
+  onComputerActivatedCallbacks.push(fn);
+}
+export function onComputerThinking(fn) {
+  onComputerThinkingCallbacks.push(fn);
+}
+export function onComputerSkillChanged(fn) {
+  onComputerSkillChangedCallbacks.push(fn);
+}
+export function onComputerUnavailable(fn) {
+  onComputerUnavailableCallbacks.push(fn);
 }
 
 function fireCallbacks(arr, data) {
@@ -198,6 +215,7 @@ function connect() {
         enPassantTarget = msg.enPassantTarget;
         disconnectedPlayersInfo = msg.disconnectedPlayers || [];
         if (msg.seats) seatStatus = msg.seats;
+        computerPlayer = msg.computerPlayer || null;
         halfmoveClock = msg.halfmoveClock ?? 0;
         threefoldCount = msg.threefoldCount ?? 0;
         currentFen = msg.fen || '';
@@ -327,6 +345,22 @@ function connect() {
         }
         break;
       }
+      case 'computerActivated': {
+        fireCallbacks(onComputerActivatedCallbacks, msg);
+        break;
+      }
+      case 'computerThinking': {
+        fireCallbacks(onComputerThinkingCallbacks, msg);
+        break;
+      }
+      case 'computerSkillChanged': {
+        fireCallbacks(onComputerSkillChangedCallbacks, msg);
+        break;
+      }
+      case 'computerUnavailable': {
+        fireCallbacks(onComputerUnavailableCallbacks, msg);
+        break;
+      }
     }
   };
 }
@@ -426,6 +460,18 @@ export function sendExportPgn() {
 export function sendImportFen(fen) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'importFen', fen }));
+  }
+}
+
+export function sendActivateComputer(color, skill) {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'activateComputer', color, skill }));
+  }
+}
+
+export function sendChangeSkill(skill) {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'changeSkill', skill }));
   }
 }
 

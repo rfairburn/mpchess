@@ -11,6 +11,7 @@ import {
   moveHistory,
   disconnectedPlayersInfo,
   seatStatus,
+  computerPlayer,
   tokenKey,
   validatedTokens,
   halfmoveClock,
@@ -23,7 +24,10 @@ import {
   sendExportFen,
   sendExportPgn,
   sendImportFen,
+  sendActivateComputer,
+  sendChangeSkill,
   onStateUpdate,
+  onMove,
   onRestart,
   onError,
   onInfo,
@@ -35,6 +39,10 @@ import {
   onReconnectFailed,
   onConnected,
   onConnectionError,
+  onComputerActivated,
+  onComputerThinking,
+  onComputerSkillChanged,
+  onComputerUnavailable,
   retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
@@ -94,8 +102,22 @@ const btnJoinWhite = document.getElementById('btn-join-white');
 const btnJoinBlack = document.getElementById('btn-join-black');
 const btnJoinSpectator = document.getElementById('btn-join-spectator');
 
+// Computer player UI
+const computerSkillSelect = document.getElementById('computer-skill-select');
+const computerThinkingIndicator = document.getElementById('computer-thinking');
+
 let errorTimeout = null;
 export let menuOpen = false;
+
+// Skill level definitions (must match server)
+const SKILL_LEVELS = ['beginner', 'intermediate', 'advanced', 'master', 'grandmaster'];
+const SKILL_LABELS = {
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+  master: 'Master',
+  grandmaster: 'Grandmaster',
+};
 
 // Track previous role so we can reposition the camera on join/reconnect
 let prevRole = null;
@@ -684,6 +706,22 @@ function updateJoinButtons() {
   setJoinButton(btnJoinWhite, seatStatus.white, 'White');
   setJoinButton(btnJoinBlack, seatStatus.black, 'Black');
   btnJoinSpectator.disabled = false;
+
+  // Show/hide computer skill selector based on whether one seat is occupied
+  const whiteOccupied = seatStatus.white?.status === 'occupied';
+  const blackOccupied = seatStatus.black?.status === 'occupied';
+  const whiteComputer = seatStatus.white?.status === 'computer';
+  const blackComputer = seatStatus.black?.status === 'computer';
+  const exactlyOneHuman = (whiteOccupied && !blackOccupied && !blackComputer) || (!whiteOccupied && !whiteComputer && blackOccupied);
+  const exactlyOneSeatFree = (seatStatus.white?.status === 'free') !== (seatStatus.black?.status === 'free');
+
+  if (computerSkillSelect) {
+    if (exactlyOneHuman && exactlyOneSeatFree) {
+      computerSkillSelect.classList.add('visible');
+    } else {
+      computerSkillSelect.classList.remove('visible');
+    }
+  }
 }
 
 function setJoinButton(btn, seat, colorName) {
@@ -704,6 +742,10 @@ function setJoinButton(btn, seat, colorName) {
   } else if (seat.status === 'occupied') {
     btn.disabled = true;
     statusEl.textContent = 'Occupied';
+  } else if (seat.status === 'computer') {
+    btn.disabled = true;
+    const skillLabel = SKILL_LABELS[seat.skill] || seat.skill;
+    statusEl.textContent = `Computer (${skillLabel})`;
   } else if (seat.status === 'held') {
     btn.disabled = true;
     updateSeatCountdown(btn, seat.freesAt, colorName);
@@ -741,6 +783,56 @@ btnJoinBlack.addEventListener('click', () => {
 
 btnJoinSpectator.addEventListener('click', () => {
   sendJoin('spectator');
+});
+
+// ── Computer player callbacks ───────────────────────────
+
+function getFreeSeatColor() {
+  if (seatStatus.white?.status === 'free') return 'white';
+  if (seatStatus.black?.status === 'free') return 'black';
+  return null;
+}
+
+// Computer activation button — reads the dropdown value explicitly
+const btnActivateComputer = document.getElementById('btn-activate-computer');
+if (btnActivateComputer) {
+  btnActivateComputer.addEventListener('click', () => {
+    const freeColor = getFreeSeatColor();
+    if (!freeColor) return;
+    const skillDropdown = document.getElementById('computer-skill-dropdown');
+    const skill = skillDropdown?.value || 'master';
+    sendActivateComputer(freeColor, skill);
+  });
+}
+
+onComputerActivated((msg) => {
+  showInfo(`Computer player activated (${SKILL_LABELS[msg.skill] || msg.skill})`);
+});
+
+onComputerThinking((msg) => {
+  if (computerThinkingIndicator) {
+    const color = msg.color === 'white' ? 'White' : 'Black';
+    computerThinkingIndicator.textContent = `🤖 ${color} is thinking...`;
+    computerThinkingIndicator.classList.add('visible');
+  }
+});
+
+// Hide thinking indicator on any move
+onMove(() => {
+  if (computerThinkingIndicator) {
+    computerThinkingIndicator.classList.remove('visible');
+  }
+});
+
+onComputerSkillChanged((msg) => {
+  showInfo(`Skill changed to ${SKILL_LABELS[msg.skill] || msg.skill}`);
+});
+
+onComputerUnavailable((msg) => {
+  showError(msg.reason || 'Computer player unavailable');
+  if (computerThinkingIndicator) {
+    computerThinkingIndicator.classList.remove('visible');
+  }
 });
 
 // Show join overlay when reconnect fails

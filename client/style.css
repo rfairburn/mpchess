@@ -912,3 +912,99 @@ canvas {
 #btn-join-game:hover {
   background: #3aa33a;
 }
+
+/* ═══ Computer player skill selector ═══ */
+#computer-skill-select {
+  display: none;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(181, 136, 99, 0.3);
+}
+#computer-skill-select.visible {
+  display: block;
+}
+#computer-skill-label {
+  font-size: 14px;
+  color: #a08060;
+  margin-bottom: 8px;
+}
+#computer-skill-dropdown {
+  width: 220px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-family: inherit;
+  color: #f0d9b5;
+  background: rgba(60, 42, 28, 0.8);
+  border: 2px solid rgba(181, 136, 99, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  appearance: none;
+  -webkit-appearance: none;
+  text-align: center;
+}
+#computer-skill-dropdown:hover {
+  border-color: rgba(240, 217, 181, 0.6);
+  background: rgba(80, 56, 38, 0.9);
+}
+#computer-skill-dropdown:focus {
+  outline: none;
+  border-color: #f0d9b5;
+}
+#computer-skill-dropdown option {
+  background: #2a1f14;
+  color: #f0d9b5;
+}
+#btn-activate-computer {
+  display: block;
+  width: 220px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  font-size: 16px;
+  font-family: inherit;
+  font-weight: bold;
+  color: #f0d9b5;
+  background: rgba(60, 42, 28, 0.9);
+  border: 2px solid rgba(181, 136, 99, 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#btn-activate-computer:hover {
+  background: rgba(80, 56, 38, 0.95);
+  border-color: #f0d9b5;
+}
+
+/* ═══ Computer thinking indicator ═══ */
+#computer-thinking {
+  position: fixed;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f0d9b5;
+  font:
+    bold 16px/1.4 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(40, 30, 20, 0.95);
+  padding: 8px 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(181, 136, 99, 0.5);
+  pointer-events: none;
+  z-index: 50;
+  display: none;
+  animation: thinkingPulse 1.5s ease-in-out infinite;
+}
+#computer-thinking.visible {
+  display: block;
+}
+@keyframes thinkingPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}

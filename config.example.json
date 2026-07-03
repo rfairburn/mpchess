@@ -4,7 +4,12 @@
   "cert": null,
   "key": null,
   "chain": null,
-  "allowedOrigins": []
+  "allowedOrigins": [],
+  "computerPlayer": {
+    "enabled": true,
+    "spawnTimeout": 10000,
+    "moveTimeout": 30000
+  }
 }
 
 // Copy this file to config.json and edit as needed.
@@ -25,3 +30,10 @@
 //   allowedOrigins  — Array of allowed WebSocket origins, e.g. ["games.devop.ninja", "localhost"]
 //                     Empty array means no origin checking (accept all).
 //                     A comma-separated string is also accepted and auto-split.
+//   computerPlayer  — Computer player (Stockfish) configuration:
+//     {
+//       "enabled": true,              // Master switch for computer player
+//       "stockfishPath": null,        // Path to Stockfish binary (auto-resolved if null)
+//       "spawnTimeout": 10000,        // Max ms to wait for engine startup
+//       "moveTimeout": 30000          // Max ms to wait for a move
+//     }

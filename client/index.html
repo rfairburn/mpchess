@@ -10,6 +10,7 @@
   <body>
     <div id="hud">Click to move pieces · TAB toggle mouse-look · ESC menu</div>
     <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
+    <div id="computer-thinking"></div>
     <div id="mouse-mode">♟ Piece Mode</div>
     <div id="role-badge">Connecting...</div>
     <div id="player-count"></div>
@@ -112,6 +113,18 @@
             <span class="join-label">Spectate</span>
             <span class="join-status">Always available</span>
           </button>
+        </div>
+        <!-- Computer player skill selector — shown when one seat is occupied -->
+        <div id="computer-skill-select" class="hidden">
+          <div id="computer-skill-label">Play vs Computer</div>
+          <select id="computer-skill-dropdown">
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+            <option value="master" selected>Master</option>
+            <option value="grandmaster">Grandmaster</option>
+          </select>
+          <button id="btn-activate-computer">Start Game</button>
         </div>
       </div>
     </div>

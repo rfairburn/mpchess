@@ -5,6 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 const { Game } = require('./shared/chess');
+const { getStockfishEngine } = require('./shared/stockfish_engine');
 
 // ═══════════════════════════════════════════════════════════
 //  WEBSOCKET HANDLER SETUP (extracted for testability)
@@ -28,6 +29,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   // Debug mode
   const DEBUG = options.debug || false;
+
+  // ── Computer player state ──
+  const computerPlayerEnabled = options.computerPlayer?.enabled !== false;
+  let computerColor = null; // 'white' | 'black' | null
+  let computerSkill = null; // skill level key
+  const engine = getStockfishEngine(options.computerPlayer || {});
 
   function debugLog(...args) {
     if (DEBUG) {
@@ -101,6 +108,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function seatStatusForColor(color, clientWs) {
+    // Check if occupied by computer player
+    if (computerColor === color) {
+      return { status: 'computer', skill: computerSkill };
+    }
     // Check if actively occupied
     let occupiedWs = null;
     for (const [ws, c] of game.players) {
@@ -157,6 +168,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       role,
       seats: buildSeatStatus(ws),
       disconnectedPlayers: buildDisconnectedPlayersArray(),
+      computerPlayer: computerColor ? { color: computerColor, skill: computerSkill } : null,
       debug: DEBUG,
       ...state,
     });
@@ -179,6 +191,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       bothDisconnectedTimer = null;
       // Guard: if someone joined while timer was running, don't wipe them out
       if (game.players.size > 0) return;
+      // Evict computer player on full reset
+      evictComputerPlayer();
       // Clear any session entries whose token matches a held disconnected-player token
       const heldTokens = new Set(disconnectedPlayers.keys());
       for (const [ws, session] of sessions) {
@@ -271,6 +285,193 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   function isColorFree(color) {
     return seatStatusForColor(color).status === 'free';
+  }
+
+  // ── Computer player helpers ──
+
+  function evictComputerPlayer() {
+    if (!computerColor) return;
+    computerColor = null;
+    computerSkill = null;
+  }
+
+  async function executeComputerMove() {
+    if (!computerColor || game.gameOver) return;
+    if (game.turn !== computerColor) return;
+
+    // Mark that the computer is thinking so we don't double-trigger
+    const thinkingColor = computerColor;
+
+    try {
+      // Ensure engine is running
+      if (!engine.isReady) {
+        try {
+          await engine.spawn();
+        } catch (err) {
+          console.error(`[Stockfish] Failed to spawn: ${err.message}`);
+          broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine failed to start' });
+          return;
+        }
+      }
+
+      // Configure skill
+      if (computerSkill) {
+        await engine.setSkill(computerSkill);
+      }
+
+      // Notify clients that computer is thinking
+      broadcast({ type: 'computerThinking', color: thinkingColor });
+
+      // Get the best move
+      const fen = game.currentFen();
+      const uciMove = await engine.getBestMove(fen, computerSkill);
+
+      // Parse UCI move (e.g. "e2e4" → fromFile=4, fromRank=1, toFile=4, toRank=3)
+      const fromFile = uciMove.charCodeAt(0) - 97;
+      const fromRank = parseInt(uciMove[1]) - 1;
+      const toFile = uciMove.charCodeAt(2) - 97;
+      const toRank = parseInt(uciMove[3]) - 1;
+
+      // Create a virtual ws for the computer player so tryMove works.
+      // Must remain registered through completePromotion() because it validates
+      // this.players.get(ws) against the promoting piece's color.
+      const virtualWs = { _computer: true, color: thinkingColor };
+      game.players.set(virtualWs, thinkingColor);
+
+      const result = game.tryMove(virtualWs, fromFile, fromRank, toFile, toRank);
+
+      if (result.ok) {
+        debugLog('Computer move:', { color: thinkingColor, uciMove, result });
+
+        // Handle promotion if needed — virtualWs must still be in game.players
+        if (result.promotion) {
+          // For computer, always promote to queen
+          const promoOk = game.completePromotion(virtualWs, 'queen');
+          if (promoOk) {
+            broadcast({ type: 'promotion', pieceType: 'queen' });
+          }
+        }
+
+        // Remove virtual player only after promotion is complete
+        game.players.delete(virtualWs);
+
+        broadcast({ type: 'move', ...result, color: thinkingColor });
+        broadcastState();
+      } else {
+        game.players.delete(virtualWs);
+        console.warn(`[Stockfish] Illegal move ${uciMove}: ${result.reason}`);
+        // Retry up to 2 more times
+        for (let retry = 0; retry < 2; retry++) {
+          const retryMove = await engine.getBestMove(game.currentFen(), computerSkill);
+          const rf = retryMove.charCodeAt(0) - 97;
+          const rr = parseInt(retryMove[1]) - 1;
+          const tf = retryMove.charCodeAt(2) - 97;
+          const tr = parseInt(retryMove[3]) - 1;
+          game.players.set(virtualWs, thinkingColor);
+          const retryResult = game.tryMove(virtualWs, rf, rr, tf, tr);
+          if (retryResult.ok) {
+            // Handle promotion if needed — same as primary path
+            if (retryResult.promotion) {
+              const promoOk = game.completePromotion(virtualWs, 'queen');
+              if (promoOk) {
+                broadcast({ type: 'promotion', pieceType: 'queen' });
+              }
+            }
+            game.players.delete(virtualWs);
+            broadcast({ type: 'move', ...retryResult, color: thinkingColor });
+            broadcastState();
+            break;
+          }
+          game.players.delete(virtualWs);
+        }
+      }
+    } catch (err) {
+      console.error(`[Stockfish] Move error: ${err.message}`);
+      if (err.code === 'ENOENT' || err.message.includes('not found')) {
+        // Binary missing — engine unavailable
+        broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine not found' });
+      } else {
+        // Try to respawn
+        try {
+          engine.kill();
+          await engine.spawn();
+          // Don't retry the move — the turn stays with the computer
+        } catch (respawnErr) {
+          console.error(`[Stockfish] Respawn failed: ${respawnErr.message}`);
+          broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine crashed' });
+        }
+      }
+    }
+  }
+
+  function handleActivateComputer(ws, data) {
+    if (!computerPlayerEnabled) {
+      send(ws, { type: 'error', reason: 'Computer player is disabled' });
+      return;
+    }
+
+    // Only a seated human player can activate the computer
+    const callerColor = game.players.get(ws);
+    if (!callerColor) {
+      send(ws, { type: 'error', reason: 'You must be seated to activate the computer player' });
+      return;
+    }
+
+    const { color, skill } = data;
+    // The computer plays the opposite color
+    const targetColor = callerColor === 'white' ? 'black' : 'white';
+    if (color !== targetColor) {
+      send(ws, { type: 'error', reason: `Computer must play ${targetColor}` });
+      return;
+    }
+
+    // Validate skill level
+    const validSkills = Object.keys(engine.skills);
+    if (!validSkills.includes(skill)) {
+      send(ws, { type: 'error', reason: `Invalid skill level. Choose: ${validSkills.join(', ')}` });
+      return;
+    }
+
+    // Check activation rules
+    const seatStatus = seatStatusForColor(targetColor);
+    if (seatStatus.status !== 'free') {
+      send(ws, { type: 'error', reason: `${targetColor} seat is not available` });
+      return;
+    }
+
+    if (game.gameOver) {
+      send(ws, { type: 'error', reason: 'Game is over. Restart first.' });
+      return;
+    }
+
+    // Activate the computer player
+    computerColor = targetColor;
+    computerSkill = skill;
+
+    // Spawn and configure the engine
+    (async () => {
+      try {
+        if (!engine.isReady) {
+          await engine.spawn();
+        }
+        await engine.setSkill(skill);
+      } catch (err) {
+        console.error(`[Stockfish] Activation failed: ${err.message}`);
+        computerColor = null;
+        computerSkill = null;
+        send(ws, { type: 'error', reason: 'Failed to start computer player' });
+        broadcastState();
+        return;
+      }
+
+      broadcastState();
+      broadcast({ type: 'computerActivated', color: targetColor, skill });
+
+      // If it's the computer's turn, make the first move
+      if (game.turn === targetColor && !game.gameOver) {
+        executeComputerMove();
+      }
+    })();
   }
 
   function handleJoin(ws, data) {
@@ -400,6 +601,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               to: { file: toFile, rank: toRank },
               message: `Move: ${result.notation}`,
             });
+            // If it's now the computer's turn, trigger its move
+            if (computerColor && game.turn === computerColor && !game.gameOver) {
+              executeComputerMove();
+            }
           } else {
             send(ws, { type: 'error', reason: result.reason });
           }
@@ -419,6 +624,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (game.players.has(ws)) {
             const oldFen = game.currentFen();
             debugLog('Game restart: OLD FEN:', oldFen);
+            // Evict computer player on restart
+            evictComputerPlayer();
             game.reset();
             const newFen = game.currentFen();
             debugLog('Game restart: NEW FEN:', newFen);
@@ -483,6 +690,40 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           } catch (e) {
             send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });
           }
+          break;
+        }
+        case 'activateComputer': {
+          handleActivateComputer(ws, msg);
+          break;
+        }
+        case 'changeSkill': {
+          if (!computerColor) {
+            send(ws, { type: 'error', reason: 'No computer player active' });
+            break;
+          }
+          // Only the human player can change the skill
+          const callerColor = game.players.get(ws);
+          if (!callerColor || callerColor === computerColor) {
+            send(ws, { type: 'error', reason: 'Only the human player can change skill level' });
+            break;
+          }
+          const { skill } = msg;
+          const validSkills = Object.keys(engine.skills);
+          if (!validSkills.includes(skill)) {
+            send(ws, { type: 'error', reason: `Invalid skill level. Choose: ${validSkills.join(', ')}` });
+            break;
+          }
+          computerSkill = skill;
+          // Reconfigure engine
+          (async () => {
+            try {
+              await engine.setSkill(skill);
+              broadcastState();
+              broadcast({ type: 'computerSkillChanged', color: computerColor, skill });
+            } catch (err) {
+              console.error(`[Stockfish] Skill change failed: ${err.message}`);
+            }
+          })();
           break;
         }
       }
@@ -734,7 +975,24 @@ Examples:
     }
   }
 
-  setupWebSocketHandlers(wss, game, { debug: config.debug });
+  setupWebSocketHandlers(wss, game, { debug: config.debug, computerPlayer: config.computerPlayer });
+
+  // Graceful shutdown: quit Stockfish engine
+  const { getStockfishEngine: getEngine } = require('./shared/stockfish_engine');
+  function gracefulShutdown(signal) {
+    console.log(`\n${signal} received. Shutting down...`);
+    const eng = getEngine();
+    eng.quit().finally(() => {
+      server.close(() => {
+        console.log('Server closed.');
+        process.exit(0);
+      });
+      // Force exit after 5s
+      setTimeout(() => process.exit(1), 5000);
+    });
+  }
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
   server.listen(PORT, HOST, () => {
     const os = require('os');
