@@ -244,10 +244,22 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function handleDropPlayer(ws, data) {
-    // Only active players can drop
-    if (!game.players.has(ws)) return;
+    const callerColor = game.players.get(ws);
+    if (!callerColor) return;
+
     const entry = disconnectedPlayers.get(data.token);
     if (!entry) return;
+
+    // Only allow dropping the opponent's seat
+    const opponentColor = callerColor === 'white' ? 'black' : 'white';
+    if (entry.color !== opponentColor) return;
+
+    // Enforce the seat timeout server-side
+    if (Date.now() < entry.disconnectedAt + seatTimeout) {
+      send(ws, { type: 'error', reason: 'Seat is still reserved for reconnect' });
+      return;
+    }
+
     freeDisconnectedSeat(data.token);
     send(ws, { type: 'playerDropped', color: entry.color });
   }

@@ -286,12 +286,14 @@ describe('Reconnect with invalid token', () => {
 });
 
 describe('Reconnect after seat was dropped', () => {
-  test('reconnect fails after seat was dropped', () => {
-    const { wss, handlers } = createTestEnv();
+  test('reconnect fails after seat was dropped', async () => {
+    const { wss, handlers } = createTestEnv(50);
     const ws1 = joinAs(wss, 'white');
     const token1 = safeGet(ws1.getSent('joined')[0], 'token');
     const ws2 = joinAs(wss, 'black');
     wss.simulateDisconnect(ws1);
+    // Wait for seatTimeout to expire before dropping
+    await new Promise((r) => setTimeout(r, 100));
     ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
     assert.strictEqual(handlers.disconnectedPlayers.has(token1), false);
     assert.strictEqual(ws2.getSent('playerDropped').length, 1);
@@ -311,6 +313,60 @@ describe('Drop Player — spectator cannot drop', () => {
     wss.simulateDisconnect(ws1);
     ws3.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
     assert.ok(handlers.disconnectedPlayers.has(token1), 'seat still held');
+  });
+});
+
+describe('Drop Player — server enforces seat timeout', () => {
+  test('active player cannot drop opponent before seatTimeout', () => {
+    const { wss, handlers } = createTestEnv(500);
+    const ws1 = joinAs(wss, 'white');
+    const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+    const ws2 = joinAs(wss, 'black');
+    wss.simulateDisconnect(ws1);
+    // Try to drop immediately — should be rejected
+    ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
+    assert.ok(handlers.disconnectedPlayers.has(token1), 'seat still held');
+    const errors = ws2.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('reserved'));
+  });
+
+  test('active player can drop opponent after seatTimeout', async () => {
+    const { wss, handlers } = createTestEnv(50);
+    const ws1 = joinAs(wss, 'white');
+    const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+    const ws2 = joinAs(wss, 'black');
+    wss.simulateDisconnect(ws1);
+    // Wait for seatTimeout to expire (both-disconnected won't fire since black is still connected)
+    await new Promise((r) => setTimeout(r, 100));
+    // Now drop should succeed
+    ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
+    assert.strictEqual(handlers.disconnectedPlayers.has(token1), false);
+    assert.strictEqual(ws2.getSent('playerDropped').length, 1);
+  });
+
+  test('player cannot drop a seat matching their own color', () => {
+    const { wss, handlers } = createTestEnv(500);
+    const ws1 = joinAs(wss, 'white');
+    const token1 = safeGet(ws1.getSent('joined')[0], 'token');
+    const ws2 = joinAs(wss, 'black');
+    wss.simulateDisconnect(ws1);
+    // Inject a stale entry where the held seat is black (same color as ws2)
+    handlers.disconnectedPlayers.clear();
+    handlers.disconnectedPlayers.set(token1, { color: 'black', disconnectedAt: Date.now() });
+    ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
+    // Should be silently ignored (same color)
+    assert.ok(handlers.disconnectedPlayers.has(token1), 'seat still held — same color rejected');
+    assert.strictEqual(ws2.getSent('playerDropped').length, 0);
+  });
+
+  test('invalid token is silently ignored', () => {
+    const { wss } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: 'nonexistent-token' }));
+    assert.strictEqual(ws2.getSent('playerDropped').length, 0);
+    assert.strictEqual(ws2.getSent('error').length, 0);
   });
 });
 
@@ -753,8 +809,8 @@ describe('Promotion blocked for wrong color', () => {
 });
 
 describe('Promotion after drop + rejoin by new player', () => {
-  test('new player completes promotion after seat drop', () => {
-    const { game, wss, handlers } = createTestEnv();
+  test('new player completes promotion after seat drop', async () => {
+    const { game, wss, handlers } = createTestEnv(50);
     const ws1 = joinAs(wss, 'white');
     const ws2 = joinAs(wss, 'black');
     const token1 = safeGet(ws1.getSent('joined')[0], 'token');
@@ -767,6 +823,8 @@ describe('Promotion after drop + rejoin by new player', () => {
     assert.ok(game.promotingPiece !== null);
     wss.simulateDisconnect(ws1);
     assert.ok(game.promotingPiece !== null);
+    // Wait for seatTimeout to expire before dropping
+    await new Promise((r) => setTimeout(r, 100));
     ws2.emit('message', JSON.stringify({ type: 'dropPlayer', token: token1 }));
     assert.strictEqual(handlers.disconnectedPlayers.has(token1), false);
     ws3.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
