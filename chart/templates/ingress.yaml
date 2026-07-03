@@ -5,10 +5,17 @@ metadata:
   name: {{ include "mpchess.fullname" . }}
   labels:
     {{- include "mpchess.labels" . | nindent 4 }}
-  {{- if .Values.gateway.ingressAnnotations }}
+  {{- if or .Values.gateway.ingressAnnotations (and (ne .Values.gateway.pathPrefix "/") .Values.gateway.ingressController) }}
   annotations:
     {{- range $key, $value := .Values.gateway.ingressAnnotations }}
     {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- if and (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "traefik") }}
+    traefik.ingress.kubernetes.io/router.middlewares: {{ include "mpchess.fullname" . }}-strip@kubernetescrd
+    {{- end }}
+    {{- if and (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "nginx") }}
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
     {{- end }}
   {{- end }}
 spec:
@@ -25,8 +32,8 @@ spec:
     - host: "{{ .Values.gateway.host }}"
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: {{ if and (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "nginx") }}"{{ .Values.gateway.pathPrefix }}(/|$)(.*)"{{ else }}{{ .Values.gateway.pathPrefix }}{{ end }}
+            pathType: {{ if and (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "nginx") }}ImplementationSpecific{{ else }}Prefix{{ end }}
             backend:
               service:
                 name: {{ include "mpchess.fullname" . }}

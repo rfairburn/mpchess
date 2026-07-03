@@ -26,12 +26,21 @@ gateway:
   tlsSecretName: mpchess-tls
   # cert-manager ClusterIssuer name (added as annotation on the Gateway)
   issuer: letsencrypt-prod
+  # Path prefix the app is served under. The Gateway/Ingress matches this
+  # prefix and strips it before forwarding to the app (so the app always
+  # sees requests at "/"). Set to "/" for root, or "/chess" for a subpath.
+  pathPrefix: /
 
-  # --- Ingress (ingress-nginx) ---
+  # --- Ingress (ingress-nginx or Traefik) ---
   # When type=ingress, these are used instead:
   # ingressClassName: nginx
   # ingressAnnotations:
   #   cert-manager.io/cluster-issuer: letsencrypt-prod
+  #
+  # Ingress controller type for path-prefix stripping. Set to "traefik" or
+  # "nginx" when using a non-root pathPrefix so the chart renders the correct
+  # rewrite annotations/resources. Leave empty for root path ("/").
+  # ingressController: traefik
 
 resources:
   limits:

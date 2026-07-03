@@ -16,10 +16,18 @@ spec:
     - backendRefs:
         - name: {{ include "mpchess.fullname" . }}
           port: {{ .Values.service.port }}
+      {{- if ne .Values.gateway.pathPrefix "/" }}
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      {{- end }}
       matches:
         - path:
             type: PathPrefix
-            value: /
+            value: {{ .Values.gateway.pathPrefix }}
 ---
 # HTTP-to-HTTPS redirect
 apiVersion: gateway.networking.k8s.io/v1

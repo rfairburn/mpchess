@@ -1,0 +1,12 @@
+{{- if and (eq .Values.gateway.type "ingress") (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "traefik") }}
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: {{ include "mpchess.fullname" . }}-strip
+  labels:
+    {{- include "mpchess.labels" . | nindent 4 }}
+spec:
+  stripPrefix:
+    prefixes:
+      - {{ .Values.gateway.pathPrefix }}
+{{- end }}
