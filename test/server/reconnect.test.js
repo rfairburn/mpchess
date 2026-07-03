@@ -427,6 +427,48 @@ describe('Spectator connects while both disconnected — timer starts', () => {
   });
 });
 
+describe('Only one player ever connected, then disconnects', () => {
+  test('seat freed after timeout — game resets for anyone', async () => {
+    const { wss, handlers, game } = createTestEnv(10);
+    const ws1 = joinAs(wss, 'white');
+    // Black never connects
+    wss.simulateDisconnect(ws1);
+    assert.strictEqual(handlers.disconnectedPlayers.size, 1);
+    // Wait for seatTimeout
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(game.turn, 'white'); // game was reset
+    // New player can join the freed seat
+    const ws2 = joinAs(wss, 'white');
+    assert.strictEqual(ws2.getSent('joined').length, 1);
+  });
+
+  test('spectator receives gameAvailable after solo player disconnects', async () => {
+    const { wss, handlers } = createTestEnv(10);
+    const ws1 = joinAs(wss, 'white');
+    const ws3 = joinAs(wss, 'spectator');
+    wss.simulateDisconnect(ws1);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.strictEqual(handlers.disconnectedPlayers.size, 0);
+    assert.strictEqual(ws3.getSent('gameAvailable').length, 1);
+  });
+
+  test('new player joining mid-timer stops the reset', async () => {
+    const { wss, handlers, game } = createTestEnv(500);
+    const ws1 = joinAs(wss, 'white');
+    wss.simulateDisconnect(ws1);
+    assert.strictEqual(handlers.disconnectedPlayers.size, 1);
+    // New player joins black while timer is running
+    const ws2 = joinAs(wss, 'black');
+    assert.strictEqual(ws2.getSent('joined').length, 1);
+    // White seat should still be held (timer was stopped)
+    assert.strictEqual(handlers.disconnectedPlayers.size, 1);
+    await new Promise((r) => setTimeout(r, 20));
+    // Game should NOT have reset
+    assert.strictEqual(handlers.disconnectedPlayers.size, 1);
+  });
+});
+
 describe('Reconnect after both-disconnected timer expired', () => {
   test('token invalidated, must join fresh', async () => {
     const { wss, handlers, game } = createTestEnv(10);

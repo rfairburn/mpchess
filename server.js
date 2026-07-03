@@ -169,7 +169,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function bothDisconnected() {
-    return disconnectedPlayers.size >= 2 && game.players.size === 0;
+    return disconnectedPlayers.size > 0 && game.players.size === 0;
   }
 
   function maybeStartBothDisconnectedTimer() {
@@ -177,6 +177,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (!bothDisconnected()) return;
     bothDisconnectedTimer = setTimeout(() => {
       bothDisconnectedTimer = null;
+      // Guard: if someone joined while timer was running, don't wipe them out
+      if (game.players.size > 0) return;
       // Clear all disconnected player sessions
       for (const [token] of disconnectedPlayers) {
         disconnectedPlayers.delete(token);
@@ -268,6 +270,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       send(ws, { type: 'joined', color: 'spectator' });
     } else if (isColorFree(color)) {
       // Claim the free seat
+      stopBothDisconnectedTimer();
       game.players.set(ws, color);
       const token = crypto.randomUUID();
       sessions.set(ws, { token, color });
