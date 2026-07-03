@@ -26,10 +26,6 @@ gateway:
   tlsSecretName: mpchess-tls
   # cert-manager ClusterIssuer name (added as annotation on the Gateway)
   issuer: letsencrypt-prod
-  # Path prefix the app is served under. The Gateway/Ingress matches this
-  # prefix and strips it before forwarding to the app (so the app always
-  # sees requests at "/"). Set to "/" for root, or "/chess" for a subpath.
-  pathPrefix: /
 
   # --- Ingress (ingress-nginx or Traefik) ---
   # When type=ingress, these are used instead:
@@ -38,8 +34,8 @@ gateway:
   #   cert-manager.io/cluster-issuer: letsencrypt-prod
   #
   # Ingress controller type for path-prefix stripping. Set to "traefik" or
-  # "nginx" when using a non-root pathPrefix so the chart renders the correct
-  # rewrite annotations/resources. Leave empty for root path ("/").
+  # "nginx" when using a non-root server.prefix so the chart renders the
+  # correct rewrite annotations/resources. Leave empty for root path.
   # ingressController: traefik
 
 resources:
@@ -50,13 +46,12 @@ resources:
     cpu: 100m
     memory: 128Mi
 
-# Server settings
-# port, cert, key are managed via env vars (MPCHESS_PORT, MPCHESS_CERT, MPCHESS_KEY)
-# and supersede any config file values. fen and allowedOrigins are passed as CLI args.
+# Server settings — all passed as MPCHESS_* env vars.
 server:
   port: 3000
   # fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   # allowedOrigins: "chess.example.com,localhost"
+  # prefix: "/chess"   # URL prefix — configures both the app and Gateway/Ingress
 
 # Optional user-defined ConfigMap (mounted at /app/config.json)
 # Env vars for port/cert/key always supersede config file values.

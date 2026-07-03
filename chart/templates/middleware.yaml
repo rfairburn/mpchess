@@ -1,4 +1,5 @@
-{{- if and (eq .Values.gateway.type "ingress") (ne .Values.gateway.pathPrefix "/") (eq .Values.gateway.ingressController "traefik") }}
+{{- $prefix := include "mpchess.pathPrefix" . }}
+{{- if and (eq .Values.gateway.type "ingress") (ne $prefix "/") (eq .Values.gateway.ingressController "traefik") }}
 apiVersion: traefik.containo.us/v1alpha1
 kind: Middleware
 metadata:
@@ -8,5 +9,5 @@ metadata:
 spec:
   stripPrefix:
     prefixes:
-      - {{ .Values.gateway.pathPrefix }}
+      - {{ $prefix }}
 {{- end }}

@@ -16,7 +16,8 @@ spec:
     - backendRefs:
         - name: {{ include "mpchess.fullname" . }}
           port: {{ .Values.service.port }}
-      {{- if ne .Values.gateway.pathPrefix "/" }}
+      {{- $prefix := include "mpchess.pathPrefix" . }}
+      {{- if ne $prefix "/" }}
       filters:
         - type: URLRewrite
           urlRewrite:
@@ -27,7 +28,7 @@ spec:
       matches:
         - path:
             type: PathPrefix
-            value: {{ .Values.gateway.pathPrefix }}
+            value: {{ $prefix }}
 ---
 # HTTP-to-HTTPS redirect
 apiVersion: gateway.networking.k8s.io/v1

@@ -13,6 +13,7 @@ const DEFAULTS = {
   chain: undefined,
   allowedOrigins: [],
   debug: false,
+  prefix: undefined,
 };
 
 const ENV_MAP = {
@@ -23,6 +24,7 @@ const ENV_MAP = {
   chain: 'MPCHESS_CHAIN',
   allowedOrigins: 'MPCHESS_ALLOWED_ORIGINS',
   debug: 'MPCHESS_DEBUG',
+  prefix: 'MPCHESS_PREFIX',
 };
 
 // CLI flag (kebab-case) → config key (camelCase)
@@ -34,6 +36,7 @@ const CLI_FLAG_MAP = [
   ['--chain=', 'chain'],
   ['--allowed-origins=', 'allowedOrigins'],
   ['--debug=', 'debug'],
+  ['--prefix=', 'prefix'],
 ];
 
 function convertType(key, value) {

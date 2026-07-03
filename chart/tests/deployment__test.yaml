@@ -166,23 +166,41 @@ tests:
           path: spec.template.spec.containers[0].ports[0].containerPort
           value: 8443
 
-  - it: custom FEN adds fen arg
+  - it: custom FEN adds MPCHESS_FEN env var
     set:
       server:
         fen: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --fen=4k3/8/8/8/8/8/8/4K2R w K - 0 1
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: MPCHESS_FEN
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
 
-  - it: allowedOrigins adds arg
+  - it: allowedOrigins adds MPCHESS_ALLOWED_ORIGINS env var
     set:
       server:
         allowedOrigins: "chess.example.com,localhost"
     asserts:
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --allowed-origins=chess.example.com,localhost
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: MPCHESS_ALLOWED_ORIGINS
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "chess.example.com,localhost"
+
+  - it: debug adds MPCHESS_DEBUG env var
+    set:
+      server:
+        debug: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: MPCHESS_DEBUG
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "true"
 
   - it: has liveness and readiness probes with HTTP scheme by default
     asserts:

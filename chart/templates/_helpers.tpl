@@ -49,19 +49,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Server CLI args from values — one per line for YAML list.
-Port and TLS cert/key are managed via env vars, not CLI args.
-*/}}
-{{- define "mpchess.serverArgs" -}}
-{{- if .Values.server.fen }}
-- --fen={{ .Values.server.fen }}
-{{- end }}
-{{- if .Values.server.allowedOrigins }}
-- --allowed-origins={{ .Values.server.allowedOrigins }}
-{{- end }}
-{{- end }}
-
-{{/*
 Port name — "http" by default, "https" when TLS is enabled.
 Used for container port name, service port name, and probe port.
 */}}
@@ -70,5 +57,23 @@ Used for container port name, service port name, and probe port.
 https
 {{- else -}}
 http
+{{- end -}}
+{{- end -}}
+
+{{/*
+Effective path prefix for Gateway/Ingress routing.
+Defaults to server.prefix if set, otherwise "/" (root).
+Normalizes the value the same way server.js does:
+  - empty or "/" → "/"
+  - otherwise: one leading slash, no trailing slashes
+This way the user only needs to set server.prefix in one place.
+*/}}
+{{- define "mpchess.pathPrefix" -}}
+{{- $raw := default "/" .Values.server.prefix -}}
+{{- $stripped := regexReplaceAll "^/+|/+$" $raw "" -}}
+{{- if $stripped -}}
+/{{ $stripped }}
+{{- else -}}
+/
 {{- end -}}
 {{- end -}}

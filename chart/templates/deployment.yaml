@@ -22,11 +22,6 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- $args := include "mpchess.serverArgs" . | trim }}
-          {{- if $args }}
-          args:
-            {{- $args | nindent 12 }}
-          {{- end }}
           ports:
             - name: {{ include "mpchess.portName" . }}
               containerPort: {{ .Values.server.port }}
@@ -34,6 +29,22 @@ spec:
           env:
             - name: MPCHESS_PORT
               value: {{ .Values.server.port | toString | quote }}
+            {{- if .Values.server.fen }}
+            - name: MPCHESS_FEN
+              value: {{ .Values.server.fen | quote }}
+            {{- end }}
+            {{- if .Values.server.allowedOrigins }}
+            - name: MPCHESS_ALLOWED_ORIGINS
+              value: {{ .Values.server.allowedOrigins | quote }}
+            {{- end }}
+            {{- if and .Values.server.prefix (ne .Values.server.prefix "/") }}
+            - name: MPCHESS_PREFIX
+              value: {{ .Values.server.prefix | quote }}
+            {{- end }}
+            {{- if .Values.server.debug }}
+            - name: MPCHESS_DEBUG
+              value: {{ .Values.server.debug | toString | quote }}
+            {{- end }}
             {{- if .Values.tls.enabled }}
             - name: MPCHESS_CERT
               value: "/etc/tls/tls.crt"

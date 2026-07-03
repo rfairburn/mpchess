@@ -532,8 +532,26 @@ const MIME = {
 
 const CLIENT_ROOT = path.resolve(__dirname, 'client');
 
+let _prefix = '';
+
+function setPrefix(p) {
+  if (!p) {
+    _prefix = '';
+    return;
+  }
+  const stripped = p.replace(/^\/+/, '').replace(/\/+$/, '');
+  _prefix = stripped ? '/' + stripped : '';
+}
+
 const requestHandler = (req, res) => {
   let urlPath = req.url.split('?')[0];
+
+  // Strip the configured prefix so the rest of the handler works unchanged.
+  // e.g. "/chess/client/style.css" → "/client/style.css"
+  if (_prefix && urlPath.startsWith(_prefix)) {
+    urlPath = urlPath.slice(_prefix.length) || '/';
+  }
+
   if (urlPath === '/') urlPath = '/client/index.html';
 
   // Only serve files from the client/ directory
@@ -565,7 +583,14 @@ const requestHandler = (req, res) => {
   }
 
   try {
-    const content = fs.readFileSync(filePath);
+    let content = fs.readFileSync(filePath);
+    // Inject the correct base href for subpath deployments.
+    // The HTML ships with <base href="/client/" /> — replace it when a prefix is set.
+    if (ext === '.html' && _prefix) {
+      content = content
+        .toString('utf8')
+        .replace('<base href="/client/" />', `<base href="${_prefix}/client/" />`);
+    }
     res.writeHead(200, { 'Content-Type': MIME[ext] });
     res.end(content);
   } catch {
@@ -592,11 +617,13 @@ Options:
   --chain=<path>          TLS certificate chain file (optional, PEM format)
   --allowed-origins=<o1,o2>  Comma-separated list of allowed WebSocket origins
   --debug=<true|false>      Enable debug logging for piece rebuilding
+  --prefix=<path>           URL prefix for subpath deployments (e.g. /chess)
 
 Config sources (highest priority first):
   1. CLI arguments
   2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
-     MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS, MPCHESS_DEBUG)
+     MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS, MPCHESS_DEBUG,
+     MPCHESS_PREFIX)
   3. Config file (config.json or --config=<path>)
   4. Built-in defaults
 
@@ -616,6 +643,7 @@ Examples:
   const { loadConfig } = require('./loadConfig');
   const config = loadConfig();
   const PORT = config.port;
+  if (config.prefix) setPrefix(config.prefix);
 
   // TLS support
   let server;
