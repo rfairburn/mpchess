@@ -15,7 +15,7 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 - **Config system**: CLI > env vars (`MPCHESS_*`) > config file > defaults
 - **Origin checking**: `--allowed-origins=` restricts WebSocket connections
 - **Rate limiting**: per-connection sliding window (60 msg/10s default)
-- **300 passing tests**: chess engine, reconnection, config, client controls (run with `npm test`)
+- **300+ passing tests**: chess engine, reconnection, config, UCI transport, client controls (run with `npm test`)
 
 ## Usage
 
@@ -67,9 +67,9 @@ If `--cert` is given without `--key` (or vice versa), the server logs a warning 
 ## Testing & Linting
 
 ```bash
-npm test           # everything (300 tests)
-npm run test:server  # server tests (264 tests)
-npm run test:client  # client tests (36 tests)
+npm test           # everything
+npm run test:server  # server tests (chess, reconnect, config, stockfish)
+npm run test:client  # client tests (controls, network)
 npm run test:all     # same as npm test
 npm run lint         # ESLint + Prettier check
 npm run lint:fix     # auto-fix lint issues
@@ -89,10 +89,26 @@ test/
 └── server/
     ├── chess.test.js         — Chess engine, moves, castling, promotion, FEN, security
     ├── reconnect.test.js     — WebSocket sessions, reconnection, rate limiting
-    └── config.test.js        — Config loading, CLI/env/file parsing, merge priority
+    ├── config.test.js        — Config loading, CLI/env/file parsing, merge priority
+    └── stockfish.test.js     — UCI transport against live Stockfish binary (skipped if unavailable)
 ```
 
 Server tests use a minimal custom `describe`/`test` runner with Node's built-in `assert`. Client tests use Vitest with jsdom and a Three.js mock.
+
+### Stockfish Tests
+
+The `stockfish.test.js` suite requires a Stockfish binary. It resolves the binary in this order:
+
+1. `MPCHESS_STOCKFISH` environment variable (explicit override)
+2. `stockfish/bin/stockfish` (built via `bash scripts/build_stockfish.sh`)
+3. `stockfish` on `PATH`
+
+If none are found, the Stockfish tests are skipped and the rest of the suite runs normally. To run the full suite including Stockfish tests, build the binary first:
+
+```bash
+bash scripts/build_stockfish.sh
+npm test
+```
 
 ## Project Structure
 

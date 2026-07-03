@@ -70,6 +70,10 @@ The Dockerfile uses a multi-stage build:
 1. **Builder stage**: installs dependencies, builds the shared ESM module
 2. **Production stage**: copies only runtime files, runs as non-root user
 
+### Stockfish in Docker
+
+The Dockerfile does not yet include a Stockfish build stage. For deployments that need the computer player feature, Stockfish must be built as a separate stage (see [stockfish_policy.md §8](../stockfish_policy.md) for the design). Until then, the Stockfish binary is not included in production images.
+
 ### Import into microk8s
 
 microk8s uses `containerd` (ctr) instead of Docker. To avoid pulling from a registry:
