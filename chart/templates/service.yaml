@@ -4,6 +4,13 @@ metadata:
   name: {{ include "mpchess.fullname" . }}
   labels:
     {{- include "mpchess.labels" . | nindent 4 }}
+  {{- if and (include "mpchess.backendTlsEnabled" .) (or (and (eq .Values.gateway.type "ingress") (eq .Values.gateway.ingressController "traefik")) (and (eq .Values.gateway.type "httproute") (eq .Values.gateway.className "traefik"))) }}
+  annotations:
+    traefik.ingress.kubernetes.io/service.serversscheme: https
+    {{- if and (eq .Values.gateway.type "ingress") (eq .Values.gateway.ingressController "traefik") }}
+    traefik.ingress.kubernetes.io/service.serverstransport: {{ include "mpchess.fullname" . }}-backend@kubernetescrd
+    {{- end }}
+  {{- end }}
 spec:
   type: {{ .Values.service.type }}
   ports:

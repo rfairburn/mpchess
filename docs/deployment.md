@@ -246,6 +246,10 @@ microk8s helm uninstall mpchess --namespace mpchess
 | `config.enabled`        | Mount config.json from ConfigMap          | `false`             |
 | `config.content`        | JSON config content                       | _(none)_            |
 | `tls.enabled`           | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars) | `false`             |
+| `tls.secretName`        | TLS secret for pod certificate            | `mpchess-tls`       |
+| `tls.caConfigMap`       | CA ConfigMap for backend TLS verification   | _(<tls.secretName>-ca)_ |
+| `gateway.backendTls.enabled` | Backend TLS to pod: `auto`/`true`/`false` | `auto`              |
+| `gateway.backendTls.insecureSkipVerify` | Skip backend cert verification (testing only) | `false`             |
 | `resources`             | Kubernetes resource limits/requests       | see values.yaml     |
 
 ### Using a config file
@@ -260,18 +264,76 @@ config:
     }
 ```
 
-### Using TLS from secret (server-side TLS)
+### TLS Modes
+
+The chart supports three TLS configurations:
+
+#### 1. Edge TLS only (default, recommended)
+
+Gateway/Ingress terminates TLS; pod serves plain HTTP.
+
+```yaml
+tls:
+  enabled: false
+gateway:
+  tlsSecretName: mpchess-tls
+```
+
+#### 2. Pod TLS only (no gateway)
+
+Pod serves HTTPS; no Gateway/Ingress.
 
 ```yaml
 tls:
   enabled: true
 gateway:
-  tlsSecretName: mpchess-tls
+  type: none
 ```
 
-This mounts the TLS secret at `/etc/tls/` and sets `MPCHESS_CERT=/etc/tls/tls.crt` and `MPCHESS_KEY=/etc/tls/tls.key` environment variables so the server serves HTTPS inside the pod. The secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`).
+Access via `kubectl port-forward` or a Service with external access.
 
-**Note:** `tls.enabled` controls pod-level (server-side) TLS only. It is independent of Gateway/Ingress TLS termination. For the common case where the Gateway or Ingress terminates TLS and forwards plain HTTP to the pod, keep `tls.enabled=false` (the default).
+#### 3. Full end-to-end TLS
+
+Gateway/Ingress terminates TLS at the edge **and** connects to the pod over HTTPS.
+
+```yaml
+tls:
+  enabled: true
+  secretName: mpchess-tls
+  # For self-signed certs, create a CA ConfigMap:
+  # kubectl create configmap mpchess-tls-ca --from-file=ca.crt=tls.crt
+gateway:
+  tlsSecretName: mpchess-tls
+  backendTls:
+    enabled: auto  # auto-enables when tls.enabled=true
+```
+
+When `gateway.backendTls.enabled` is `auto` (default), backend TLS is enabled automatically whenever `tls.enabled=true`. The chart renders:
+
+- **Ingress**: controller-specific backend protocol annotations (`nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"` for nginx, equivalent for Traefik)
+- **HTTPRoute** (Gateway API): a `BackendTLSPolicy` resource that validates the pod's certificate using the CA from `tls.caConfigMap` (defaults to `<tls.secretName>-ca`)
+
+For **testing with self-signed certificates and Ingress**, set `gateway.backendTls.insecureSkipVerify: true` to skip certificate verification. This is supported for `gateway.type=ingress` (Traefik and nginx) but **not for `gateway.type=httproute`** (the Gateway API has no standard mechanism for insecure backend TLS). **Not recommended for production.**
+
+### Creating a TLS secret
+
+```bash
+# Generate a self-signed cert for testing
+openssl req -x509 -newkey rsa:4096 -keyout tls.key -out tls.crt -days 365 -nodes \
+  -subj "/CN=chess.example.com" -addext "subjectAltName=DNS:chess.example.com"
+
+# Create the Kubernetes secret
+kubectl create secret tls mpchess-tls --cert=tls.crt --key=tls.key -n mpchess
+
+# For full end-to-end TLS with self-signed certs, also create a CA ConfigMap
+# (for Gateway API BackendTLSPolicy) and a CA Secret (for Traefik/nginx Ingress):
+kubectl create configmap mpchess-tls-ca --from-file=ca.crt=tls.crt -n mpchess
+kubectl create secret generic mpchess-tls-ca --from-file=ca.crt=tls.crt -n mpchess
+```
+
+The TLS secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`). For end-to-end TLS:
+- **Gateway API** (HTTPRoute): the CA ConfigMap must contain a `ca.crt` key
+- **Traefik/nginx Ingress**: the CA Secret must contain a `ca.crt` key
 
 ---
 

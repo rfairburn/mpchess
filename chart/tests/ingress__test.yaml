@@ -116,3 +116,57 @@ tests:
       - equal:
           path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-send-timeout"]
           value: "3600"
+
+  - it: backend TLS adds nginx proxy-ssl annotations with CA verification (default)
+    set:
+      gateway:
+        type: ingress
+        ingressController: nginx
+      tls:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/backend-protocol"]
+          value: "HTTPS"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-name"]
+          value: chess.example.com
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-verify"]
+          value: "on"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-secret"]
+          value: "NAMESPACE/mpchess-tls-ca"
+
+  - it: backend TLS with insecureSkipVerify disables proxy-ssl-verify
+    set:
+      gateway:
+        type: ingress
+        ingressController: nginx
+        backendTls:
+          insecureSkipVerify: true
+      tls:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/backend-protocol"]
+          value: "HTTPS"
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-name"]
+          value: chess.example.com
+      - equal:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/proxy-ssl-verify"]
+          value: "off"
+
+  - it: backend TLS disabled explicitly does not add annotations
+    set:
+      gateway:
+        type: ingress
+        ingressController: nginx
+        backendTls:
+          enabled: false
+      tls:
+        enabled: true
+    asserts:
+      - isNull:
+          path: metadata.annotations["nginx.ingress.kubernetes.io/backend-protocol"]

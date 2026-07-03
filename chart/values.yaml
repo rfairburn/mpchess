@@ -38,6 +38,17 @@ gateway:
   # correct rewrite annotations/resources. Leave empty for root path.
   # ingressController: traefik
 
+  # Backend TLS — controls how the Gateway/Ingress connects to the pod.
+  # When "auto" (default), backend TLS is enabled automatically if
+  # tls.enabled=true, so the Gateway/Ingress speaks HTTPS to the pod.
+  # Set to true to force-enable or false to force-disable.
+  backendTls:
+    enabled: auto
+    # Skip certificate verification (insecure). Use only for testing with
+    # self-signed certs. Adds the appropriate annotation/policy for your
+    # gateway controller. Not recommended for production.
+    insecureSkipVerify: false
+
 resources:
   limits:
     cpu: 500m
@@ -68,13 +79,28 @@ config:
 # MPCHESS_CERT / MPCHESS_KEY env vars are set to point the app at the
 # mounted files.
 #
-# This is independent of Gateway/Ingress TLS termination. For the common
-# case where the Gateway or Ingress terminates TLS and forwards plain HTTP
-# to the pod, keep tls.enabled=false (the default).
+# When tls.enabled=true and a Gateway/Ingress is configured, the chart
+# also configures backend TLS so the Gateway/Ingress connects to the pod
+# over HTTPS (see gateway.backendTls below).
 tls:
   enabled: false
   # Kubernetes TLS secret name (must contain tls.crt and tls.key)
   secretName: mpchess-tls
+  # ConfigMap name for backend TLS CA certificate verification
+  # (Gateway API BackendTLSPolicy). Must contain a "ca.crt" key with
+  # the PEM-encoded CA that signed the pod's certificate.
+  # For self-signed certs, create a ConfigMap from tls.crt:
+  #   kubectl create configmap mpchess-tls-ca --from-file=ca.crt=tls.crt
+  # Defaults to secretName with "-ca" suffix appended.
+  # caConfigMap: mpchess-tls-ca
+  #
+  # Kubernetes Secret name for backend TLS CA certificate verification
+  # (Traefik ServersTransport rootCAsSecrets, nginx proxy-ssl-secret). Must
+  # contain a "ca.crt" key with the PEM-encoded CA certificate.
+  # For self-signed certs:
+  #   kubectl create secret generic mpchess-tls-ca --from-file=ca.crt=tls.crt
+  # Defaults to secretName with "-ca" suffix appended.
+  # caSecretName: mpchess-tls-ca
 
 nodeSelector: {}
 tolerations: []

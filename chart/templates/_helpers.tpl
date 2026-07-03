@@ -77,3 +77,49 @@ This way the user only needs to set server.prefix in one place.
 /
 {{- end -}}
 {{- end -}}
+
+{{/*
+Whether the Gateway/Ingress should connect to the pod over HTTPS.
+Resolves gateway.backendTls.enabled:
+  - "auto" (default, or nil/empty): enabled when tls.enabled=true
+  - true/false: explicit override
+Returns "true" (non-empty string) when enabled, empty string when disabled.
+*/}}
+{{- define "mpchess.backendTlsEnabled" -}}
+{{- $val := "auto" -}}
+{{- if kindIs "map" .Values.gateway.backendTls -}}
+{{- $val = .Values.gateway.backendTls.enabled | toString -}}
+{{- end -}}
+{{- $str := default "auto" $val -}}
+{{- if eq $str "auto" -}}
+{{- if .Values.tls.enabled -}}
+true
+{{- end -}}
+{{- else if eq $str "true" -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{/*
+CA ConfigMap name for BackendTLSPolicy.
+Defaults to tls.secretName with "-ca" suffix if tls.caConfigMap is not set.
+*/}}
+{{- define "mpchess.caConfigMap" -}}
+{{- if .Values.tls.caConfigMap -}}
+{{- .Values.tls.caConfigMap -}}
+{{- else -}}
+{{- printf "%s-ca" .Values.tls.secretName -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+CA Secret name for Traefik ServersTransport and nginx proxy-ssl-secret.
+Defaults to tls.secretName with "-ca" suffix if tls.caSecretName is not set.
+*/}}
+{{- define "mpchess.caSecretName" -}}
+{{- if .Values.tls.caSecretName -}}
+{{- .Values.tls.caSecretName -}}
+{{- else -}}
+{{- printf "%s-ca" .Values.tls.secretName -}}
+{{- end -}}
+{{- end -}}
