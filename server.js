@@ -589,7 +589,8 @@ const requestHandler = (req, res) => {
     if (ext === '.html' && _prefix) {
       content = content
         .toString('utf8')
-        .replace('<base href="/client/" />', `<base href="${_prefix}/client/" />`);
+        .replace('<base href="/client/" />', `<base href="${_prefix}/client/" />`)
+        .replace('</head>', `<script>window.__mpchess_prefix="${_prefix}";</script></head>`);
     }
     res.writeHead(200, { 'Content-Type': MIME[ext] });
     res.end(content);

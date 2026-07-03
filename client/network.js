@@ -105,7 +105,8 @@ function clearReconnectTimer() {
 
 function getConnectionUrl() {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${location.host}`;
+  const prefix = typeof window !== 'undefined' ? window.__mpchess_prefix : '';
+  return `${protocol}//${location.host}${prefix || ''}`;
 }
 
 function connect() {
