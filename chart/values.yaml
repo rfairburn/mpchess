@@ -51,11 +51,11 @@ gateway:
 
 resources:
   limits:
-    cpu: 500m
-    memory: 256Mi
+    cpu: 1000m
+    memory: 1Gi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 200m
+    memory: 512Mi
 
 # Server settings — all passed as MPCHESS_* env vars.
 server:
