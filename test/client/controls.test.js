@@ -3,7 +3,7 @@ import * as THREE from 'three';
 
 // ── Module mocks ──────────────────────────────────────────
 
-vi.mock('/home/robert/mpchess/client/network.js', () => ({
+vi.mock('../../client/network.js', () => ({
   myRole: null,
   serverBoard: null,
   serverTurn: 'white',
@@ -26,7 +26,7 @@ vi.mock('/home/robert/mpchess/client/network.js', () => ({
   onConnected: vi.fn(),
 }));
 
-vi.mock('/home/robert/mpchess/client/ui.js', () => ({
+vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('/home/robert/mpchess/client/ui.js', () => ({
   mouseSensitivity: 0.002,
 }));
 
-vi.mock('/home/robert/mpchess/client/board.js', () => ({
+vi.mock('../../client/board.js', () => ({
   squares: [],
   clearHighlights: vi.fn(),
   highlightSelected: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock('/home/robert/mpchess/client/board.js', () => ({
   highlightCheck: vi.fn(),
 }));
 
-vi.mock('/home/robert/mpchess/client/chess.mjs', () => ({
+vi.mock('../../client/chess.mjs', () => ({
   pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => []),
   findKing: vi.fn(() => null),
@@ -64,11 +64,11 @@ describe('controls.js', () => {
     document.body.innerHTML = '<div id="hud" class="hidden"></div>';
 
     // Re-import after reset
-    network = await import('/home/robert/mpchess/client/network.js');
-    ui = await import('/home/robert/mpchess/client/ui.js');
-    board = await import('/home/robert/mpchess/client/board.js');
-    chess = await import('/home/robert/mpchess/client/chess.mjs');
-    controls = await import('/home/robert/mpchess/client/controls.js');
+    network = await import('../../client/network.js');
+    ui = await import('../../client/ui.js');
+    board = await import('../../client/board.js');
+    chess = await import('../../client/chess.mjs');
+    controls = await import('../../client/controls.js');
   });
 
   // ── allSquares initialization (the regression bug) ──

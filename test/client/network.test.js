@@ -55,7 +55,7 @@ class MockWebSocket {
 
 // ── Module mocks ──────────────────────────────────────────
 
-vi.mock('/home/robert/mpchess/client/ui.js', () => ({
+vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
@@ -67,7 +67,7 @@ vi.mock('/home/robert/mpchess/client/ui.js', () => ({
   showInfo: vi.fn(),
 }));
 
-vi.mock('/home/robert/mpchess/client/controls.js', () => ({
+vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
 }));
 
@@ -108,7 +108,7 @@ describe('network.js — connection error handling', () => {
     });
 
     // Import the module — it auto-connects on load
-    network = await import('/home/robert/mpchess/client/network.js');
+    network = await import('../../client/network.js');
 
     // Capture the WebSocket instance created by connect()
     // The module creates it internally, so we need to trigger events manually
@@ -229,7 +229,7 @@ describe('network.js — WebSocket error simulation', () => {
     // Suppress errors from WebSocket construction
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    const network = await import('/home/robert/mpchess/client/network.js');
+    const network = await import('../../client/network.js');
 
     // Register callbacks to capture them
     onConnectionErrorCallback = vi.fn();
@@ -303,7 +303,7 @@ describe('network.js — send functions guard', () => {
       writable: true,
     });
 
-    network = await import('/home/robert/mpchess/client/network.js');
+    network = await import('../../client/network.js');
   });
 
   it('should not throw when sendMove is called with no connection', async () => {
