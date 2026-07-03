@@ -267,6 +267,9 @@ function connect() {
             }
           }
         }
+        // Clear stale role state so the UI and reconnect loop don't reason from an old role
+        myRole = null;
+        reconnectColor = null;
         pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
