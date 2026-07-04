@@ -56,6 +56,8 @@ const onComputerUnavailableCallbacks = [];
 const onDrawOfferCallbacks = [];
 const onDrawResultCallbacks = [];
 const onDrawOfferCancelledCallbacks = [];
+const onLeftCallbacks = [];
+const onPlayerLeftCallbacks = [];
 
 export function onStateUpdate(fn) {
   onStateUpdateCallbacks.push(fn);
@@ -119,6 +121,14 @@ export function onDrawResult(fn) {
 }
 export function onDrawOfferCancelled(fn) {
   onDrawOfferCancelledCallbacks.push(fn);
+}
+
+export function onLeft(fn) {
+  onLeftCallbacks.push(fn);
+}
+
+export function onPlayerLeft(fn) {
+  onPlayerLeftCallbacks.push(fn);
 }
 
 function fireCallbacks(arr, data) {
@@ -385,6 +395,15 @@ function connect() {
         fireCallbacks(onDrawOfferCancelledCallbacks, msg);
         break;
       }
+      case 'left': {
+        myRole = null;
+        fireCallbacks(onLeftCallbacks, msg);
+        break;
+      }
+      case 'playerLeft': {
+        fireCallbacks(onPlayerLeftCallbacks, msg);
+        break;
+      }
     }
   };
 }
@@ -508,6 +527,12 @@ export function sendOfferDraw() {
 export function sendDrawResponse(accepted) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'drawResponse', accepted }));
+  }
+}
+
+export function sendLeave() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'leave' }));
   }
 }
 

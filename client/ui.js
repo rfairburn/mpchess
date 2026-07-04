@@ -21,6 +21,7 @@ import {
   sendConcede,
   sendDropPlayer,
   sendJoin,
+  sendLeave,
   sendExportFen,
   sendExportPgn,
   sendImportFen,
@@ -48,6 +49,8 @@ import {
   onDrawOffer,
   onDrawResult,
   onDrawOfferCancelled,
+  onLeft,
+  onPlayerLeft,
   retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
@@ -61,6 +64,8 @@ const errorToast = document.getElementById('error-toast');
 const mouseModeEl = document.getElementById('mouse-mode');
 const menuOverlay = document.getElementById('menu-overlay');
 const btnResume = document.getElementById('btn-resume');
+const btnGiveUpSpot = document.getElementById('btn-give-up-spot');
+const btnReconnectAsPlayer = document.getElementById('btn-reconnect-as-player');
 const btnRestart = document.getElementById('btn-restart');
 const btnConcede = document.getElementById('btn-concede');
 const btnOfferDraw = document.getElementById('btn-offer-draw');
@@ -302,6 +307,24 @@ export function showMenu() {
   if (document.pointerLockElement) document.exitPointerLock();
   const isSpectator = myRole === 'spectator';
   const isPlayer = myRole === 'white' || myRole === 'black';
+
+  // Give Up Spot button — visible only for players
+  if (isPlayer) {
+    btnGiveUpSpot.style.display = '';
+    btnGiveUpSpot.disabled = false;
+    btnReconnectAsPlayer.style.display = 'none';
+  } else if (isSpectator) {
+    btnGiveUpSpot.style.display = 'none';
+    // Reconnect as Player — enabled only if at least one seat is truly free
+    const whiteAvailable = seatStatus.white?.status === 'free';
+    const blackAvailable = seatStatus.black?.status === 'free';
+    btnReconnectAsPlayer.style.display = '';
+    btnReconnectAsPlayer.disabled = !(whiteAvailable || blackAvailable);
+  } else {
+    btnGiveUpSpot.style.display = 'none';
+    btnReconnectAsPlayer.style.display = 'none';
+  }
+
   btnRestart.disabled = isSpectator;
   btnConcede.disabled = isSpectator || serverGameOver;
   btnImportFen.disabled = isSpectator;
@@ -340,6 +363,22 @@ export function hideMenu() {
 
 btnResume.addEventListener('click', () => {
   hideMenu();
+});
+
+// Give Up Spot — player voluntarily leaves, freeing their seat immediately
+btnGiveUpSpot.addEventListener('click', () => {
+  hideMenu();
+  if (myRole === 'white' || myRole === 'black') {
+    localStorage.removeItem(tokenKey(myRole));
+  }
+  sendLeave();
+});
+
+// Reconnect as Player — spectator wants to join as a player
+btnReconnectAsPlayer.addEventListener('click', () => {
+  hideMenu();
+  showJoinOverlay();
+  updateJoinButtons();
 });
 
 btnGiveUp.addEventListener('click', () => {
@@ -996,4 +1035,16 @@ onDrawResult((msg) => {
 onDrawOfferCancelled(() => {
   hideDrawOffer();
   showInfo('Draw offer was cancelled.');
+});
+
+// Player left voluntarily — show join overlay
+onLeft(() => {
+  showJoinOverlay();
+  updateJoinButtons();
+});
+
+// Opponent left voluntarily — show info toast
+onPlayerLeft((msg) => {
+  const colorLabel = msg.color === 'white' ? 'White' : 'Black';
+  showInfo(`${colorLabel} has left — their seat is now available`);
 });

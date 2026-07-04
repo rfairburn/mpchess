@@ -935,6 +935,38 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           handleDrawResponse(ws, msg);
           break;
         }
+        case 'leave': {
+          // Clear any pending draw offer involving this player
+          if (drawOffer && (drawOffer.from === ws || drawOffer.to === ws)) {
+            clearDrawOffer();
+          }
+          // Player voluntarily gives up their seat — no 60s hold
+          const playerColor = game.players.get(ws);
+          if (playerColor) {
+            game.players.delete(ws);
+            const session = sessions.get(ws);
+            if (session) {
+              sessions.delete(ws);
+              // Notify opponent and spectators that the seat is now free
+              const opponentColor = playerColor === 'white' ? 'black' : 'white';
+              for (const c of wss.clients) {
+                if (c.readyState === 1) {
+                  const cRole = game.players.get(c);
+                  if (cRole === opponentColor || game.spectators.has(c)) {
+                    send(c, { type: 'playerLeft', color: playerColor });
+                  }
+                }
+              }
+            }
+          } else {
+            // Spectator leaving
+            game.spectators.delete(ws);
+          }
+          send(ws, { type: 'left', color: playerColor });
+          broadcastState();
+          maybeStartBothDisconnectedTimer();
+          break;
+        }
       }
     });
 

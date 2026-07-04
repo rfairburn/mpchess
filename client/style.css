@@ -246,6 +246,22 @@ canvas {
   color: #999;
   cursor: not-allowed;
 }
+#menu-box button.danger {
+  background: #8b3a3a;
+  color: #f0d9b5;
+}
+#menu-box button.danger:hover {
+  background: #a04040;
+}
+#btn-reconnect-as-player {
+  background: rgba(60, 42, 28, 0.9);
+  color: #f0d9b5;
+  border: 2px solid rgba(181, 136, 99, 0.4);
+}
+#btn-reconnect-as-player:hover:not(:disabled) {
+  background: rgba(80, 56, 38, 0.95);
+  border-color: rgba(240, 217, 181, 0.6);
+}
 #menu-box .hint {
   margin-top: 18px;
   font-size: 13px;
