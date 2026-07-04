@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "npm run ci",
-    "test:server": "node test/server/chess.test.js && node test/server/reconnect.test.js && node test/server/config.test.js && node test/server/stockfish.test.js && node test/server/leave.test.js",
+    "test:server": "node test/server/chess.test.js && node test/server/reconnect.test.js && node test/server/config.test.js && node test/server/stockfish.test.js && node test/server/leave.test.js && node test/server/engine_serialization.test.js",
     "test:client": "vitest run",
     "test:all": "npm run lint && npm run format:check && npm run test:server && npm run test:client",
     "build:chess": "node build_chess_mjs.js",

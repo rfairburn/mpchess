@@ -49,6 +49,18 @@ class StockfishEngine {
     this.transport = null;
     this.available = false;
     this._currentSkill = null;
+
+    // ── Serialization queue ──
+    // All UCI operations (setSkill, getBestMove, getEvaluation) run
+    // through this single-flight queue so commands never interleave on
+    // the shared stdin/stdout pipe.
+    this._queue = [];
+    this._queueRunning = false;
+
+    // ── Single-flight spawn ──
+    // Ensures only one UCI handshake runs at a time. Concurrent callers
+    // await the same promise instead of starting a second handshake.
+    this._spawnPromise = null;
   }
 
   /** Check if the engine is available and ready. */
@@ -63,6 +75,8 @@ class StockfishEngine {
 
   /**
    * Spawn the Stockfish process and complete the UCI handshake.
+   * Single-flight: if a handshake is already in progress, concurrent
+   * callers await the same promise instead of starting a second one.
    * Resolves when the engine responds to `isready` with `readyok`.
    */
   async spawn() {
@@ -70,48 +84,58 @@ class StockfishEngine {
       throw new Error('Stockfish binary not found');
     }
 
-    if (this.transport) {
-      // Already running — just reconfigure
-      this.available = true;
-      return;
-    }
+    // Already fully ready — nothing to do
+    if (this.available) return;
 
-    this.transport = new UciTransport(this.binaryPath);
-    await this.transport.spawn();
+    // Handshake already in progress — await it
+    if (this._spawnPromise) return this._spawnPromise;
 
-    // UCI handshake
-    this.transport.send('uci');
-    // Consume id lines and option lines until we get uciok.
-    // readUntil re-buffers non-matching lines, but id/name and id/author
-    // would cause an infinite loop, so drain them explicitly first.
-    let uciOk = null;
-    const deadline = Date.now() + this.spawnTimeout;
-    while (Date.now() < deadline) {
-      const line = await this.transport.next(Math.max(100, deadline - Date.now()));
-      if (line.startsWith('uciok')) {
-        uciOk = line;
-        break;
+    // Start the handshake — all concurrent callers share this promise
+    this._spawnPromise = (async () => {
+      this.transport = new UciTransport(this.binaryPath);
+      await this.transport.spawn();
+
+      // UCI handshake
+      this.transport.send('uci');
+      // Consume id lines and option lines until we get uciok.
+      // readUntil re-buffers non-matching lines, but id/name and id/author
+      // would cause an infinite loop, so drain them explicitly first.
+      let uciOk = null;
+      const deadline = Date.now() + this.spawnTimeout;
+      while (Date.now() < deadline) {
+        const line = await this.transport.next(Math.max(100, deadline - Date.now()));
+        if (line.startsWith('uciok')) {
+          uciOk = line;
+          break;
+        }
+        // Discard id name, id author, option lines — they're already filtered
+        // by _dispatch for option/info, but id lines pass through
       }
-      // Discard id name, id author, option lines — they're already filtered
-      // by _dispatch for option/info, but id lines pass through
-    }
-    if (!uciOk) {
-      throw new Error(`Did not receive uciok within ${this.spawnTimeout}ms`);
-    }
+      if (!uciOk) {
+        throw new Error(`Did not receive uciok within ${this.spawnTimeout}ms`);
+      }
 
-    this.transport.send('isready');
-    const ready = await this.transport.next(this.spawnTimeout);
-    if (!ready.startsWith('readyok')) {
-      throw new Error(`Engine not ready: ${ready}`);
-    }
+      this.transport.send('isready');
+      const ready = await this.transport.next(this.spawnTimeout);
+      if (!ready.startsWith('readyok')) {
+        throw new Error(`Engine not ready: ${ready}`);
+      }
 
-    this.available = true;
+      this.available = true;
+    })();
+
+    try {
+      await this._spawnPromise;
+    } finally {
+      // Clear the promise reference so a future spawn() after kill() works
+      this._spawnPromise = null;
+    }
   }
 
   /**
    * Configure the engine for a given skill level.
-   * Note: setoption commands are fire-and-forget — Stockfish does not
-   * send a response line for them, so we don't await next().
+   * Runs through the serialization queue so setoption commands never
+   * interleave with an active search.
    */
   async setSkill(skillName) {
     const skill = this.skills[skillName];
@@ -122,13 +146,16 @@ class StockfishEngine {
 
     if (!this.isReady) return;
 
-    this.transport.send(`setoption name Threads value ${skill.threads}`);
-    this.transport.send(`setoption name Hash value ${skill.hash}`);
-    this.transport.send(`setoption name Skill Level value ${skill.skillLevel}`);
+    return this._enqueue(async () => {
+      this.transport.send(`setoption name Threads value ${skill.threads}`);
+      this.transport.send(`setoption name Hash value ${skill.hash}`);
+      this.transport.send(`setoption name Skill Level value ${skill.skillLevel}`);
+    });
   }
 
   /**
    * Request the best move for the current position.
+   * Runs through the serialization queue.
    * @param {string} fen - Current FEN string
    * @param {string} skillName - Skill level key
    * @returns {Promise<string>} The bestmove in UCI notation (e.g. "e2e4")
@@ -143,24 +170,27 @@ class StockfishEngine {
       throw new Error('Stockfish engine is not ready');
     }
 
-    // Set position
-    this.transport.send(`position fen ${fen}`);
+    return this._enqueue(async () => {
+      // Set position
+      this.transport.send(`position fen ${fen}`);
 
-    // Build go command
-    let goCmd = `go movetime ${skill.movetime}`;
-    if (skill.depth) {
-      goCmd += ` depth ${skill.depth}`;
-    }
-    this.transport.send(goCmd);
+      // Build go command
+      let goCmd = `go movetime ${skill.movetime}`;
+      if (skill.depth) {
+        goCmd += ` depth ${skill.depth}`;
+      }
+      this.transport.send(goCmd);
 
-    // Wait for bestmove
-    const response = await this.transport.readUntil('bestmove', this.moveTimeout);
-    const parts = response.split(' ');
-    return parts[1]; // UCI move notation (e.g. "e2e4")
+      // Wait for bestmove
+      const response = await this.transport.readUntil('bestmove', this.moveTimeout);
+      const parts = response.split(' ');
+      return parts[1]; // UCI move notation (e.g. "e2e4")
+    });
   }
 
   /**
    * Evaluate the current position and return the score in centipawns.
+   * Runs through the serialization queue.
    * Positive = advantage for side to move, negative = disadvantage.
    * Returns null if the engine is not available.
    * @param {string} fen - Current FEN string
@@ -171,32 +201,34 @@ class StockfishEngine {
       return null;
     }
 
-    this.transport.send(`position fen ${fen}`);
-    this.transport.send('go movetime 500');
+    return this._enqueue(async () => {
+      this.transport.send(`position fen ${fen}`);
+      this.transport.send('go movetime 500');
 
-    let lastScore = null;
-    const deadline = Date.now() + 3000;
-    while (Date.now() < deadline) {
-      const line = await this.transport.nextRaw(Math.max(100, deadline - Date.now()));
-      if (line.startsWith('bestmove')) {
-        break;
-      }
-      // Parse info line for score
-      if (line.startsWith('info ') && line.includes('score ')) {
-        const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
-        if (scoreMatch) {
-          const type = scoreMatch[1];
-          const value = parseInt(scoreMatch[2], 10);
-          if (type === 'cp') {
-            lastScore = value;
-          } else {
-            // Mate in N — treat as very large score
-            lastScore = value > 0 ? 10000 : -10000;
+      let lastScore = null;
+      const deadline = Date.now() + 3000;
+      while (Date.now() < deadline) {
+        const line = await this.transport.nextRaw(Math.max(100, deadline - Date.now()));
+        if (line.startsWith('bestmove')) {
+          break;
+        }
+        // Parse info line for score
+        if (line.startsWith('info ') && line.includes('score ')) {
+          const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
+          if (scoreMatch) {
+            const type = scoreMatch[1];
+            const value = parseInt(scoreMatch[2], 10);
+            if (type === 'cp') {
+              lastScore = value;
+            } else {
+              // Mate in N — treat as very large score
+              lastScore = value > 0 ? 10000 : -10000;
+            }
           }
         }
       }
-    }
-    return lastScore;
+      return lastScore;
+    });
   }
 
   /**
@@ -228,6 +260,63 @@ class StockfishEngine {
     this.transport = null;
     this.available = false;
     this._currentSkill = null;
+
+    // Reject any in-flight spawn promise so concurrent callers unblock
+    if (this._spawnPromise) {
+      this._spawnPromise = null;
+    }
+
+    // Reject any queued operations so they don't hang
+    this._queueRunning = false;
+    for (const item of this._queue) {
+      item.reject(new Error('Engine killed'));
+    }
+    this._queue = [];
+  }
+
+  /**
+   * Single-flight serialization queue.
+   * Ensures only one UCI operation runs at a time on the shared
+   * stdin/stdout pipe, preventing interleaved commands.
+   */
+  _enqueue(fn) {
+    return new Promise((resolve, reject) => {
+      this._queue.push({ fn, resolve, reject });
+      this._drainQueue();
+    });
+  }
+
+  async _drainQueue() {
+    if (this._queueRunning) return;
+    this._queueRunning = true;
+
+    try {
+      while (this._queue.length > 0) {
+        const { fn, resolve, reject } = this._queue.shift();
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        }
+      }
+    } finally {
+      this._queueRunning = false;
+    }
+  }
+
+  /**
+   * Check how many operations are queued (useful for tests/debugging).
+   */
+  get queueLength() {
+    return this._queue.length;
+  }
+
+  /**
+   * Check if an operation is currently running in the queue.
+   */
+  get queueBusy() {
+    return this._queueRunning;
   }
 }
 
@@ -254,10 +343,18 @@ function resetStockfishEngine() {
   }
 }
 
+/**
+ * Set the singleton to a custom instance (for testing with mock engines).
+ */
+function setStockfishEngine(instance) {
+  _instance = instance;
+}
+
 module.exports = {
   StockfishEngine,
   getStockfishEngine,
   resetStockfishEngine,
+  setStockfishEngine,
   resolveBinary,
   SKILL_DEFAULTS,
 };

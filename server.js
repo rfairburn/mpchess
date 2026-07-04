@@ -823,6 +823,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             evictComputerPlayer();
             clearDrawOffer();
             game.reset();
+            bumpRevision();
             const newFen = game.currentFen();
             debugLog('Game restart: NEW FEN:', newFen);
             debugLog('Game restart: NEW board state:', game.board);
@@ -1024,6 +1025,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     stopBothDisconnectedTimer,
     getRole,
     sendState,
+    engine,
+    getGameRevision: () => gameRevision,
   };
 }
 
