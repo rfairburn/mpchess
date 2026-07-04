@@ -42,6 +42,10 @@ class MockWebSocket {
       .map((m) => JSON.parse(m));
   }
 
+  getRawSent() {
+    return this.sentMessages;
+  }
+
   on(event, fn) {
     this._listeners[event] = fn;
   }
@@ -129,65 +133,49 @@ class MockUciTransport {
   }
 }
 
-// ── Test runner ───────────────────────────────────────────
+// ── Test runner (sequential) ──────────────────────────────
+// Tests run sequentially to avoid races on the global StockfishEngine singleton.
 
 let passed = 0;
 let failed = 0;
 let total = 0;
-const pendingPromises = [];
 const results = [];
+const testQueue = []; // { name, fn } — executed in order by run()
+let currentDescribeLabel = null;
 
 function test(name, fn) {
   total++;
-  const idx = results.length;
-  results.push({ label: null, name, ok: null, err: null });
-  try {
-    const result = fn();
-    if (result && typeof result.then === 'function') {
-      pendingPromises.push(
-        result.then(
-          () => {
-            passed++;
-            results[idx].ok = true;
-          },
-          (e) => {
-            failed++;
-            results[idx].ok = false;
-            results[idx].err = e.message;
-          }
-        )
-      );
-    } else {
-      passed++;
-      results[idx].ok = true;
-    }
-  } catch (e) {
-    failed++;
-    results[idx].ok = false;
-    results[idx].err = e.message;
-  }
+  testQueue.push({ label: currentDescribeLabel, name, fn });
 }
 
 function describe(label, fn) {
-  results.push({ label, name: null, ok: null, err: null });
+  const prev = currentDescribeLabel;
+  currentDescribeLabel = label;
   fn();
+  currentDescribeLabel = prev;
 }
 
 async function run() {
-  // Wait for all async tests to complete
-  await Promise.all(pendingPromises);
-
-  // Print results in declaration order
-  for (const r of results) {
-    if (r.label) {
-      console.log(`\n${r.label}`);
-    } else if (r.name) {
-      if (r.ok) {
-        console.log(`  ✓ ${r.name}`);
-      } else {
-        console.log(`  ✗ ${r.name}`);
-        if (r.err) console.log(`    ${r.err}`);
-      }
+  // Execute tests sequentially
+  let lastLabel = null;
+  for (const { label, name, fn } of testQueue) {
+    if (label && label !== lastLabel) {
+      console.log(`\n${label}`);
+      lastLabel = label;
+    }
+    const idx = results.length;
+    results.push({ label: null, name, ok: null, err: null });
+    try {
+      await fn();
+      passed++;
+      results[idx].ok = true;
+      console.log(`  ✓ ${name}`);
+    } catch (e) {
+      failed++;
+      results[idx].ok = false;
+      results[idx].err = e.message;
+      console.log(`  ✗ ${name}`);
+      console.log(`    ${e.message}`);
     }
   }
 
@@ -708,6 +696,409 @@ describe('gameRevision — tracking board state changes', () => {
     );
 
     // Cleanup
+    resetStockfishEngine();
+  });
+});
+
+// ── Tests: Computer player promotion ─────────────────────
+
+describe('Computer player — basic integration', () => {
+  test('computer makes a non-promotion move after human move', async () => {
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => 'e7e5',
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // White plays e2-e4
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 })
+    );
+
+    // Wait past MIN_MOVE_DELAY (500ms) + engine delay
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Check that computer made a move
+    const moveMsgs = ws1.getSent('move');
+    const blackMoves = moveMsgs.filter((m) => m.color === 'black');
+    assert.strictEqual(blackMoves.length, 1, 'should have one black move');
+    assert.strictEqual(blackMoves[0].fromFile, 4, 'e-file');
+    assert.strictEqual(blackMoves[0].fromRank, 6, '7th rank');
+    assert.strictEqual(blackMoves[0].toFile, 4, 'e-file');
+    assert.strictEqual(blackMoves[0].toRank, 4, '5th rank');
+
+    // Board should reflect the move
+    const stateMsgs = ws1.getSent('state');
+    const lastState = stateMsgs[stateMsgs.length - 1];
+    assert.strictEqual(lastState.turn, 'white', "should be white's turn");
+    assert.strictEqual(lastState.board[4][4], 7, 'black pawn at e5');
+
+    resetStockfishEngine();
+  });
+});
+
+describe('Computer player — promotion broadcasts position', () => {
+  // Black pawns promote toward rank 0 (e2 -> e1), not rank 7.
+  // White pawns promote toward rank 7 (e7 -> e8).
+
+  test('computer (black) promotion broadcasts promotion message with file and rank', async () => {
+    // Black pawn on e2 promotes to e1 (rank 0)
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => 'e2e1', // black pawn promotes
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    // Black pawn on e2, white king on h1, black king on g8, white rook on a1.
+    // e1 is empty — black pawn can promote there.
+    game.loadFromFen('6k1/8/8/8/8/8/4p3/R6K w - - 0 1');
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // White makes a move (rook a1->a2), triggering computer's turn
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 1 })
+    );
+
+    // Wait past MIN_MOVE_DELAY
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Check promotion message was broadcast with position and color
+    const promoMsgs = ws1.getSent('promotion');
+    assert.strictEqual(promoMsgs.length, 1, 'should have exactly one promotion message');
+    assert.strictEqual(promoMsgs[0].pieceType, 'queen', 'computer promotes to queen');
+    assert.strictEqual(promoMsgs[0].color, 'black', 'promotion color should be black');
+    assert.strictEqual(promoMsgs[0].file, 4, 'promotion file should be e (4)');
+    assert.strictEqual(promoMsgs[0].rank, 0, 'promotion rank should be 1 (0)');
+
+    // Verify board has the promoted piece (B_QUEEN = 11)
+    const stateMsgs = ws1.getSent('state');
+    const lastState = stateMsgs[stateMsgs.length - 1];
+    assert.strictEqual(lastState.board[0][4], 11, 'board should have black queen at e1');
+
+    resetStockfishEngine();
+  });
+
+  test('computer promotion move message precedes promotion message', async () => {
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => 'e2e1',
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    game.loadFromFen('6k1/8/8/8/8/8/4p3/R6K w - - 0 1');
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 1 })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Check message ordering: move before promotion
+    const allMessages = ws1.getRawSent().map((m) => JSON.parse(m));
+    const moveIdx = allMessages.findIndex((m) => m.type === 'move' && m.color === 'black');
+    const promoIdx = allMessages.findIndex((m) => m.type === 'promotion');
+    assert.ok(moveIdx >= 0, 'should have a black move message');
+    assert.ok(promoIdx >= 0, 'should have a promotion message');
+    assert.ok(
+      moveIdx < promoIdx,
+      `move (idx ${moveIdx}) should precede promotion (idx ${promoIdx})`
+    );
+
+    resetStockfishEngine();
+  });
+
+  test('computer promotion on retry also includes position', async () => {
+    let callCount = 0;
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => {
+        callCount++;
+        if (callCount === 1) return 'e2e2'; // illegal: same square
+        return 'e2e1'; // promotion on retry
+      },
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    game.loadFromFen('6k1/8/8/8/8/8/4p3/R6K w - - 0 1');
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 1 })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    const promoMsgs = ws1.getSent('promotion');
+    assert.strictEqual(promoMsgs.length, 1, 'should have one promotion after retry');
+    assert.strictEqual(promoMsgs[0].pieceType, 'queen');
+    assert.strictEqual(promoMsgs[0].color, 'black', 'promotion color should be black');
+    assert.strictEqual(promoMsgs[0].file, 4);
+    assert.strictEqual(promoMsgs[0].rank, 0);
+
+    const stateMsgs = ws1.getSent('state');
+    const lastState = stateMsgs[stateMsgs.length - 1];
+    assert.strictEqual(lastState.board[0][4], 11, 'black queen at e1');
+
+    resetStockfishEngine();
+  });
+});
+
+// ── Tests: Player promotion triggers computer move ───────
+
+describe('Player promotion — triggers computer move', () => {
+  test("human promotion triggers computer move when it becomes computer's turn", async () => {
+    let engineCallCount = 0;
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => {
+        engineCallCount++;
+        return 'e7e5';
+      },
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    // White pawn on a7 ready to promote, black king on g7 (off rank 8),
+    // black pawn on e7 for computer response, white king on e1.
+    // Promotion to a8 does NOT put black king in check (queen on a8 doesn't attack g7),
+    // so e7e5 is a legal computer response.
+    game.loadFromFen('8/P3p3/6k1/8/8/8/8/4K3 w - - 0 1');
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // White moves pawn to promote (a7 -> a8)
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 6, toFile: 0, toRank: 7 })
+    );
+    assert.ok(game.promotingPiece !== null, 'promotion should be pending');
+
+    // White completes promotion
+    ws1.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'queen' }));
+
+    // Verify promotion completed
+    assert.strictEqual(game.promotingPiece, null, 'promotion should be complete');
+    assert.strictEqual(game.board[7][0], 5, 'white queen at a8');
+    assert.strictEqual(game.turn, 'black', "should be black's turn");
+
+    // Wait past MIN_MOVE_DELAY for computer to respond
+    // The server enforces ~500ms delay; wait significantly longer for async completion
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // Engine should have been called
+    assert.ok(engineCallCount >= 1, `engine called ${engineCallCount} time(s), expected >= 1`);
+
+    // Computer should have made a move
+    const stateMsgs = ws1.getSent('state');
+    const lastState = stateMsgs[stateMsgs.length - 1];
+    assert.strictEqual(lastState.turn, 'white', "should be white's turn after computer move");
+
+    // Promotion message should include position and color
+    const promoMsgs = ws1.getSent('promotion');
+    assert.strictEqual(promoMsgs.length, 1, 'should have one promotion message');
+    assert.strictEqual(promoMsgs[0].pieceType, 'queen');
+    assert.strictEqual(promoMsgs[0].color, 'white', 'promotion color should be white');
+    assert.strictEqual(promoMsgs[0].file, 0, 'promotion file should be a (0)');
+    assert.strictEqual(promoMsgs[0].rank, 7, 'promotion rank should be 8 (7)');
+
+    resetStockfishEngine();
+  });
+
+  test('human promotion to knight triggers computer move', async () => {
+    let engineCallCount = 0;
+    const mockEngine = {
+      isReady: true,
+      available: true,
+      skills: { ...SKILL_DEFAULTS },
+      _queue: [],
+      _queueRunning: false,
+      _spawnPromise: null,
+      spawn: async () => {},
+      setSkill: async () => {},
+      getBestMove: async (fen, skill) => {
+        engineCallCount++;
+        return 'e7e5';
+      },
+      getEvaluation: async (fen) => 0,
+      _enqueue: (fn) => fn(),
+      kill: () => {},
+      quit: async () => {},
+    };
+
+    resetStockfishEngine();
+    setStockfishEngine(mockEngine);
+
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      computerPlayer: { enabled: true },
+    });
+
+    game.loadFromFen('8/P3p3/6k1/8/8/8/8/4K3 w - - 0 1');
+
+    const ws1 = wss.simulateConnection();
+    ws1.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 6, toFile: 0, toRank: 7 })
+    );
+    ws1.emit('message', JSON.stringify({ type: 'promotion', pieceType: 'knight' }));
+
+    assert.strictEqual(game.board[7][0], 2, 'white knight at a8');
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    assert.ok(engineCallCount >= 1, 'engine should have been called');
+
     resetStockfishEngine();
   });
 });

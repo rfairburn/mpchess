@@ -252,13 +252,28 @@ function connect() {
       case 'promotion': {
         // Server confirmed the promoted piece type. Update serverBoard
         // so the pawn at the destination is replaced with the promoted piece.
-        if (serverPromotingPiece && serverBoard) {
-          const pp = serverPromotingPiece;
-          const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
-          const base = pieceMap[msg.pieceType];
-          if (base !== undefined) {
-            const val = pp.color === 'white' ? base : base + 6;
-            serverBoard[pp.rank][pp.file] = val;
+        const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
+        const base = pieceMap[msg.pieceType];
+        if (base !== undefined && serverBoard) {
+          // Prefer explicit position from the message (computer promotions),
+          // fall back to serverPromotingPiece (human promotions where the
+          // client initiated the move).
+          const file = msg.file != null ? msg.file : serverPromotingPiece?.file;
+          const rank = msg.rank != null ? msg.rank : serverPromotingPiece?.rank;
+          // Use explicit color from server if provided; fall back to
+          // serverPromotingPiece (human) or infer from board (legacy).
+          const color = msg.color || serverPromotingPiece?.color;
+          if (file != null && rank != null) {
+            if (color) {
+              const val = color === 'white' ? base : base + 6;
+              serverBoard[rank][file] = val;
+            } else {
+              // Infer color from the existing piece on the board (the pawn)
+              const existing = serverBoard[rank][file];
+              const existingColor = existing >= 7 ? 'black' : 'white';
+              const val = existingColor === 'white' ? base : base + 6;
+              serverBoard[rank][file] = val;
+            }
           }
         }
         fireCallbacks(onPromotionCallbacks, msg);

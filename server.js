@@ -393,11 +393,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         debugLog('Computer move:', { color: thinkingColor, uciMove, result });
 
         // Handle promotion if needed — virtualWs must still be in game.players
+        let promotedPieceType = null;
         if (result.promotion) {
           // For computer, always promote to queen
           const promoOk = game.completePromotion(virtualWs, 'queen');
           if (promoOk) {
-            broadcast({ type: 'promotion', pieceType: 'queen' });
+            promotedPieceType = 'queen';
           }
         }
 
@@ -407,6 +408,15 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         bumpRevision();
         noteMoveBroadcast();
         broadcast({ type: 'move', ...result, color: thinkingColor });
+        if (promotedPieceType) {
+          broadcast({
+            type: 'promotion',
+            pieceType: promotedPieceType,
+            color: thinkingColor,
+            file: result.toFile,
+            rank: result.toRank,
+          });
+        }
         broadcastState();
       } else {
         game.players.delete(virtualWs);
@@ -427,16 +437,26 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           const retryResult = game.tryMove(virtualWs, rf, rr, tf, tr);
           if (retryResult.ok) {
             // Handle promotion if needed — same as primary path
+            let retryPromotedPieceType = null;
             if (retryResult.promotion) {
               const promoOk = game.completePromotion(virtualWs, 'queen');
               if (promoOk) {
-                broadcast({ type: 'promotion', pieceType: 'queen' });
+                retryPromotedPieceType = 'queen';
               }
             }
             game.players.delete(virtualWs);
             bumpRevision();
             noteMoveBroadcast();
             broadcast({ type: 'move', ...retryResult, color: thinkingColor });
+            if (retryPromotedPieceType) {
+              broadcast({
+                type: 'promotion',
+                pieceType: retryPromotedPieceType,
+                color: thinkingColor,
+                file: retryResult.toFile,
+                rank: retryResult.toRank,
+              });
+            }
             broadcastState();
             break;
           }
@@ -807,11 +827,25 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         case 'promotion': {
           if (!game.promotingPiece || game.players.get(ws) !== game.promotingPiece.color) return;
           if (!['queen', 'rook', 'bishop', 'knight'].includes(msg.pieceType)) return;
+          // Capture promotion position and color before completePromotion clears them
+          const promoFile = game.promotingPiece.file;
+          const promoRank = game.promotingPiece.rank;
+          const promoColor = game.promotingPiece.color;
           const ok = game.completePromotion(ws, msg.pieceType);
           if (ok) {
             bumpRevision();
-            broadcast({ type: 'promotion', pieceType: msg.pieceType });
+            broadcast({
+              type: 'promotion',
+              pieceType: msg.pieceType,
+              color: promoColor,
+              file: promoFile,
+              rank: promoRank,
+            });
             broadcastState();
+            // If it's now the computer's turn, trigger its move
+            if (computerColor && game.turn === computerColor && !game.gameOver) {
+              executeComputerMove();
+            }
           }
           break;
         }
