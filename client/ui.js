@@ -146,6 +146,10 @@ let disconnectedOpponentToken = null;
 
 let dropButtonTimer = null;
 
+// Track spectator countdown timers
+let spectatorCountdownTimer = null;
+let secondSpectatorCountdownTimer = null;
+
 // Track second disconnected player (spectators only)
 let secondDisconnectedToken = null;
 
@@ -520,7 +524,7 @@ function syncDisconnectedBanners() {
       if (dp.length >= 2) {
         const second = dp[1];
         if (!secondDisconnectedToken || secondDisconnectedToken !== second.token) {
-          showSecondDisconnectedBanner(second.color, second.token);
+          showSecondDisconnectedBanner(second.color, second.token, second.disconnectedAt);
         }
       } else {
         hideSecondDisconnectedBanner();
@@ -703,16 +707,48 @@ function buildDisconnectedText(color) {
   return `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
 }
 
+function startSpectatorCountdown(color, disconnectedAt) {
+  if (spectatorCountdownTimer) {
+    clearInterval(spectatorCountdownTimer);
+    spectatorCountdownTimer = null;
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateText() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      opponentDisconnectedText.textContent = buildDisconnectedText(color);
+      if (spectatorCountdownTimer) {
+        clearInterval(spectatorCountdownTimer);
+        spectatorCountdownTimer = null;
+      }
+    } else {
+      opponentDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+    }
+  }
+
+  updateText();
+  spectatorCountdownTimer = setInterval(updateText, 1000);
+}
+
+function stopSpectatorCountdown() {
+  if (spectatorCountdownTimer) {
+    clearInterval(spectatorCountdownTimer);
+    spectatorCountdownTimer = null;
+  }
+}
+
 function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
   disconnectedOpponentToken = token;
   opponentDisconnectedText.textContent = buildDisconnectedText(color);
   opponentDisconnectedBanner.classList.add('visible');
-  // Spectators see the banner but the drop button is hidden entirely
   if (myRole === 'white' || myRole === 'black') {
     btnDropPlayer.style.display = '';
     startDropButtonCountdown(disconnectedAt);
   } else {
     btnDropPlayer.style.display = 'none';
+    startSpectatorCountdown(color, disconnectedAt);
   }
 }
 
@@ -724,19 +760,54 @@ function hideOpponentDisconnectedBanner() {
     clearInterval(dropButtonTimer);
     dropButtonTimer = null;
   }
+  stopSpectatorCountdown();
   // Also hide second banner
   hideSecondDisconnectedBanner();
 }
 
-function showSecondDisconnectedBanner(color, token) {
+function startSecondSpectatorCountdown(color, disconnectedAt) {
+  if (secondSpectatorCountdownTimer) {
+    clearInterval(secondSpectatorCountdownTimer);
+    secondSpectatorCountdownTimer = null;
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateText() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      secondDisconnectedText.textContent = buildDisconnectedText(color);
+      if (secondSpectatorCountdownTimer) {
+        clearInterval(secondSpectatorCountdownTimer);
+        secondSpectatorCountdownTimer = null;
+      }
+    } else {
+      secondDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+    }
+  }
+
+  updateText();
+  secondSpectatorCountdownTimer = setInterval(updateText, 1000);
+}
+
+function stopSecondSpectatorCountdown() {
+  if (secondSpectatorCountdownTimer) {
+    clearInterval(secondSpectatorCountdownTimer);
+    secondSpectatorCountdownTimer = null;
+  }
+}
+
+function showSecondDisconnectedBanner(color, token, disconnectedAt) {
   secondDisconnectedToken = token;
   secondDisconnectedText.textContent = buildDisconnectedText(color);
   secondDisconnectedBanner.classList.add('visible');
+  startSecondSpectatorCountdown(color, disconnectedAt);
 }
 
 function hideSecondDisconnectedBanner() {
   secondDisconnectedBanner.classList.remove('visible');
   secondDisconnectedToken = null;
+  stopSecondSpectatorCountdown();
 }
 
 onPlayerDisconnected((msg) => {
@@ -747,7 +818,7 @@ onPlayerDisconnected((msg) => {
       showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
     } else if (disconnectedOpponentToken !== msg.token) {
       // Second player disconnected
-      showSecondDisconnectedBanner(msg.color, msg.token);
+      showSecondDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
     }
   } else {
     showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
