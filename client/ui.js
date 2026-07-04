@@ -128,8 +128,7 @@ const btnDrawDecline = document.getElementById('btn-draw-decline');
 let errorTimeout = null;
 export let menuOpen = false;
 
-// Skill level definitions (must match server)
-const SKILL_LEVELS = ['beginner', 'novice', 'intermediate', 'advanced', 'master', 'grandmaster'];
+// Skill labels (must stay in sync with server)
 const SKILL_LABELS = {
   beginner: 'Beginner',
   novice: 'Novice',

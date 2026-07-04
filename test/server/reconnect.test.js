@@ -1668,7 +1668,10 @@ describe('Draw offer — basic flow', () => {
     const ws2 = joinAs(wss, 'black');
     ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
     // Import FEN before responding
-    ws1.emit('message', JSON.stringify({ type: 'importFen', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1' }));
+    ws1.emit(
+      'message',
+      JSON.stringify({ type: 'importFen', fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1' })
+    );
     // Stale draw response should be rejected
     ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
     const errors = ws2.getSent('error');

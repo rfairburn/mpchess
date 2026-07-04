@@ -80,7 +80,7 @@ async function withUci(fn) {
 async function run() {
   for (const suite of tests) {
     console.log(`\n${suite.label}`);
-    for (const t of (suite.tests || [])) {
+    for (const t of suite.tests || []) {
       total++;
       try {
         await t.fn();
@@ -134,7 +134,10 @@ describe('UciTransport — options & moves', () => {
   test('setoption + position + go returns bestmove', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       uci.send('isready');
       await uci.next();
 
@@ -152,7 +155,10 @@ describe('UciTransport — options & moves', () => {
   test('FEN position + go depth returns bestmove', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       uci.send('isready');
       await uci.next();
 
@@ -167,7 +173,10 @@ describe('UciTransport — options & moves', () => {
   test('changing skill level mid-session works', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       uci.send('isready');
       await uci.next();
 
@@ -203,7 +212,10 @@ describe('UciTransport — line parsing', () => {
   test('filters info lines during search', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       uci.send('isready');
       await uci.next();
       uci.send('position startpos');
@@ -218,7 +230,10 @@ describe('UciTransport — readUntil', () => {
   test('readUntil finds bestmove after go', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       uci.send('isready');
       await uci.next();
       uci.send('position startpos');
@@ -233,7 +248,10 @@ describe('UciTransport — quit', () => {
   test('quit exits cleanly', async () => {
     await withUci(async (uci) => {
       uci.send('uci');
-      await uci.next(); await uci.next(); await uci.next(); await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
+      await uci.next();
       // quit is called by withUci in the finally block
     });
   });
@@ -245,7 +263,9 @@ describe('StockfishEngine — evaluation', () => {
     const engine = getStockfishEngine({ stockfishPath: STOCKFISH });
     try {
       await engine.spawn();
-      const score = await engine.getEvaluation('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      const score = await engine.getEvaluation(
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+      );
       assert.ok(typeof score === 'number', `expected number, got ${typeof score}: ${score}`);
       // Starting position should be near 0 (slight white advantage expected)
       assert.ok(Math.abs(score) < 50, `startpos score should be near 0, got ${score}`);
@@ -261,10 +281,15 @@ describe('StockfishEngine — evaluation', () => {
     try {
       await engine.spawn();
       // First: evaluation
-      const score = await engine.getEvaluation('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+      const score = await engine.getEvaluation(
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+      );
       assert.ok(typeof score === 'number', `expected number, got ${typeof score}`);
       // Second: getBestMove — should work cleanly without stale data
-      const move = await engine.getBestMove('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'beginner');
+      const move = await engine.getBestMove(
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        'beginner'
+      );
       assert.ok(typeof move === 'string' && move.length >= 4, `expected UCI move, got: ${move}`);
     } finally {
       await engine.quit().catch(() => {});

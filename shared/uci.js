@@ -24,7 +24,7 @@ class UciTransport {
     this._buffer = [];
     this._pending = null; // single pending reader for next()
     this._pendingRaw = null; // single pending reader for nextRaw()
-    this._partial = '';  // carry-over for lines split across chunks
+    this._partial = ''; // carry-over for lines split across chunks
   }
 
   /** Spawn the Stockfish process. Resolves once the process is running. */
@@ -37,10 +37,12 @@ class UciTransport {
       this.proc.on('error', (err) => {
         // Reject any pending reader
         if (this._pending) {
-          const p = this._pending; this._pending = null;
+          const p = this._pending;
+          this._pending = null;
           p.reject(err);
         } else if (this._pendingRaw) {
-          const p = this._pendingRaw; this._pendingRaw = null;
+          const p = this._pendingRaw;
+          this._pendingRaw = null;
           p.reject(err);
         } else {
           reject(err);
@@ -100,8 +102,14 @@ class UciTransport {
       }, timeoutMs);
 
       const p = {
-        resolve: (line) => { clearTimeout(timer); resolve(line); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
+        resolve: (line) => {
+          clearTimeout(timer);
+          resolve(line);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
       };
       this._pending = p;
     });
@@ -165,8 +173,14 @@ class UciTransport {
       }, timeoutMs);
 
       const p = {
-        resolve: (line) => { clearTimeout(timer); resolve(line); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
+        resolve: (line) => {
+          clearTimeout(timer);
+          resolve(line);
+        },
+        reject: (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
       };
       this._pendingRaw = p;
     });
@@ -181,7 +195,11 @@ class UciTransport {
       this.proc.on('close', (code) => resolve(code));
       // Safety: force-kill after 3 s
       setTimeout(() => {
-        try { this.proc.kill('SIGKILL'); } catch {}
+        try {
+          this.proc.kill('SIGKILL');
+        } catch {
+          /* process already gone */
+        }
         resolve(null);
       }, 3000);
     });
@@ -192,15 +210,17 @@ class UciTransport {
   _dispatch(line) {
     // If a raw reader is waiting, deliver to it (raw takes priority — it wants everything)
     if (this._pendingRaw) {
-      const p = this._pendingRaw; this._pendingRaw = null;
+      const p = this._pendingRaw;
+      this._pendingRaw = null;
       p.resolve(line);
       return;
     }
     // If a normal reader is waiting, try to satisfy it
     if (this._pending) {
-      const filtered = (line === '' || line.startsWith('option ') || line.startsWith('info '));
+      const filtered = line === '' || line.startsWith('option ') || line.startsWith('info ');
       if (!filtered) {
-        const p = this._pending; this._pending = null;
+        const p = this._pending;
+        this._pending = null;
         p.resolve(line);
         return;
       }
@@ -213,7 +233,8 @@ class UciTransport {
     if (this._pending) {
       const found = this._tryResolveNext();
       if (found) {
-        const p = this._pending; this._pending = null;
+        const p = this._pending;
+        this._pending = null;
         p.resolve(found);
       }
     }

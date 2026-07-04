@@ -67,14 +67,15 @@ If `--cert` is given without `--key` (or vice versa), the server logs a warning 
 ## Testing & Linting
 
 ```bash
-npm test           # everything
+npm test             # lint + format check + server tests + client tests
 npm run test:server  # server tests (chess, reconnect, config, stockfish)
 npm run test:client  # client tests (controls, network)
 npm run test:all     # same as npm test
-npm run lint         # ESLint + Prettier check
-npm run lint:fix     # auto-fix lint issues
+npm run lint         # ESLint
+npm run lint:fix     # auto-fix ESLint issues
 npm run format       # Prettier format all files
-npm run ci           # full CI check (build + lint + format + test)
+npm run format:check # Prettier check (also included in npm test)
+npm run ci           # full CI check (build + lint + format + test + helm)
 ```
 
 ### Test Structure

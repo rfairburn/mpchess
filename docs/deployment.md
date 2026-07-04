@@ -6,6 +6,7 @@ This guide covers deploying mpchess on [microk8s](https://microk8s.io/) with Tra
 
 - [Prerequisites](#prerequisites)
 - [Building the Docker Image](#building-the-docker-image)
+- [Developer Quality Gates](#developer-quality-gates)
 - [Gateway & TLS Setup](#gateway--tls-setup)
 - [Deploying with Helm](#deploying-with-helm)
 - [Helm Values Reference](#helm-values-reference)
@@ -87,6 +88,32 @@ microk8s ctr images ls | grep mpchess
 ```
 
 The deployment defaults to `imagePullPolicy: IfNotPresent`, so it will use the imported image.
+
+---
+
+## Developer Quality Gates
+
+The project treats linting and formatting as required quality gates. `npm test` runs the full sequence:
+
+```bash
+npm test
+# 1. npm run lint          (ESLint)
+# 2. npm run format:check  (Prettier)
+# 3. npm run test:server   (chess, reconnect, config, stockfish)
+# 4. npm run test:client   (Vitest + jsdom)
+```
+
+Standalone commands are also available:
+
+```bash
+npm run lint         # ESLint check
+npm run lint:fix     # auto-fix ESLint issues where possible
+npm run format       # Prettier format all tracked files
+npm run format:check # Prettier check (fails on formatting violations)
+npm run ci           # full CI check: build + lint + format + tests + helm
+```
+
+Run these locally before committing or building a Docker image. CI runs the same checks via `bash scripts/ci.sh`.
 
 ---
 
@@ -231,30 +258,30 @@ microk8s helm uninstall mpchess --namespace mpchess
 
 ## Helm Values Reference
 
-| Parameter               | Description                               | Default             |
-| ----------------------- | ----------------------------------------- | ------------------- |
-| `image.repository`      | Image name                                | `mpchess`           |
-| `image.tag`             | Image tag                                 | `latest`            |
-| `image.pullPolicy`      | Pull policy                               | `IfNotPresent`      |
-| `service.type`          | Kubernetes service type                   | `ClusterIP`         |
-| `service.port`          | Service port                              | `3000`              |
-| `gateway.type`          | Gateway type: `httproute` or `ingress`    | `httproute`         |
-| `gateway.name`          | Gateway resource name                     | `mpchess`           |
-| `gateway.className`     | Gateway class name                        | `traefik`           |
-| `gateway.host`          | Hostname for the route                    | `chess.example.com` |
-| `gateway.tlsSecretName` | TLS secret name                           | `mpchess-tls`       |
-| `gateway.issuer`        | cert-manager ClusterIssuer name           | `letsencrypt-prod`  |
-| `server.port`           | Server listen port                        | `3000`              |
-| `server.fen`            | Custom starting FEN                       | _(none)_            |
-| `server.allowedOrigins` | Allowed WebSocket origins                 | _(none)_            |
-| `config.enabled`        | Mount config.json from ConfigMap          | `false`             |
-| `config.content`        | JSON config content                       | _(none)_            |
-| `tls.enabled`           | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars) | `false`             |
-| `tls.secretName`        | TLS secret for pod certificate            | `mpchess-tls`       |
-| `tls.caConfigMap`       | CA ConfigMap for backend TLS verification   | _(<tls.secretName>-ca)_ |
-| `gateway.backendTls.enabled` | Backend TLS to pod: `auto`/`true`/`false` | `auto`              |
-| `gateway.backendTls.insecureSkipVerify` | Skip backend cert verification (testing only) | `false`             |
-| `resources`             | Kubernetes resource limits/requests       | see values.yaml     |
+| Parameter                               | Description                                                | Default                 |
+| --------------------------------------- | ---------------------------------------------------------- | ----------------------- |
+| `image.repository`                      | Image name                                                 | `mpchess`               |
+| `image.tag`                             | Image tag                                                  | `latest`                |
+| `image.pullPolicy`                      | Pull policy                                                | `IfNotPresent`          |
+| `service.type`                          | Kubernetes service type                                    | `ClusterIP`             |
+| `service.port`                          | Service port                                               | `3000`                  |
+| `gateway.type`                          | Gateway type: `httproute` or `ingress`                     | `httproute`             |
+| `gateway.name`                          | Gateway resource name                                      | `mpchess`               |
+| `gateway.className`                     | Gateway class name                                         | `traefik`               |
+| `gateway.host`                          | Hostname for the route                                     | `chess.example.com`     |
+| `gateway.tlsSecretName`                 | TLS secret name                                            | `mpchess-tls`           |
+| `gateway.issuer`                        | cert-manager ClusterIssuer name                            | `letsencrypt-prod`      |
+| `server.port`                           | Server listen port                                         | `3000`                  |
+| `server.fen`                            | Custom starting FEN                                        | _(none)_                |
+| `server.allowedOrigins`                 | Allowed WebSocket origins                                  | _(none)_                |
+| `config.enabled`                        | Mount config.json from ConfigMap                           | `false`                 |
+| `config.content`                        | JSON config content                                        | _(none)_                |
+| `tls.enabled`                           | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars) | `false`                 |
+| `tls.secretName`                        | TLS secret for pod certificate                             | `mpchess-tls`           |
+| `tls.caConfigMap`                       | CA ConfigMap for backend TLS verification                  | _(<tls.secretName>-ca)_ |
+| `gateway.backendTls.enabled`            | Backend TLS to pod: `auto`/`true`/`false`                  | `auto`                  |
+| `gateway.backendTls.insecureSkipVerify` | Skip backend cert verification (testing only)              | `false`                 |
+| `resources`                             | Kubernetes resource limits/requests                        | see values.yaml         |
 
 ### Using a config file
 
@@ -309,7 +336,7 @@ tls:
 gateway:
   tlsSecretName: mpchess-tls
   backendTls:
-    enabled: auto  # auto-enables when tls.enabled=true
+    enabled: auto # auto-enables when tls.enabled=true
 ```
 
 When `gateway.backendTls.enabled` is `auto` (default), backend TLS is enabled automatically whenever `tls.enabled=true`. The chart renders:
@@ -336,6 +363,7 @@ kubectl create secret generic mpchess-tls-ca --from-file=ca.crt=tls.crt -n mpche
 ```
 
 The TLS secret must contain `tls.crt` and `tls.key` keys (standard for `kubectl create secret tls`). For end-to-end TLS:
+
 - **Gateway API** (HTTPRoute): the CA ConfigMap must contain a `ca.crt` key
 - **Traefik/nginx Ingress**: the CA Secret must contain a `ca.crt` key
 

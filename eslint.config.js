@@ -39,6 +39,20 @@ module.exports = [
       },
     },
   },
+  // ESM scripts
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+      },
+    },
+  },
   // Client files — browser environment
   {
     files: ['client/**/*.js'],

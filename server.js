@@ -338,7 +338,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           await engine.spawn();
         } catch (err) {
           console.error(`[Stockfish] Failed to spawn: ${err.message}`);
-          broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine failed to start' });
+          broadcast({
+            type: 'computerUnavailable',
+            color: thinkingColor,
+            reason: 'Engine failed to start',
+          });
           return;
         }
       }
@@ -441,7 +445,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       console.error(`[Stockfish] Move error: ${err.message}`);
       if (err.code === 'ENOENT' || err.message.includes('not found')) {
         // Binary missing — engine unavailable
-        broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine not found' });
+        broadcast({
+          type: 'computerUnavailable',
+          color: thinkingColor,
+          reason: 'Engine not found',
+        });
       } else {
         // Try to respawn
         try {
@@ -450,7 +458,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           // Don't retry the move — the turn stays with the computer
         } catch (respawnErr) {
           console.error(`[Stockfish] Respawn failed: ${respawnErr.message}`);
-          broadcast({ type: 'computerUnavailable', color: thinkingColor, reason: 'Engine crashed' });
+          broadcast({
+            type: 'computerUnavailable',
+            color: thinkingColor,
+            reason: 'Engine crashed',
+          });
         }
       }
     }
@@ -542,7 +554,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
     try {
       if (!engine.isReady) {
-        try { await engine.spawn(); } catch { /* engine unavailable — decline */ }
+        try {
+          await engine.spawn();
+        } catch {
+          /* engine unavailable — decline */
+        }
       }
       if (engine.isReady) {
         const fen = game.currentFen();
@@ -568,7 +584,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     }
   }
 
-  function handleOfferDraw(ws, data) {
+  function handleOfferDraw(ws, _data) {
     const callerColor = game.players.get(ws);
     if (!callerColor) {
       send(ws, { type: 'error', reason: 'Only seated players can offer a draw' });
@@ -582,7 +598,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     // Check if there's an opponent
     let opponentWs = null;
     for (const [c] of game.players) {
-      if (c !== ws) { opponentWs = c; break; }
+      if (c !== ws) {
+        opponentWs = c;
+        break;
+      }
     }
     if (!opponentWs && computerColor) {
       // Opponent is computer — evaluate position via Stockfish
@@ -636,7 +655,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       broadcastState();
     } else {
       // Declined — notify the offerer
-      send(offererWs, { type: 'drawResult', accepted: false, reason: 'Opponent declined the draw offer' });
+      send(offererWs, {
+        type: 'drawResult',
+        accepted: false,
+        reason: 'Opponent declined the draw offer',
+      });
       send(ws, { type: 'drawResult', accepted: false, reason: 'You declined the draw offer' });
     }
   }
@@ -885,7 +908,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           const { skill } = msg;
           const validSkills = Object.keys(engine.skills);
           if (!validSkills.includes(skill)) {
-            send(ws, { type: 'error', reason: `Invalid skill level. Choose: ${validSkills.join(', ')}` });
+            send(ws, {
+              type: 'error',
+              reason: `Invalid skill level. Choose: ${validSkills.join(', ')}`,
+            });
             break;
           }
           computerSkill = skill;

@@ -53,7 +53,12 @@ class StockfishEngine {
 
   /** Check if the engine is available and ready. */
   get isReady() {
-    return this.available && this.transport && this.transport.proc && this.transport.proc.exitCode === null;
+    return (
+      this.available &&
+      this.transport &&
+      this.transport.proc &&
+      this.transport.proc.exitCode === null
+    );
   }
 
   /**
@@ -214,7 +219,11 @@ class StockfishEngine {
    */
   kill() {
     if (this.transport?.proc) {
-      try { this.transport.proc.kill('SIGKILL'); } catch {}
+      try {
+        this.transport.proc.kill('SIGKILL');
+      } catch {
+        /* process already gone */
+      }
     }
     this.transport = null;
     this.available = false;

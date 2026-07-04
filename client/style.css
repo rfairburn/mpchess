@@ -939,7 +939,8 @@ canvas {
   display: block;
 }
 @keyframes thinkingPulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
