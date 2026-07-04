@@ -21,6 +21,12 @@ const PIECE_CACHE = {};
 export const pieceMeshes = [];
 export let modelsLoaded = false;
 
+// Test-only setter — Object.defineProperty on the module namespace cannot
+// update a local `export let` binding, so expose a function that can.
+export function setModelsLoaded(value) {
+  modelsLoaded = value;
+}
+
 export function loadPieceModels(scene, onReady) {
   const loader = new STLLoader();
   let loaded = 0;

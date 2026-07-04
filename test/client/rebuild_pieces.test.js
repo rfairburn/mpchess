@@ -94,12 +94,10 @@ describe('rebuildPieces — duplicate mesh de-duplication', () => {
       new THREE.MeshStandardMaterial({ color: 0x000000 })
     );
 
-    // Mark models as loaded so rebuildPieces doesn't return early
-    Object.defineProperty(pieces, 'modelsLoaded', {
-      value: true,
-      writable: true,
-      configurable: true,
-    });
+    // Mark models as loaded so rebuildPieces doesn't return early.
+    // Use the setter because Object.defineProperty on the module namespace
+    // cannot update a local `export let` binding.
+    pieces.setModelsLoaded(true);
     pieces.pieceMeshes.length = 0;
   });
 
