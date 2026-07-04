@@ -938,7 +938,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         case 'leave': {
           // Clear any pending draw offer involving this player
           if (drawOffer && (drawOffer.from === ws || drawOffer.to === ws)) {
-            clearDrawOffer();
+            // If the responder is leaving, notify the offerer instead
+            if (drawOffer.to === ws && drawOffer.from && drawOffer.from.readyState === 1) {
+              send(drawOffer.from, { type: 'drawOfferCancelled' });
+            } else {
+              clearDrawOffer();
+            }
+            // Ensure drawOffer is cleared if we didn't call clearDrawOffer
+            if (drawOffer) drawOffer = null;
           }
           // Player voluntarily gives up their seat — no 60s hold
           const playerColor = game.players.get(ws);

@@ -74,6 +74,12 @@ const promoButtons = document.querySelectorAll('#promo-choices button');
 const concedeOverlay = document.getElementById('concede-overlay');
 const btnConcedeConfirm = document.getElementById('btn-concede-confirm');
 const btnConcedeCancel = document.getElementById('btn-concede-cancel');
+
+// Give up spot overlay
+const giveUpSpotOverlay = document.getElementById('give-up-spot-overlay');
+const btnGiveUpSpotConfirm = document.getElementById('btn-give-up-spot-confirm');
+const btnGiveUpSpotCancel = document.getElementById('btn-give-up-spot-cancel');
+
 const capturedWhitePieces = document.querySelector('#captured-white .cap-pieces');
 const capturedBlackPieces = document.querySelector('#captured-black .cap-pieces');
 
@@ -365,15 +371,6 @@ btnResume.addEventListener('click', () => {
   hideMenu();
 });
 
-// Give Up Spot — player voluntarily leaves, freeing their seat immediately
-btnGiveUpSpot.addEventListener('click', () => {
-  hideMenu();
-  if (myRole === 'white' || myRole === 'black') {
-    localStorage.removeItem(tokenKey(myRole));
-  }
-  sendLeave();
-});
-
 // Reconnect as Player — spectator wants to join as a player
 btnReconnectAsPlayer.addEventListener('click', () => {
   hideMenu();
@@ -488,6 +485,27 @@ btnConcedeConfirm.addEventListener('click', () => {
 });
 btnConcedeCancel.addEventListener('click', () => hideConcedeConfirm());
 
+// ── Give up spot ─────────────────────────────────────────
+
+export function showGiveUpSpotConfirm() {
+  hideMenu();
+  giveUpSpotOverlay.classList.add('visible');
+}
+
+export function hideGiveUpSpotConfirm() {
+  giveUpSpotOverlay.classList.remove('visible');
+}
+
+btnGiveUpSpot.addEventListener('click', () => showGiveUpSpotConfirm());
+btnGiveUpSpotConfirm.addEventListener('click', () => {
+  if (myRole === 'white' || myRole === 'black') {
+    localStorage.removeItem(tokenKey(myRole));
+  }
+  sendLeave();
+  hideGiveUpSpotConfirm();
+});
+btnGiveUpSpotCancel.addEventListener('click', () => hideGiveUpSpotConfirm());
+
 // ── Draw offer ───────────────────────────────────────────
 
 export function showDrawOffer(fromColor) {
@@ -599,6 +617,7 @@ onStateUpdate((msg) => {
   updateDrawInfo();
   updateCapturedPieces(msg.capturedPieces);
   hideConcedeConfirm();
+  hideGiveUpSpotConfirm();
 
   // Hide draw offer popup when game ends
   if (serverGameOver) {
@@ -638,6 +657,7 @@ onRestart(() => {
   updateCapturedPieces(null);
   hidePromotionPicker();
   hideConcedeConfirm();
+  hideGiveUpSpotConfirm();
   hideDrawOffer();
   document.getElementById('game-over-overlay').classList.remove('visible');
 });
