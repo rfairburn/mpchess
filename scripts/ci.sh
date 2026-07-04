@@ -91,6 +91,20 @@ else
   fi
 fi
 
+# 7. Docker image build
+if command -v docker &>/dev/null; then
+  run_check "Docker build (mpchess:test)" docker build -t mpchess:test . || true
+else
+  echo -e "${YELLOW}→ Docker build skipped (docker not found)${NC}"
+fi
+
+# 8. Stockfish compile
+if [ -f scripts/build_stockfish.sh ]; then
+  run_check "Stockfish build" bash scripts/build_stockfish.sh || true
+else
+  echo -e "${YELLOW}→ Stockfish build skipped (scripts/build_stockfish.sh not found)${NC}"
+fi
+
 echo ""
 echo "========================================"
 if [ "$FAIL" -eq 0 ]; then
