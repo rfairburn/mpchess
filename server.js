@@ -404,6 +404,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         // Remove virtual player only after promotion is complete
         game.players.delete(virtualWs);
 
+        bumpRevision();
         noteMoveBroadcast();
         broadcast({ type: 'move', ...result, color: thinkingColor });
         broadcastState();
@@ -433,6 +434,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               }
             }
             game.players.delete(virtualWs);
+            bumpRevision();
             noteMoveBroadcast();
             broadcast({ type: 'move', ...retryResult, color: thinkingColor });
             broadcastState();

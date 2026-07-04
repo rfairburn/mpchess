@@ -90,8 +90,15 @@ function test(name, fn) {
     const result = fn();
     if (result && typeof result.then === 'function') {
       result.then(
-        () => { passed++; results[idx].ok = true; },
-        (e) => { failed++; results[idx].ok = false; results[idx].err = e.message; }
+        () => {
+          passed++;
+          results[idx].ok = true;
+        },
+        (e) => {
+          failed++;
+          results[idx].ok = false;
+          results[idx].err = e.message;
+        }
       );
     } else {
       passed++;

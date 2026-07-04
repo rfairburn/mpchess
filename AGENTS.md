@@ -2,7 +2,8 @@
 
 ## Testing
 
-- `npm test` is the gold-standard full CI run. It executes `scripts/ci.sh`, which attempts to build and verify everything.
+- `npm test` is the gold-standard full CI run. It executes `scripts/ci.sh`. Always run it for full acceptance before considering a change complete.  If the full suite has not been run, the change will be rejected.
+- Always check `npm run lint` and `npm run format:check` for any code changes.
 - New features must include appropriate automated tests. Add or update tests in the relevant server, client, or integration suite so the new behavior is covered.
 - Before returning after code changes, run `npm test` unless the user explicitly asked not to run tests or the change is documentation-only and cannot affect behavior.
 - If `npm test` cannot be run, fails for an environmental reason, or times out, say that clearly in the final response and include the exact command attempted.
