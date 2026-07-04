@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
-const { Game } = require('./shared/chess');
+const { Game, validateFenForEngine, fromFen } = require('./shared/chess');
 const { getStockfishEngine } = require('./shared/stockfish_engine');
 
 // ═══════════════════════════════════════════════════════════
@@ -375,6 +375,19 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
       if (gameRevision !== requestRevision) return;
 
+      // Validate UCI move before parsing — Stockfish returns "0000" for no legal moves
+      if (!uciMove || uciMove.length < 4 || uciMove === '0000') {
+        console.error(
+          `[Stockfish] Invalid bestmove response: "${uciMove}"; marking ${thinkingColor} unavailable`
+        );
+        broadcast({
+          type: 'computerUnavailable',
+          color: thinkingColor,
+          reason: 'Engine returned an invalid move',
+        });
+        return;
+      }
+
       // Parse UCI move (e.g. "e2e4" → fromFile=4, fromRank=1, toFile=4, toRank=3)
       const fromFile = uciMove.charCodeAt(0) - 97;
       const fromRank = parseInt(uciMove[1]) - 1;
@@ -422,6 +435,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         game.players.delete(virtualWs);
         console.warn(`[Stockfish] Illegal move ${uciMove}: ${result.reason}`);
         // Retry up to 2 more times
+        let moveApplied = false;
         for (let retry = 0; retry < 2; retry++) {
           const retryFen = game.currentFen();
           const retryRevision = gameRevision;
@@ -429,6 +443,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           // Guard: state may have changed during the retry await
           if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
           if (gameRevision !== retryRevision) return;
+          // Validate retry move
+          if (!retryMove || retryMove.length < 4 || retryMove === '0000') {
+            console.warn(`[Stockfish] Invalid retry bestmove: "${retryMove}"; continuing retries`);
+            continue;
+          }
           const rf = retryMove.charCodeAt(0) - 97;
           const rr = parseInt(retryMove[1]) - 1;
           const tf = retryMove.charCodeAt(2) - 97;
@@ -458,9 +477,22 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               });
             }
             broadcastState();
+            moveApplied = true;
             break;
           }
           game.players.delete(virtualWs);
+        }
+        // All attempts (primary + 2 retries) failed — engine cannot make a legal move.
+        // This can happen with impossible FEN positions or engine bugs.
+        if (!moveApplied) {
+          console.error(
+            `[Stockfish] All move attempts failed for ${thinkingColor}; marking unavailable`
+          );
+          broadcast({
+            type: 'computerUnavailable',
+            color: thinkingColor,
+            reason: 'Engine could not find a legal move',
+          });
         }
       }
     } catch (err) {
@@ -906,7 +938,21 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             break;
           }
           try {
+            // Parse the FEN to get the board state for validation
+            const fenState = fromFen(fen.trim());
+
+            // Validate for engine compatibility (warnings, not errors)
+            const warnings = validateFenForEngine(
+              fenState.board,
+              fenState.turn,
+              fenState.castlingRights,
+              fenState.enPassantTarget
+            );
+
             clearDrawOffer();
+            // Evict computer player — FEN import is treated as a new game
+            evictComputerPlayer();
+
             const oldFen = game.currentFen();
             debugLog('FEN import: OLD FEN:', oldFen);
             debugLog('FEN import: NEW FEN:', fen.trim());
@@ -914,6 +960,16 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             bumpRevision();
             const newFen = game.currentFen();
             debugLog('FEN import: NEW board state:', game.board);
+
+            // Send warnings to all clients if the FEN has engine-incompatible issues
+            if (warnings.length > 0) {
+              broadcast({
+                type: 'fenImportWarning',
+                warnings,
+                fen: fen.trim(),
+              });
+            }
+
             broadcastState();
             broadcast({ type: 'restart' });
             broadcastDebug({

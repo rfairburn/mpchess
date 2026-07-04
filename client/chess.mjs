@@ -1154,18 +1154,24 @@ function fromFen(fen) {
   // Validate turn
   if (turn !== 'w' && turn !== 'b') throw new Error('Invalid FEN: turn must be w or b');
 
-  // Parse castling rights — must be '-' or a unique subset of KQkq
+  // Parse castling rights — must be exactly '-' or a non-empty unique subset of KQkq
   const castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
-  const castlingSeen = new Set();
-  for (const ch of castlingStr) {
-    if (ch === '-') continue;
-    if (castlingSeen.has(ch)) throw new Error(`Invalid FEN: duplicate castling flag '${ch}'`);
-    castlingSeen.add(ch);
-    if (ch === 'K') castlingRights.wK = true;
-    else if (ch === 'Q') castlingRights.wQ = true;
-    else if (ch === 'k') castlingRights.bK = true;
-    else if (ch === 'q') castlingRights.bQ = true;
-    else throw new Error(`Invalid castling character: ${ch}`);
+  if (castlingStr === '-') {
+    // No castling — valid
+  } else {
+    const castlingSeen = new Set();
+    for (const ch of castlingStr) {
+      if (ch === '-') throw new Error('Invalid FEN: castling field cannot mix "-" with flags');
+      if (castlingSeen.has(ch)) throw new Error(`Invalid FEN: duplicate castling flag '${ch}'`);
+      castlingSeen.add(ch);
+      if (ch === 'K') castlingRights.wK = true;
+      else if (ch === 'Q') castlingRights.wQ = true;
+      else if (ch === 'k') castlingRights.bK = true;
+      else if (ch === 'q') castlingRights.bQ = true;
+      else throw new Error(`Invalid castling character: ${ch}`);
+    }
+    if (castlingSeen.size === 0)
+      throw new Error('Invalid FEN: castling field must be "-" or non-empty');
   }
 
   // Parse en passant target — must be '-' or a valid square on rank 3 or 6
@@ -1211,6 +1217,137 @@ function fromFen(fen) {
     halfmoveClock,
     fullmoveNumber,
   };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  FEN VALIDATION — engine compatibility warnings
+//  These checks identify positions that are syntactically valid FEN
+//  but could never arise from legal chess play. They are warnings,
+//  not errors — the position is still importable for puzzles/challenges.
+//  The warnings are surfaced to the user so they know the position
+//  may confuse a chess engine (Stockfish).
+// ═══════════════════════════════════════════════════════════
+
+function validateFenForEngine(board, turn, castlingRights, enPassantTarget) {
+  const warnings = [];
+  const enemy = turn === 'white' ? 'black' : 'white';
+
+  // 1. Kings adjacent — impossible in legal chess
+  const wk = findKing(board, 'white');
+  const bk = findKing(board, 'black');
+  if (wk && bk) {
+    if (Math.abs(wk.file - bk.file) <= 1 && Math.abs(wk.rank - bk.rank) <= 1) {
+      warnings.push('Kings are adjacent');
+    }
+  }
+
+  // 2. Side not to move is in check — impossible in legal chess
+  if (isInCheck(board, enemy)) {
+    warnings.push(`${enemy} is in check but it is ${turn}'s turn`);
+  }
+
+  // 3. Both kings in check — impossible in legal chess
+  if (isInCheck(board, 'white') && isInCheck(board, 'black')) {
+    warnings.push('Both kings are in check');
+  }
+
+  // 4. Pawns on rank 1 or 8 — impossible in legal chess
+  for (let f = 0; f < 8; f++) {
+    if (board[0][f] === W_PAWN || board[0][f] === B_PAWN) {
+      warnings.push('Pawn on rank 1');
+      break;
+    }
+  }
+  for (let f = 0; f < 8; f++) {
+    if (board[7][f] === W_PAWN || board[7][f] === B_PAWN) {
+      warnings.push('Pawn on rank 8');
+      break;
+    }
+  }
+
+  // 5. Impossible castling rights
+  // White king-side: king must be on e1, rook on h1
+  if (castlingRights.wK) {
+    if (board[0][4] !== W_KING || board[0][7] !== W_ROOK) {
+      warnings.push('White king-side castling right but king or rook not on home square');
+    }
+  }
+  // White queen-side: king must be on e1, rook on a1
+  if (castlingRights.wQ) {
+    if (board[0][4] !== W_KING || board[0][0] !== W_ROOK) {
+      warnings.push('White queen-side castling right but king or rook not on home square');
+    }
+  }
+  // Black king-side: king must be on e8, rook on h8
+  if (castlingRights.bK) {
+    if (board[7][4] !== B_KING || board[7][7] !== B_ROOK) {
+      warnings.push('Black king-side castling right but king or rook not on home square');
+    }
+  }
+  // Black queen-side: king must be on e8, rook on a8
+  if (castlingRights.bQ) {
+    if (board[7][4] !== B_KING || board[7][0] !== B_ROOK) {
+      warnings.push('Black queen-side castling right but king or rook not on home square');
+    }
+  }
+
+  // 6. Impossible en passant — verify all conditions
+  if (enPassantTarget) {
+    const epFile = enPassantTarget.file;
+    const epRank = enPassantTarget.rank;
+    if (epRank === 2) {
+      // EP target on rank 3 (index 2): white just pushed two squares (rank 2→4).
+      //   Side to move must be black (the capturing side).
+      //   White pawn must be on the target file at rank 4 (index 3) — the pawn that pushed.
+      //   Black pawn must be on an adjacent file at rank 4 (index 3) — the capturing pawn.
+      if (turn !== 'black') {
+        warnings.push("En passant target on rank 3 but it is not black's turn to capture");
+      }
+      if (board[3][epFile] !== W_PAWN) {
+        warnings.push('En passant target on rank 3 but no white pawn on the pushed square');
+      }
+      let hasCapturer = false;
+      for (const df of [-1, 1]) {
+        const nf = epFile + df;
+        if (nf >= 0 && nf < 8 && board[3][nf] === B_PAWN) {
+          hasCapturer = true;
+          break;
+        }
+      }
+      if (!hasCapturer) {
+        warnings.push('En passant target on rank 3 but no black pawn in position to capture');
+      }
+    } else if (epRank === 5) {
+      // EP target on rank 6 (index 5): black just pushed two squares (rank 7→5).
+      //   Side to move must be white (the capturing side).
+      //   Black pawn must be on the target file at rank 5 (index 4) — the pawn that pushed.
+      //   White pawn must be on an adjacent file at rank 5 (index 4) — the capturing pawn.
+      if (turn !== 'white') {
+        warnings.push("En passant target on rank 6 but it is not white's turn to capture");
+      }
+      if (board[4][epFile] !== B_PAWN) {
+        warnings.push('En passant target on rank 6 but no black pawn on the pushed square');
+      }
+      let hasCapturer = false;
+      for (const df of [-1, 1]) {
+        const nf = epFile + df;
+        if (nf >= 0 && nf < 8 && board[4][nf] === W_PAWN) {
+          hasCapturer = true;
+          break;
+        }
+      }
+      if (!hasCapturer) {
+        warnings.push('En passant target on rank 6 but no white pawn in position to capture');
+      }
+    }
+  }
+
+  // 7. No legal moves for side to move — dead position
+  if (!hasAnyMoves(board, turn, castlingRights, enPassantTarget)) {
+    warnings.push('No legal moves for side to move');
+  }
+
+  return warnings;
 }
 
 // ═══════════════════════════════════════════════════════════

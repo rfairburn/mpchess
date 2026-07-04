@@ -37,6 +37,7 @@ const {
   ZOBRIST,
   toFen,
   fromFen,
+  validateFenForEngine,
 } = require('../../shared/chess');
 
 const fs = require('fs');
@@ -2596,6 +2597,202 @@ describe('Client-side rebuildPieces — force rebuild for promotion', () => {
     // With force=false (normal rebuild), animating pieces are skipped
     // The mesh type should NOT be updated
     assert.strictEqual(pm.type, 'pawn', 'non-force rebuild leaves animating piece unchanged');
+  });
+});
+
+describe('FEN engine-compatibility validation', () => {
+  test('standard starting position has no warnings', () => {
+    const state = fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.strictEqual(warnings.length, 0, `expected no warnings: ${warnings.join(', ')}`);
+  });
+
+  test('adjacent kings produce a warning', () => {
+    const state = fromFen('8/8/8/8/8/4K3/4k3/8 w - - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('adjacent')));
+  });
+
+  test('side not to move in check produces a warning', () => {
+    // White to move, but black king is in check from white queen
+    const state = fromFen('8/8/8/8/8/4Q3/8/4k2K w - - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('in check')));
+  });
+
+  test('pawn on rank 1 produces a warning', () => {
+    const state = fromFen('7k/8/8/8/8/8/8/K6P w - - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('rank 1')));
+  });
+
+  test('pawn on rank 8 produces a warning', () => {
+    const state = fromFen('7p/8/8/8/8/8/8/4K2k w - - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('rank 8')));
+  });
+
+  test('impossible castling rights produce a warning', () => {
+    // White king on f1 (not e1) but wK castling right claimed
+    const state = fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQ1KNR w Kkq - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('castling')));
+  });
+
+  test('impossible white en passant — no capturing pawn produces a warning', () => {
+    // White pushed e2-e4, EP target e3. No black pawn on d4 or f4 to capture.
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('impossible white en passant — no pushed pawn produces a warning', () => {
+    // EP target e3 but no white pawn on e4 (the pawn that supposedly pushed).
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/8/3p4/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('impossible white en passant — wrong turn produces a warning', () => {
+    // EP target e3 but it is white's turn (should be black's to capture).
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR w KQkq e3 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('legal white en passant produces no EP warning', () => {
+    // White pushed e2-e4, EP target e3. Black to move, white pawn on e4, black pawn on d4.
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/8/3pP3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(!warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('impossible black en passant — no capturing pawn produces a warning', () => {
+    // Black pushed e7-e5, EP target e6. No white pawn on d5 or f5 to capture.
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/4p3/8/8/PPPPPPPP/RNBQKBNR w KQkq e6 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('legal black en passant produces no EP warning', () => {
+    // Black pushed e7-e5, EP target e6. White to move, black pawn on e5, white pawn on d5.
+    const state = fromFen('rnbqkbnr/pppp1ppp/8/3Pp3/8/8/PPPPPPPP/RNBQKBNR w KQkq e6 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(!warnings.some((w) => w.toLowerCase().includes('en passant')));
+  });
+
+  test('castling field "-K" is rejected as invalid FEN', () => {
+    assert.throws(
+      () => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w -K - 0 1'),
+      /castling.*cannot mix/,
+      'should reject castling field mixing "-" with flags'
+    );
+  });
+
+  test('castling field "--" is rejected as invalid FEN', () => {
+    assert.throws(
+      () => fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w -- - 0 1'),
+      /castling.*cannot mix/,
+      'should reject multiple dashes in castling field'
+    );
+  });
+
+  test('castling field "-" is accepted as valid', () => {
+    const state = fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w - - 0 1');
+    assert.deepStrictEqual(state.castlingRights, { wK: false, wQ: false, bK: false, bQ: false });
+  });
+
+  test('castling field "KQkq" is accepted as valid', () => {
+    const state = fromFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
+    assert.deepStrictEqual(state.castlingRights, { wK: true, wQ: true, bK: true, bQ: true });
+  });
+
+  test('no legal moves for side to move produces a warning', () => {
+    // White king on a1, rook on b2 controls a2 and b1, king on c3 controls b2
+    // White king not in check but has no legal moves (stalemate)
+    const state = fromFen('8/8/8/8/8/2k5/1r6/K7 w - - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(warnings.some((w) => w.includes('No legal moves')));
+  });
+
+  test('multiple warnings are returned for a very broken position', () => {
+    // Adjacent kings, both in check, pawns on wrong ranks, impossible castling
+    const state = fromFen('P7/8/8/8/4k3/4K3/8/7p w KQkq - 0 1');
+    const warnings = validateFenForEngine(
+      state.board,
+      state.turn,
+      state.castlingRights,
+      state.enPassantTarget
+    );
+    assert.ok(
+      warnings.length >= 3,
+      `expected at least 3 warnings, got ${warnings.length}: ${warnings.join(', ')}`
+    );
   });
 });
 

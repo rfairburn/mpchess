@@ -58,6 +58,7 @@ const onDrawResultCallbacks = [];
 const onDrawOfferCancelledCallbacks = [];
 const onLeftCallbacks = [];
 const onPlayerLeftCallbacks = [];
+const onFenImportWarningCallbacks = [];
 
 export function onStateUpdate(fn) {
   onStateUpdateCallbacks.push(fn);
@@ -129,6 +130,10 @@ export function onLeft(fn) {
 
 export function onPlayerLeft(fn) {
   onPlayerLeftCallbacks.push(fn);
+}
+
+export function onFenImportWarning(fn) {
+  onFenImportWarningCallbacks.push(fn);
 }
 
 function fireCallbacks(arr, data) {
@@ -417,6 +422,10 @@ function connect() {
       }
       case 'playerLeft': {
         fireCallbacks(onPlayerLeftCallbacks, msg);
+        break;
+      }
+      case 'fenImportWarning': {
+        fireCallbacks(onFenImportWarningCallbacks, msg);
         break;
       }
     }

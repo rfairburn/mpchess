@@ -51,6 +51,7 @@ import {
   onDrawOfferCancelled,
   onLeft,
   onPlayerLeft,
+  onFenImportWarning,
   retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
@@ -303,6 +304,15 @@ export function showInfo(msg) {
   errorToast.classList.add('visible');
   clearTimeout(errorTimeout);
   errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 2500);
+}
+
+export function showWarning(msg) {
+  errorToast.textContent = msg;
+  errorToast.style.color = '#ffd966';
+  errorToast.style.borderColor = 'rgba(255, 200, 50, 0.4)';
+  errorToast.classList.add('visible');
+  clearTimeout(errorTimeout);
+  errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 5000);
 }
 
 // ── Menu ─────────────────────────────────────────────────
@@ -1067,4 +1077,11 @@ onLeft(() => {
 onPlayerLeft((msg) => {
   const colorLabel = msg.color === 'white' ? 'White' : 'Black';
   showInfo(`${colorLabel} has left — their seat is now available`);
+});
+
+// FEN import warnings — show as yellow toast
+onFenImportWarning((msg) => {
+  if (msg.warnings && msg.warnings.length > 0) {
+    showWarning(`FEN warning: ${msg.warnings[0]}`);
+  }
 });
