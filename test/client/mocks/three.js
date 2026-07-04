@@ -120,6 +120,21 @@ export class Scene {
   add(obj) {
     this.children.push(obj);
   }
+  remove(obj) {
+    const idx = this.children.indexOf(obj);
+    if (idx > -1) this.children.splice(idx, 1);
+  }
+}
+
+export class Group {
+  constructor() {
+    this.children = [];
+    this.position = new Vector3();
+    this.rotation = new Euler();
+  }
+  add(obj) {
+    this.children.push(obj);
+  }
 }
 
 export class WebGLRenderer {

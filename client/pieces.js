@@ -193,7 +193,8 @@ export function rebuildPieces(scene, force = false) {
 
   // Rebuild the pieceMeshes array: keep animating pieces + pieces in desired state.
   // De-duplicate by position — if two meshes occupy the same square, the last one
-  // wins (newest data is most correct).
+  // wins (newest data is most correct). The losing duplicate's mesh is removed
+  // from the scene to prevent orphaned geometry.
   const animating = [];
   const byPosition = new Map();
   for (const pm of pieceMeshes) {
@@ -202,7 +203,12 @@ export function rebuildPieces(scene, force = false) {
     } else {
       const key = `${pm.file},${pm.rank}`;
       if (desired.has(key)) {
-        byPosition.set(key, pm); // overwrite on duplicate — last wins
+        const existing = byPosition.get(key);
+        if (existing) {
+          // Duplicate at same position — remove the losing mesh from the scene
+          scene.remove(existing.mesh);
+        }
+        byPosition.set(key, pm);
       }
     }
   }
@@ -395,12 +401,30 @@ onStateUpdate(() => {
 });
 
 onRestart(() => {
-  // Force rebuild: clear all animations so stale meshes from the old game
-  // don't survive the FEN import / restart.
+  // Brute-force re-sync: nuke all client-side piece meshes and rebuild from
+  // server state. This prevents duplicate pieces on the same square (a
+  // client-only desync that can occur after promotions).
   if (_scene && serverBoard && modelsLoaded) {
-    // Cancel in-flight slide animations for the old game
+    // Cancel in-flight animations — their callbacks won't fire, so any
+    // cloned capture materials won't get their normal dispose() path.
     animations.length = 0;
     animatingPieces.clear();
+
+    // Remove every piece mesh from the scene with proper cleanup
+    while (pieceMeshes.length > 0) {
+      const pm = pieceMeshes.pop();
+      _scene.remove(pm.mesh);
+      // Dispose resources. Geometry is shared (PIECE_CACHE) — never dispose.
+      // Material is shared (matWhite/matBlack) except when animateCapture
+      // cloned it — check by identity before disposing.
+      const child = pm.mesh.children[0];
+      if (child) {
+        if (child.material && child.material !== matWhite && child.material !== matBlack) {
+          child.material.dispose();
+        }
+      }
+    }
+
     rebuildPieces(_scene, true);
   }
   clearHighlights();
