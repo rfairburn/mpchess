@@ -2,7 +2,7 @@
 {{- fail "gateway.backendTls.insecureSkipVerify is not supported for gateway.type=httproute. The Gateway API has no standard mechanism for insecure backend TLS. Use a CA ConfigMap with tls.caConfigMap and set gateway.backendTls.insecureSkipVerify=false (default) to render a BackendTLSPolicy, or switch to gateway.type=ingress where insecureSkipVerify is supported via Traefik ServersTransport." }}
 {{- end }}
 {{- if and (ne .Values.gateway.type "none") (eq .Values.gateway.type "httproute") (include "mpchess.backendTlsEnabled" .) (not .Values.gateway.backendTls.insecureSkipVerify) }}
-apiVersion: gateway.networking.k8s.io/v1alpha3
+apiVersion: gateway.networking.k8s.io/v1
 kind: BackendTLSPolicy
 metadata:
   name: {{ include "mpchess.fullname" . }}
