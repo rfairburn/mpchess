@@ -163,6 +163,7 @@ module.exports = [
     ignores: [
       'shared/chess.mjs',
       'client/chess.mjs',
+      'client/vendor/',
       'node_modules/',
       'coverage/',
       'dist/',

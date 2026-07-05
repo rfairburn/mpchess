@@ -205,8 +205,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function broadcastState(excludeWs) {
+    // Slow-client guard is explicit here (matching broadcast/broadcastDebug)
+    // and also present in send() as a belt-and-suspenders check.
     for (const c of wss.clients) {
-      if (c !== excludeWs && c.readyState === 1) sendState(c);
+      if (c !== excludeWs && c.readyState === 1 && !isClientSlow(c)) sendState(c);
     }
   }
 

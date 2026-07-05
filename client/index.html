@@ -205,15 +205,20 @@
       <button id="btn-join-game">Join Game</button>
     </div>
 
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-        }
-      }
+    <script>
+      (function () {
+        var p = window.__mpchess_prefix || '';
+        var m = document.createElement('script');
+        m.type = 'importmap';
+        m.textContent = JSON.stringify({
+          imports: {
+            three: p + '/client/vendor/three/build/three.module.js',
+            'three/addons/': p + '/client/vendor/three/examples/jsm/',
+          },
+        });
+        document.head.appendChild(m);
+      })();
     </script>
-    <!-- NOTE: three@0.160.0 must match THREE_VERSION in app.js -->
 
     <script type="module" src="app.js"></script>
   </body>

@@ -5,8 +5,6 @@
 import * as THREE from 'three';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 
-const THREE_VERSION = '0.160.0'; // must match importmap version in index.html
-
 import { onMove } from './network.js';
 import { updateMouseModeDisplay } from './ui.js';
 import { createBoard, setMaterials as setBoardMaterials, createLabels } from './board.js';
@@ -123,9 +121,8 @@ updateMouseModeDisplay(mouseLookOn);
 loadPieceModels(scene, () => {
   // Pieces will be built when server sends state
   const loader = new FontLoader();
-  loader.load(
-    `https://cdn.jsdelivr.net/npm/three@${THREE_VERSION}/examples/fonts/helvetiker_regular.typeface.json`,
-    (font) => createLabels(scene, font)
+  loader.load(`vendor/three/examples/fonts/helvetiker_regular.typeface.json`, (font) =>
+    createLabels(scene, font)
   );
 });
 

@@ -1,5 +1,6 @@
 node_modules/
 client/chess.mjs
+client/vendor/
 coverage/
 dist/
 chart/
