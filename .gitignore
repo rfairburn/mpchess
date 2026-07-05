@@ -5,3 +5,4 @@ config.json
 dist/
 coverage/
 stockfish/
+.ci-test-results.json
