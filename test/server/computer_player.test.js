@@ -770,6 +770,45 @@ describe('draw offer -- against computer', () => {
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(errors[0].reason.includes('already over'));
   });
+
+  test('draw offer discarded when game ends during async evaluation', async () => {
+    // Engine whose getEvaluation is delayed, simulating a slow Stockfish call
+    let resolveEval;
+    const mockEngine = createMockEngine({
+      evaluation: 10, // within threshold — would accept if not for the race
+      getBestMove: async () => 'e7e5',
+    });
+    // Override getEvaluation with a controllable promise
+    mockEngine.getEvaluation = async () => {
+      return new Promise((resolve) => {
+        resolveEval = () => resolve(10);
+      });
+    };
+
+    const { wss, game } = createEnv({ mockEngine });
+
+    const ws = joinAs(wss, 'white');
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Offer draw — this starts the async evaluation
+    ws.emit('message', JSON.stringify({ type: 'offerDraw' }));
+
+    // Game ends during evaluation (restart bumps revision)
+    await new Promise((r) => setTimeout(r, 50));
+    ws.emit('message', JSON.stringify({ type: 'restart' }));
+
+    // Now resolve the evaluation
+    resolveEval();
+    await new Promise((r) => setTimeout(r, 200));
+
+    // The draw must NOT have been applied — game was restarted
+    assert.strictEqual(game.gameOver, false, 'game should not be over after restart');
+    assert.strictEqual(game.gameResult, null, 'gameResult should be null');
+  });
 });
 
 // ===========================================================

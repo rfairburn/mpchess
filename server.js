@@ -609,6 +609,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     let accepted = false;
     let reason = 'Computer declined the draw offer';
 
+    // Capture revision before async evaluation so we can detect
+    // board-state changes (restart, concede, FEN import) while Stockfish
+    // is thinking — analogous to the guard in executeComputerMove.
+    const requestRevision = gameRevision;
+
     try {
       if (!engine.isReady) {
         try {
@@ -631,6 +636,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     }
 
     if (accepted) {
+      // Guard: game may have ended during async evaluation (concede, restart,
+      // FEN import, etc.). Discard the stale draw result to avoid overwriting
+      // the real terminal state.
+      if (game.gameOver || gameRevision !== requestRevision) return;
       game.gameOver = true;
       game.gameResult = 'Draw by agreement';
       bumpRevision();
