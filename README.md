@@ -47,18 +47,34 @@ npm start -- --cert=server.crt --key=server.key --chain=chain.pem
 npm start -- --port=8443 --cert=server.crt --key=server.key
 ```
 
-| Option                      | Description                                          |
-| --------------------------- | ---------------------------------------------------- |
-| `--help`, `-h`              | Show usage and exit                                  |
-| `--config=<path>`           | Config file path (default: `config.json` in cwd)     |
-| `--port=<number>`           | Override the listen port (default: 3000, or `$PORT`) |
-| `--fen=<fen_string>`        | Load a custom starting position (FEN format)         |
-| `--cert=<path>`             | TLS certificate file (PEM); enables HTTPS            |
-| `--key=<path>`              | TLS private key file (PEM); required with `--cert`   |
-| `--chain=<path>`            | TLS certificate chain file (PEM); optional           |
-| `--allowed-origins=<o1,o2>` | Comma-separated list of allowed WebSocket origins    |
+| Option                             | Description                                              |
+| ---------------------------------- | -------------------------------------------------------- |
+| `--help`, `-h`                     | Show usage and exit                                      |
+| `--config=<path>`                  | Config file path (default: `config.json` in cwd)         |
+| `--port=<number>`                  | Override the listen port (default: 3000, or `$PORT`)     |
+| `--fen=<fen_string>`               | Load a custom starting position (FEN format)             |
+| `--cert=<path>`                    | TLS certificate file (PEM); enables HTTPS                |
+| `--key=<path>`                     | TLS private key file (PEM); required with `--cert`       |
+| `--chain=<path>`                   | TLS certificate chain file (PEM); optional               |
+| `--allowed-origins=<o1,o2>`        | Comma-separated list of allowed WebSocket origins        |
+| `--debug=<true                     | false>`                                                  | Enable debug logging for piece rebuilding |
+| `--prefix=<path>`                  | URL prefix for subpath deployments (e.g. `/chess`)       |
+| `--computer-enabled=<bool>`        | Enable/disable computer player (default: true)           |
+| `--computer-stockfish-path=<path>` | Path to Stockfish binary (auto-resolved if unset)        |
+| `--computer-spawn-timeout=<ms>`    | Max ms to wait for engine startup (default: 10000)       |
+| `--computer-move-timeout=<ms>`     | Max ms to wait for a move (default: 30000)               |
+| `--computer-skills=<json>`         | JSON string overriding skill-level presets               |
+| `--seat-timeout=<ms>`              | Reconnect seat reservation timeout (default: 60000)      |
+| `--join-timeout=<ms>`              | Join handshake completion timeout (default: 5000)        |
+| `--rate-limit-max=<n>`             | Max messages per rate-limit window (default: 60)         |
+| `--rate-limit-window=<ms>`         | Rate-limit sliding window duration (default: 10000)      |
+| `--slow-client-threshold=<bytes>`  | Slow-client buffered-amount threshold (default: 1048576) |
+| `--min-move-delay=<ms>`            | Minimum delay between moves for animation (default: 500) |
+| `--host=<address>`                 | Listen address (default: 0.0.0.0)                        |
 
-All options can also be set via environment variables (`MPCHESS_PORT`, `MPCHESS_FEN`, etc.) or a `config.json` file. See [config.example.json](config.example.json) for reference. Config priority: CLI > env vars > config file > defaults.
+All options can also be set via environment variables (`MPCHESS_PORT`, `MPCHESS_FEN`, `MPCHESS_COMPUTER_ENABLED`, `MPCHESS_SEAT_TIMEOUT`, etc.) or a `config.json` file. See [config.example.json](config.example.json) for reference. Config priority: CLI > env vars > config file > defaults.
+
+The computer player can be configured via the nested `computerPlayer` object in `config.json`, or via individual env vars / CLI flags (`MPCHESS_COMPUTER_ENABLED`, `MPCHESS_COMPUTER_STOCKFISH_PATH`, `MPCHESS_COMPUTER_SPAWN_TIMEOUT`, `MPCHESS_COMPUTER_MOVE_TIMEOUT`, `MPCHESS_COMPUTER_SKILLS`). The `skills` option accepts a JSON string when set via env var or CLI, and is merged over the built-in presets (beginner, novice, intermediate, advanced, master, grandmaster).
 
 When TLS is enabled, open `https://localhost:<port>` instead. The client auto-selects `wss://` for WebSocket connections.
 

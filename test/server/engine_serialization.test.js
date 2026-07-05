@@ -1103,6 +1103,71 @@ describe('Player promotion — triggers computer move', () => {
   });
 });
 
+describe('StockfishEngine — skill override deep-merge', () => {
+  test('partial skill override preserves other preset fields', () => {
+    // Create an engine with a partial override for 'beginner' that only
+    // changes movetime. The built-in beginner preset has skillLevel, threads,
+    // hash, movetime, and depth — all of those except movetime must survive.
+    const engine = new StockfishEngine({
+      skills: { beginner: { movetime: 100 } },
+    });
+
+    const beginner = engine.skills.beginner;
+    assert.strictEqual(beginner.movetime, 100, 'overridden field should change');
+    assert.strictEqual(beginner.skillLevel, 0, 'skillLevel should be preserved');
+    assert.strictEqual(beginner.threads, 1, 'threads should be preserved');
+    assert.strictEqual(beginner.hash, 16, 'hash should be preserved');
+    assert.strictEqual(beginner.depth, 3, 'depth should be preserved');
+  });
+
+  test('partial override for master preserves other fields', () => {
+    const engine = new StockfishEngine({
+      skills: { master: { depth: 30 } },
+    });
+
+    const master = engine.skills.master;
+    assert.strictEqual(master.depth, 30, 'overridden field should change');
+    assert.strictEqual(master.skillLevel, 18, 'skillLevel should be preserved');
+    assert.strictEqual(master.threads, 2, 'threads should be preserved');
+    assert.strictEqual(master.hash, 128, 'hash should be preserved');
+    assert.strictEqual(master.movetime, 5000, 'movetime should be preserved');
+  });
+
+  test('multiple partial overrides each deep-merge independently', () => {
+    const engine = new StockfishEngine({
+      skills: {
+        beginner: { movetime: 50 },
+        grandmaster: { threads: 4 },
+      },
+    });
+
+    assert.strictEqual(engine.skills.beginner.movetime, 50);
+    assert.strictEqual(engine.skills.beginner.skillLevel, 0);
+    assert.strictEqual(engine.skills.beginner.hash, 16);
+
+    assert.strictEqual(engine.skills.grandmaster.threads, 4);
+    assert.strictEqual(engine.skills.grandmaster.skillLevel, 20);
+    assert.strictEqual(engine.skills.grandmaster.hash, 256);
+    assert.strictEqual(engine.skills.grandmaster.movetime, 10000);
+  });
+
+  test('new custom skill not in defaults is added as-is', () => {
+    const engine = new StockfishEngine({
+      skills: { custom: { skillLevel: 5, threads: 1, hash: 32, movetime: 1000 } },
+    });
+
+    assert.ok(engine.skills.custom, 'custom skill should exist');
+    assert.strictEqual(engine.skills.custom.skillLevel, 5);
+    assert.strictEqual(engine.skills.custom.movetime, 1000);
+  });
+
+  test('no skills override leaves defaults intact', () => {
+    const engine = new StockfishEngine({});
+    assert.deepStrictEqual(engine.skills.beginner, SKILL_DEFAULTS.beginner);
+    assert.deepStrictEqual(engine.skills.grandmaster, SKILL_DEFAULTS.grandmaster);
+  });
+});
+
 // ── Run ───────────────────────────────────────────────────
 
 run().catch((err) => {

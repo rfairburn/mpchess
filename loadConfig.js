@@ -14,6 +14,23 @@ const DEFAULTS = {
   allowedOrigins: [],
   debug: false,
   prefix: undefined,
+  // Computer-player flat keys (env/CLI surface).
+  // These are assembled into the nested `computerPlayer` object by
+  // finalizeComputerPlayer() after all config layers are merged.
+  // They default to undefined so they never override config-file values.
+  computerEnabled: undefined,
+  computerStockfishPath: undefined,
+  computerSpawnTimeout: undefined,
+  computerMoveTimeout: undefined,
+  computerSkills: undefined,
+  // Server runtime tuning knobs.
+  seatTimeout: undefined,
+  joinTimeout: undefined,
+  rateLimitMax: undefined,
+  rateLimitWindow: undefined,
+  slowClientThreshold: undefined,
+  minMoveDelay: undefined,
+  host: undefined,
 };
 
 const ENV_MAP = {
@@ -25,6 +42,18 @@ const ENV_MAP = {
   allowedOrigins: 'MPCHESS_ALLOWED_ORIGINS',
   debug: 'MPCHESS_DEBUG',
   prefix: 'MPCHESS_PREFIX',
+  computerEnabled: 'MPCHESS_COMPUTER_ENABLED',
+  computerStockfishPath: 'MPCHESS_COMPUTER_STOCKFISH_PATH',
+  computerSpawnTimeout: 'MPCHESS_COMPUTER_SPAWN_TIMEOUT',
+  computerMoveTimeout: 'MPCHESS_COMPUTER_MOVE_TIMEOUT',
+  computerSkills: 'MPCHESS_COMPUTER_SKILLS',
+  seatTimeout: 'MPCHESS_SEAT_TIMEOUT',
+  joinTimeout: 'MPCHESS_JOIN_TIMEOUT',
+  rateLimitMax: 'MPCHESS_RATE_LIMIT_MAX',
+  rateLimitWindow: 'MPCHESS_RATE_LIMIT_WINDOW',
+  slowClientThreshold: 'MPCHESS_SLOW_CLIENT_THRESHOLD',
+  minMoveDelay: 'MPCHESS_MIN_MOVE_DELAY',
+  host: 'MPCHESS_HOST',
 };
 
 // CLI flag (kebab-case) → config key (camelCase)
@@ -37,11 +66,33 @@ const CLI_FLAG_MAP = [
   ['--allowed-origins=', 'allowedOrigins'],
   ['--debug=', 'debug'],
   ['--prefix=', 'prefix'],
+  ['--computer-enabled=', 'computerEnabled'],
+  ['--computer-stockfish-path=', 'computerStockfishPath'],
+  ['--computer-spawn-timeout=', 'computerSpawnTimeout'],
+  ['--computer-move-timeout=', 'computerMoveTimeout'],
+  ['--computer-skills=', 'computerSkills'],
+  ['--seat-timeout=', 'seatTimeout'],
+  ['--join-timeout=', 'joinTimeout'],
+  ['--rate-limit-max=', 'rateLimitMax'],
+  ['--rate-limit-window=', 'rateLimitWindow'],
+  ['--slow-client-threshold=', 'slowClientThreshold'],
+  ['--min-move-delay=', 'minMoveDelay'],
+  ['--host=', 'host'],
 ];
 
 function convertType(key, value) {
   if (value === undefined || value === null || value === '') return undefined;
-  if (key === 'port') {
+  if (
+    key === 'port' ||
+    key === 'computerSpawnTimeout' ||
+    key === 'computerMoveTimeout' ||
+    key === 'seatTimeout' ||
+    key === 'joinTimeout' ||
+    key === 'rateLimitMax' ||
+    key === 'rateLimitWindow' ||
+    key === 'slowClientThreshold' ||
+    key === 'minMoveDelay'
+  ) {
     const n = Number(value);
     return Number.isFinite(n) ? n : undefined;
   }
@@ -54,12 +105,25 @@ function convertType(key, value) {
         .filter(Boolean);
     return [];
   }
-  if (key === 'debug') {
+  if (key === 'debug' || key === 'computerEnabled') {
     // Accept 'true', '1', 'yes' as truthy
     if (typeof value === 'string') {
       return ['true', '1', 'yes'].includes(value.toLowerCase());
     }
     return Boolean(value);
+  }
+  if (key === 'computerSkills') {
+    // Accept a JSON string (from env/CLI) or an object (from config file)
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        return typeof parsed === 'object' && parsed !== null ? parsed : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    if (typeof value === 'object') return value;
+    return undefined;
   }
   return value;
 }
@@ -136,6 +200,40 @@ function loadFromFile(filePath) {
   }
 }
 
+/**
+ * Assemble the nested `computerPlayer` object from flat config keys.
+ *
+ * The config file may provide `computerPlayer` as a nested object directly.
+ * Env vars and CLI flags provide flat keys (computerEnabled, etc.) that
+ * are layered on top of the nested object. This function merges them,
+ * with flat keys taking priority, then removes the flat keys from the
+ * final config so consumers only see `config.computerPlayer`.
+ *
+ * @param {object} config - merged config from all layers
+ * @returns {object} config with computerPlayer assembled and flat keys removed
+ */
+function finalizeComputerPlayer(config) {
+  const cp = { ...(config.computerPlayer || {}) };
+
+  if (config.computerEnabled !== undefined) cp.enabled = config.computerEnabled;
+  if (config.computerStockfishPath !== undefined) cp.stockfishPath = config.computerStockfishPath;
+  if (config.computerSpawnTimeout !== undefined) cp.spawnTimeout = config.computerSpawnTimeout;
+  if (config.computerMoveTimeout !== undefined) cp.moveTimeout = config.computerMoveTimeout;
+  if (config.computerSkills !== undefined) cp.skills = config.computerSkills;
+
+  if (Object.keys(cp).length > 0) {
+    config.computerPlayer = cp;
+  }
+
+  delete config.computerEnabled;
+  delete config.computerStockfishPath;
+  delete config.computerSpawnTimeout;
+  delete config.computerMoveTimeout;
+  delete config.computerSkills;
+
+  return config;
+}
+
 function loadConfig(argv = process.argv) {
   const configArg = argv.find((a) => a.startsWith('--config='));
   const configPath = configArg ? path.resolve(configArg.slice(9)) : defaultConfigPath();
@@ -144,7 +242,7 @@ function loadConfig(argv = process.argv) {
   const envConfig = loadFromEnv();
   const cliConfig = loadFromCli(argv);
 
-  return mergeLayers([DEFAULTS, fileConfig, envConfig, cliConfig]);
+  return finalizeComputerPlayer(mergeLayers([DEFAULTS, fileConfig, envConfig, cliConfig]));
 }
 
 module.exports = {
@@ -158,4 +256,5 @@ module.exports = {
   loadFromCli,
   mergeLayers,
   stripComments,
+  finalizeComputerPlayer,
 };

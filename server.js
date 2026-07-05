@@ -25,7 +25,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   const rateLimitBuckets = new Map();
   let bothDisconnectedTimer = null;
 
-  const SLOW_CLIENT_THRESHOLD = 1 * 1024 * 1024; // 1 MB
+  const SLOW_CLIENT_THRESHOLD =
+    options.slowClientThreshold != null ? options.slowClientThreshold : 1 * 1024 * 1024; // 1 MB
 
   // Debug mode
   const DEBUG = options.debug || false;
@@ -94,7 +95,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   // Human moves broadcast immediately and update the timestamp.
   // Computer moves delay the entire server-side handling (tryMove + broadcast)
   // if < 500ms since the last move was broadcast.
-  const MIN_MOVE_DELAY = 500;
+  const MIN_MOVE_DELAY = options.minMoveDelay != null ? options.minMoveDelay : 500;
   let lastMoveTime = -MIN_MOVE_DELAY;
 
   function remainingMoveDelay() {
@@ -1124,7 +1125,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 //  HTTP SERVER + WEBSOCKET (production entry point)
 // ═══════════════════════════════════════════════════════════
 
-const HOST = '0.0.0.0';
+const DEFAULT_HOST = '0.0.0.0';
 
 const MIME = {
   '.html': 'text/html',
@@ -1228,11 +1229,31 @@ Options:
   --debug=<true|false>      Enable debug logging for piece rebuilding
   --prefix=<path>           URL prefix for subpath deployments (e.g. /chess)
 
+  Computer player (Stockfish):
+  --computer-enabled=<true|false>      Enable/disable computer player (default: true)
+  --computer-stockfish-path=<path>    Path to Stockfish binary (auto-resolved if unset)
+  --computer-spawn-timeout=<ms>       Max ms to wait for engine startup (default: 10000)
+  --computer-move-timeout=<ms>       Max ms to wait for a move (default: 30000)
+  --computer-skills=<json>            JSON string overriding skill-level presets
+
+  Server tuning:
+  --seat-timeout=<ms>          Reconnect seat reservation timeout (default: 60000)
+  --join-timeout=<ms>          Join handshake completion timeout (default: 5000)
+  --rate-limit-max=<n>         Max messages per rate-limit window (default: 60)
+  --rate-limit-window=<ms>     Rate-limit sliding window duration (default: 10000)
+  --slow-client-threshold=<bytes>  Slow-client buffered-amount threshold (default: 1048576)
+  --min-move-delay=<ms>        Minimum delay between moves for animation (default: 500)
+  --host=<address>             Listen address (default: 0.0.0.0)
+
 Config sources (highest priority first):
   1. CLI arguments
   2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
      MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS, MPCHESS_DEBUG,
-     MPCHESS_PREFIX)
+     MPCHESS_PREFIX, MPCHESS_COMPUTER_ENABLED, MPCHESS_COMPUTER_STOCKFISH_PATH,
+     MPCHESS_COMPUTER_SPAWN_TIMEOUT, MPCHESS_COMPUTER_MOVE_TIMEOUT,
+     MPCHESS_COMPUTER_SKILLS, MPCHESS_SEAT_TIMEOUT, MPCHESS_JOIN_TIMEOUT,
+     MPCHESS_RATE_LIMIT_MAX, MPCHESS_RATE_LIMIT_WINDOW, MPCHESS_SLOW_CLIENT_THRESHOLD,
+     MPCHESS_MIN_MOVE_DELAY, MPCHESS_HOST)
   3. Config file (config.json or --config=<path>)
   4. Built-in defaults
 
@@ -1242,8 +1263,16 @@ Examples:
   node server.js --cert=server.crt --key=server.key
   node server.js --allowed-origins=games.devop.ninja,localhost
   node server.js --debug=true
+  node server.js --computer-enabled=false
+  node server.js --computer-stockfish-path=/usr/bin/stockfish --computer-move-timeout=60000
   MPCHESS_PORT=8080 node server.js
   MPCHESS_DEBUG=true node server.js
+  MPCHESS_COMPUTER_ENABLED=false node server.js
+  MPCHESS_COMPUTER_SKILLS='{"beginner":{"movetime":100}}' node server.js
+  node server.js --seat-timeout=120000 --rate-limit-max=100
+  MPCHESS_SEAT_TIMEOUT=30000 node server.js
+  node server.js --host=127.0.0.1 --min-move-delay=1000
+  MPCHESS_SLOW_CLIENT_THRESHOLD=2097152 node server.js
 `);
     process.exit(0);
   }
@@ -1322,7 +1351,16 @@ Examples:
     }
   }
 
-  setupWebSocketHandlers(wss, game, { debug: config.debug, computerPlayer: config.computerPlayer });
+  setupWebSocketHandlers(wss, game, {
+    debug: config.debug,
+    computerPlayer: config.computerPlayer,
+    seatTimeout: config.seatTimeout,
+    joinTimeoutMs: config.joinTimeout,
+    rateLimitMax: config.rateLimitMax,
+    rateLimitWindow: config.rateLimitWindow,
+    slowClientThreshold: config.slowClientThreshold,
+    minMoveDelay: config.minMoveDelay,
+  });
 
   // Graceful shutdown: quit Stockfish engine
   const { getStockfishEngine: getEngine } = require('./shared/stockfish_engine');
@@ -1340,6 +1378,8 @@ Examples:
   }
   process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  const HOST = config.host || DEFAULT_HOST;
 
   server.listen(PORT, HOST, () => {
     const os = require('os');

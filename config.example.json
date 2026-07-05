@@ -5,11 +5,21 @@
   "key": null,
   "chain": null,
   "allowedOrigins": [],
+  "debug": false,
+  "prefix": null,
   "computerPlayer": {
     "enabled": true,
+    "stockfishPath": null,
     "spawnTimeout": 10000,
     "moveTimeout": 30000
-  }
+  },
+  "seatTimeout": null,
+  "joinTimeout": null,
+  "rateLimitMax": null,
+  "rateLimitWindow": null,
+  "slowClientThreshold": null,
+  "minMoveDelay": null,
+  "host": null
 }
 
 // Copy this file to config.json and edit as needed.
@@ -30,10 +40,43 @@
 //   allowedOrigins  — Array of allowed WebSocket origins, e.g. ["games.devop.ninja", "localhost"]
 //                     Empty array means no origin checking (accept all).
 //                     A comma-separated string is also accepted and auto-split.
-//   computerPlayer  — Computer player (Stockfish) configuration:
+//   debug            — Enable debug logging for piece rebuilding (default: false)
+//   prefix           — URL prefix for subpath deployments, e.g. "/chess" (default: none)
+//
+//   computerPlayer   — Computer player (Stockfish) configuration (nested object):
 //     {
 //       "enabled": true,              // Master switch for computer player
 //       "stockfishPath": null,        // Path to Stockfish binary (auto-resolved if null)
 //       "spawnTimeout": 10000,        // Max ms to wait for engine startup
-//       "moveTimeout": 30000          // Max ms to wait for a move
+//       "moveTimeout": 30000,         // Max ms to wait for a move
+//       "skills": { ... }             // Optional: override/merge skill-level presets
 //     }
+//
+//   The computerPlayer nested object can be set in this config file.  Each field
+//   can also be overridden individually via env vars or CLI flags:
+//
+//     enabled          MPCHESS_COMPUTER_ENABLED             --computer-enabled=true
+//     stockfishPath    MPCHESS_COMPUTER_STOCKFISH_PATH      --computer-stockfish-path=/usr/bin/stockfish
+//     spawnTimeout     MPCHESS_COMPUTER_SPAWN_TIMEOUT       --computer-spawn-timeout=15000
+//     moveTimeout      MPCHESS_COMPUTER_MOVE_TIMEOUT        --computer-move-timeout=60000
+//     skills           MPCHESS_COMPUTER_SKILLS              --computer-skills='{"beginner":{"movetime":100}}'
+//
+//   skills is a JSON object.  When set via env var or CLI, pass a JSON string.
+//   It is merged over the built-in skill presets (beginner, novice, intermediate,
+//   advanced, master, grandmaster).
+//
+//   Server tuning options (all numeric, set to null to use built-in defaults):
+//     seatTimeout      Reconnect seat reservation timeout in ms (default: 60000)
+//                      MPCHESS_SEAT_TIMEOUT          --seat-timeout=120000
+//     joinTimeout      Join handshake completion timeout in ms (default: 5000)
+//                      MPCHESS_JOIN_TIMEOUT          --join-timeout=10000
+//     rateLimitMax     Max messages per rate-limit window (default: 60)
+//                      MPCHESS_RATE_LIMIT_MAX        --rate-limit-max=100
+//     rateLimitWindow  Rate-limit sliding window duration in ms (default: 10000)
+//                      MPCHESS_RATE_LIMIT_WINDOW     --rate-limit-window=5000
+//     slowClientThreshold  Slow-client buffered-amount threshold in bytes (default: 1048576)
+//                      MPCHESS_SLOW_CLIENT_THRESHOLD  --slow-client-threshold=2097152
+//     minMoveDelay    Minimum delay between moves for animation in ms (default: 500)
+//                      MPCHESS_MIN_MOVE_DELAY        --min-move-delay=1000
+//     host            Listen address (default: 0.0.0.0)
+//                      MPCHESS_HOST                  --host=127.0.0.1

@@ -45,7 +45,19 @@ class StockfishEngine {
     this.binaryPath = resolveBinary(config.stockfishPath);
     this.spawnTimeout = config.spawnTimeout ?? 10000;
     this.moveTimeout = config.moveTimeout ?? 30000;
-    this.skills = { ...SKILL_DEFAULTS, ...(config.skills || {}) };
+    // Deep-merge each skill override onto the built-in defaults so that
+    // partial overrides (e.g. { movetime: 100 }) preserve required fields
+    // like skillLevel, threads, hash, and depth.
+    this.skills = { ...SKILL_DEFAULTS };
+    if (config.skills) {
+      for (const [name, override] of Object.entries(config.skills)) {
+        if (this.skills[name]) {
+          this.skills[name] = { ...this.skills[name], ...override };
+        } else {
+          this.skills[name] = override;
+        }
+      }
+    }
     this.transport = null;
     this.available = false;
     this._currentSkill = null;
