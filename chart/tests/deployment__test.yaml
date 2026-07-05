@@ -45,10 +45,22 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].resources.requests.memory
           value: 512Mi
-      - isNull:
+      - lengthEqual:
           path: spec.template.spec.containers[0].volumeMounts
+          count: 1
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: tmp
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          value: /tmp
+      - equal:
+          path: spec.template.spec.volumes[0].name
+          value: tmp
       - isNull:
-          path: spec.template.spec.volumes
+          path: spec.template.spec.volumes[0].configMap
+      - isNull:
+          path: spec.template.spec.volumes[0].secret
 
   - it: respects custom image repository and tag
     set:
@@ -84,24 +96,33 @@ tests:
           value: /etc/tls/tls.key
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].name
-          value: tls
+          value: tmp
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].mountPath
-          value: /etc/tls/tls.crt
+          value: /tmp
       - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].subPath
-          value: tls.crt
+          path: spec.template.spec.containers[0].volumeMounts[1].name
+          value: tls
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[1].mountPath
-          value: /etc/tls/tls.key
+          value: /etc/tls/tls.crt
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[1].subPath
+          value: tls.crt
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2].mountPath
+          value: /etc/tls/tls.key
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[2].subPath
           value: tls.key
       - equal:
           path: spec.template.spec.volumes[0].name
+          value: tmp
+      - equal:
+          path: spec.template.spec.volumes[1].name
           value: tls
       - equal:
-          path: spec.template.spec.volumes[0].secret.secretName
+          path: spec.template.spec.volumes[1].secret.secretName
           value: my-tls-secret
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.httpGet.scheme
@@ -126,15 +147,21 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].name
+          value: tmp
+      - equal:
+          path: spec.template.spec.containers[0].volumeMounts[1].name
           value: config
       - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].mountPath
+          path: spec.template.spec.containers[0].volumeMounts[1].mountPath
           value: /app/config.json
       - equal:
-          path: spec.template.spec.containers[0].volumeMounts[0].subPath
+          path: spec.template.spec.containers[0].volumeMounts[1].subPath
           value: config.json
       - equal:
           path: spec.template.spec.volumes[0].name
+          value: tmp
+      - equal:
+          path: spec.template.spec.volumes[1].name
           value: config
 
   - it: TLS and config together adds both volume mounts
@@ -149,10 +176,10 @@ tests:
           count: 1
       - lengthEqual:
           path: spec.template.spec.containers[0].volumeMounts
-          count: 3
+          count: 4
       - lengthEqual:
           path: spec.template.spec.volumes
-          count: 2
+          count: 3
 
   - it: custom server port changes env var and containerPort
     set:
@@ -224,6 +251,62 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].readinessProbe.httpGet.port
           value: http
+
+  - it: default security context is applied to pod and container
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 100
+      - equal:
+          path: spec.template.spec.securityContext.runAsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 101
+      - equal:
+          path: spec.template.spec.securityContext.seccompProfile.type
+          value: RuntimeDefault
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  - it: security context can be disabled
+    set:
+      securityContext:
+        enabled: false
+    asserts:
+      - isNull:
+          path: spec.template.spec.securityContext
+      - isNull:
+          path: spec.template.spec.containers[0].securityContext
+
+  - it: security context can be customized
+    set:
+      securityContext:
+        enabled: true
+        pod:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        container:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
 
   - it: has standard labels
     asserts:

@@ -105,3 +105,24 @@ tls:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Pod and container security contexts.
+# The Dockerfile runs as non-root appuser (UID 100, GID 101), so runAsNonRoot
+# is enforced with numeric IDs Kubernetes can verify.
+# readOnlyRootFilesystem is disabled by default — enable it only if the
+# application does not need to write to the root filesystem (e.g. /tmp).
+securityContext:
+  enabled: true
+  pod:
+    runAsNonRoot: true
+    runAsUser: 100
+    runAsGroup: 101
+    fsGroup: 101
+    seccompProfile:
+      type: RuntimeDefault
+  container:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
