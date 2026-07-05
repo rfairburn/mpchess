@@ -73,7 +73,7 @@ The Dockerfile uses a multi-stage build:
 
 ### Stockfish in Docker
 
-The Dockerfile does not yet include a Stockfish build stage. For deployments that need the computer player feature, Stockfish must be built as a separate stage (see [stockfish_policy.md §8](../stockfish_policy.md) for the design). Until then, the Stockfish binary is not included in production images.
+The Dockerfile includes a `stockfish-builder` stage that builds Stockfish from source (sf_18 tag) and copies the binary into the production image. See [stockfish_policy.md](../stockfish_policy.md) for details on the integration.
 
 ### Import into microk8s
 
