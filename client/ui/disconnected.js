@@ -1,0 +1,253 @@
+// ═══════════════════════════════════════════════════════════
+//  UI — Disconnected banners, drop player, game available
+// ═══════════════════════════════════════════════════════════
+
+import {
+  myRole,
+  disconnectedPlayersInfo,
+  sendDropPlayer,
+  onPlayerDisconnected,
+  onPlayerDropped,
+  onGameAvailable,
+} from '../network.js';
+
+// ── DOM refs ──────────────────────────────────────────────
+
+const opponentDisconnectedBanner = document.getElementById('opponent-disconnected-banner');
+const opponentDisconnectedText = document.getElementById('opponent-disconnected-text');
+const btnDropPlayer = document.getElementById('btn-drop-player');
+
+const secondDisconnectedBanner = document.getElementById('second-disconnected-banner');
+const secondDisconnectedText = document.getElementById('second-disconnected-text');
+
+const gameAvailableBanner = document.getElementById('game-available-banner');
+
+// ── State ─────────────────────────────────────────────────
+
+let disconnectedOpponentToken = null;
+let secondDisconnectedToken = null;
+
+let dropButtonTimer = null;
+let spectatorCountdownTimer = null;
+let secondSpectatorCountdownTimer = null;
+
+// ── Helpers ───────────────────────────────────────────────
+
+function buildDisconnectedText(color) {
+  const icon = color === 'white' ? '♔' : '♚';
+  return `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
+}
+
+// ── Drop player countdown (players only) ─────────────────
+
+function startDropButtonCountdown(disconnectedAt) {
+  if (dropButtonTimer) {
+    clearInterval(dropButtonTimer);
+    dropButtonTimer = null;
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateButton() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      btnDropPlayer.disabled = false;
+      btnDropPlayer.textContent = 'Drop Player';
+      if (dropButtonTimer) {
+        clearInterval(dropButtonTimer);
+        dropButtonTimer = null;
+      }
+    } else {
+      btnDropPlayer.disabled = true;
+      btnDropPlayer.textContent = `Drop Player (${remaining}s)`;
+    }
+  }
+
+  updateButton();
+  dropButtonTimer = setInterval(updateButton, 1000);
+}
+
+// ── Spectator countdown (first disconnected) ─────────────
+
+function startSpectatorCountdown(color, disconnectedAt) {
+  if (spectatorCountdownTimer) {
+    clearInterval(spectatorCountdownTimer);
+    spectatorCountdownTimer = null;
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateText() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      opponentDisconnectedText.textContent = buildDisconnectedText(color);
+      if (spectatorCountdownTimer) {
+        clearInterval(spectatorCountdownTimer);
+        spectatorCountdownTimer = null;
+      }
+    } else {
+      opponentDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+    }
+  }
+
+  updateText();
+  spectatorCountdownTimer = setInterval(updateText, 1000);
+}
+
+function stopSpectatorCountdown() {
+  if (spectatorCountdownTimer) {
+    clearInterval(spectatorCountdownTimer);
+    spectatorCountdownTimer = null;
+  }
+}
+
+// ── Spectator countdown (second disconnected) ────────────
+
+function startSecondSpectatorCountdown(color, disconnectedAt) {
+  if (secondSpectatorCountdownTimer) {
+    clearInterval(secondSpectatorCountdownTimer);
+    secondSpectatorCountdownTimer = null;
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateText() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      secondDisconnectedText.textContent = buildDisconnectedText(color);
+      if (secondSpectatorCountdownTimer) {
+        clearInterval(secondSpectatorCountdownTimer);
+        secondSpectatorCountdownTimer = null;
+      }
+    } else {
+      secondDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+    }
+  }
+
+  updateText();
+  secondSpectatorCountdownTimer = setInterval(updateText, 1000);
+}
+
+function stopSecondSpectatorCountdown() {
+  if (secondSpectatorCountdownTimer) {
+    clearInterval(secondSpectatorCountdownTimer);
+    secondSpectatorCountdownTimer = null;
+  }
+}
+
+// ── Banner show/hide ─────────────────────────────────────
+
+export function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
+  disconnectedOpponentToken = token;
+  opponentDisconnectedText.textContent = buildDisconnectedText(color);
+  opponentDisconnectedBanner.classList.add('visible');
+  if (myRole === 'white' || myRole === 'black') {
+    btnDropPlayer.style.display = '';
+    startDropButtonCountdown(disconnectedAt);
+  } else {
+    btnDropPlayer.style.display = 'none';
+    startSpectatorCountdown(color, disconnectedAt);
+  }
+}
+
+export function hideOpponentDisconnectedBanner() {
+  opponentDisconnectedBanner.classList.remove('visible');
+  btnDropPlayer.style.display = ''; // reset for next time
+  disconnectedOpponentToken = null;
+  if (dropButtonTimer) {
+    clearInterval(dropButtonTimer);
+    dropButtonTimer = null;
+  }
+  stopSpectatorCountdown();
+  hideSecondDisconnectedBanner();
+}
+
+export function showSecondDisconnectedBanner(color, token, disconnectedAt) {
+  secondDisconnectedToken = token;
+  secondDisconnectedText.textContent = buildDisconnectedText(color);
+  secondDisconnectedBanner.classList.add('visible');
+  startSecondSpectatorCountdown(color, disconnectedAt);
+}
+
+export function hideSecondDisconnectedBanner() {
+  secondDisconnectedBanner.classList.remove('visible');
+  secondDisconnectedToken = null;
+  stopSecondSpectatorCountdown();
+}
+
+export function showGameAvailableBanner() {
+  gameAvailableBanner.classList.add('visible');
+}
+
+export function hideGameAvailableBanner() {
+  gameAvailableBanner.classList.remove('visible');
+}
+
+// ── Drop player button ───────────────────────────────────
+
+btnDropPlayer.addEventListener('click', () => {
+  if (disconnectedOpponentToken) {
+    sendDropPlayer(disconnectedOpponentToken);
+  }
+});
+
+// ── Callbacks ─────────────────────────────────────────────
+
+onPlayerDisconnected((msg) => {
+  hideGameAvailableBanner();
+  if (myRole === 'spectator') {
+    if (!disconnectedOpponentToken) {
+      showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
+    } else if (disconnectedOpponentToken !== msg.token) {
+      showSecondDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
+    }
+  } else {
+    showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
+  }
+});
+
+onPlayerDropped(() => {
+  hideOpponentDisconnectedBanner();
+  hideSecondDisconnectedBanner();
+});
+
+onGameAvailable(() => {
+  showGameAvailableBanner();
+  hideOpponentDisconnectedBanner();
+  hideSecondDisconnectedBanner();
+});
+
+// ── Sync function called by ui.js on state updates ───────
+
+export function syncDisconnectedBanners() {
+  const dp = disconnectedPlayersInfo.filter((p) => p.color === 'white' || p.color === 'black');
+
+  if (myRole === 'white' || myRole === 'black') {
+    const opp = dp.find((p) => p.color !== myRole);
+    if (opp && (!disconnectedOpponentToken || disconnectedOpponentToken !== opp.token)) {
+      showOpponentDisconnectedBanner(opp.color, opp.token, opp.disconnectedAt);
+    } else if (!opp && disconnectedOpponentToken) {
+      hideOpponentDisconnectedBanner();
+    }
+  }
+
+  if (myRole === 'spectator') {
+    if (dp.length >= 1) {
+      const first = dp[0];
+      if (!disconnectedOpponentToken || disconnectedOpponentToken !== first.token) {
+        showOpponentDisconnectedBanner(first.color, first.token, first.disconnectedAt);
+      }
+      if (dp.length >= 2) {
+        const second = dp[1];
+        if (!secondDisconnectedToken || secondDisconnectedToken !== second.token) {
+          showSecondDisconnectedBanner(second.color, second.token, second.disconnectedAt);
+        }
+      } else {
+        hideSecondDisconnectedBanner();
+      }
+    } else {
+      hideOpponentDisconnectedBanner();
+    }
+    if (dp.length < 2) hideGameAvailableBanner();
+  }
+}

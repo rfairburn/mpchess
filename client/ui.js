@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-//  UI — HUD overlays, menus, promotion picker, move log, etc.
+//  UI — Core: HUD, menu, overlays, state sync, toasts
+//  Sub-modules: ui/join.js, ui/disconnected.js, ui/computer.js, ui/connection.js
 // ═══════════════════════════════════════════════════════════
 
 import {
@@ -9,59 +10,49 @@ import {
   serverGameOver,
   serverGameResult,
   moveHistory,
-  disconnectedPlayersInfo,
   seatStatus,
-  computerPlayer,
   tokenKey,
-  validatedTokens,
   halfmoveClock,
   threefoldCount,
   sendPromotion,
   sendRestart,
   sendConcede,
-  sendDropPlayer,
-  sendJoin,
   sendLeave,
   sendExportFen,
   sendExportPgn,
   sendImportFen,
-  sendActivateComputer,
-  sendChangeSkill,
   sendOfferDraw,
   sendDrawResponse,
   onStateUpdate,
-  onMove,
   onRestart,
   onError,
   onInfo,
-  onReconnecting,
-  onReconnected,
-  onPlayerDisconnected,
-  onPlayerDropped,
-  onGameAvailable,
-  onReconnectFailed,
-  onConnected,
-  onConnectionError,
-  onComputerActivated,
-  onComputerThinking,
-  onComputerSkillChanged,
-  onComputerUnavailable,
   onDrawOffer,
   onDrawResult,
   onDrawOfferCancelled,
-  onLeft,
   onPlayerLeft,
   onFenImportWarning,
-  retryConnection,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
+
+// ── Sub-modules (initialize their own callbacks) ─────────
+
+import { showError, showInfo, showWarning } from './ui/toast.js';
+import { syncDisconnectedBanners } from './ui/disconnected.js';
+import { showJoinOverlay, hideJoinOverlay, updateJoinButtons } from './ui/join.js';
+import { updateMenuComputerSections, initComputerMenu } from './ui/computer.js';
+
+// Initialize connection overlays
+import './ui/connection.js';
+
+// Re-export toast functions for use by other modules
+export { showError, showInfo, showWarning };
 
 // ── DOM refs ──────────────────────────────────────────────
 
 const roleBadge = document.getElementById('role-badge');
 const playerCountEl = document.getElementById('player-count');
 const turnIndicator = document.getElementById('turn-indicator');
-const errorToast = document.getElementById('error-toast');
 const mouseModeEl = document.getElementById('mouse-mode');
 const menuOverlay = document.getElementById('menu-overlay');
 const btnResume = document.getElementById('btn-resume');
@@ -91,45 +82,8 @@ const btnImportFen = document.getElementById('btn-import-fen');
 const btnImportFenConfirm = document.getElementById('btn-import-fen-confirm');
 const btnImportFenCancel = document.getElementById('btn-import-fen-cancel');
 
-// Reconnection UI
-const reconnectingOverlay = document.getElementById('reconnecting-overlay');
-const reconnectingStatus = document.getElementById('reconnecting-status');
-const btnGiveUp = document.getElementById('btn-give-up');
-
-// Connection error UI
-const connectionErrorOverlay = document.getElementById('connection-error-overlay');
-const connectionErrorMessage = document.getElementById('connection-error-message');
-const btnRetryConnection = document.getElementById('btn-retry-connection');
-
-// Opponent disconnected banner
-const opponentDisconnectedBanner = document.getElementById('opponent-disconnected-banner');
-const opponentDisconnectedText = document.getElementById('opponent-disconnected-text');
-const btnDropPlayer = document.getElementById('btn-drop-player');
-
-// Game available banner (spectators)
-const gameAvailableBanner = document.getElementById('game-available-banner');
+// Game available banner button
 const btnJoinGame = document.getElementById('btn-join-game');
-
-// Second disconnected banner (spectators — both players gone)
-const secondDisconnectedBanner = document.getElementById('second-disconnected-banner');
-const secondDisconnectedText = document.getElementById('second-disconnected-text');
-
-// Join selection overlay
-const joinOverlay = document.getElementById('join-overlay');
-const btnJoinWhite = document.getElementById('btn-join-white');
-const btnJoinBlack = document.getElementById('btn-join-black');
-const btnJoinSpectator = document.getElementById('btn-join-spectator');
-
-// Computer player UI
-const computerThinkingIndicator = document.getElementById('computer-thinking');
-
-// Menu computer player section
-const menuComputerSection = document.getElementById('menu-computer-section');
-const menuSkillChangeSection = document.getElementById('menu-skill-change-section');
-const menuComputerSkillDropdown = document.getElementById('menu-computer-skill-dropdown');
-const menuSkillChangeDropdown = document.getElementById('menu-skill-change-dropdown');
-const btnMenuActivateComputer = document.getElementById('btn-menu-activate-computer');
-const btnMenuChangeSkill = document.getElementById('btn-menu-change-skill');
 
 // Draw offer overlay
 const drawOfferOverlay = document.getElementById('draw-offer-overlay');
@@ -137,33 +91,10 @@ const drawOfferText = document.getElementById('draw-offer-text');
 const btnDrawAccept = document.getElementById('btn-draw-accept');
 const btnDrawDecline = document.getElementById('btn-draw-decline');
 
-let errorTimeout = null;
 export let menuOpen = false;
-
-// Skill labels (must stay in sync with server)
-const SKILL_LABELS = {
-  beginner: 'Beginner',
-  novice: 'Novice',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  master: 'Master',
-  grandmaster: 'Grandmaster',
-};
 
 // Track previous role so we can reposition the camera on join/reconnect
 let prevRole = null;
-
-// Track disconnected opponent for drop button
-let disconnectedOpponentToken = null;
-
-let dropButtonTimer = null;
-
-// Track spectator countdown timers
-let spectatorCountdownTimer = null;
-let secondSpectatorCountdownTimer = null;
-
-// Track second disconnected player (spectators only)
-let secondDisconnectedToken = null;
 
 // ── Mouse sensitivity ────────────────────────────────────
 // Logarithmic scale: slider 1–100 maps to ~0.0002–~0.004.
@@ -288,33 +219,6 @@ function updateCapturedPieces(captured) {
     .join(' ');
 }
 
-export function showError(msg) {
-  errorToast.textContent = msg;
-  errorToast.style.color = '#ff6b6b';
-  errorToast.style.borderColor = 'rgba(255, 80, 80, 0.4)';
-  errorToast.classList.add('visible');
-  clearTimeout(errorTimeout);
-  errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 2500);
-}
-
-export function showInfo(msg) {
-  errorToast.textContent = msg;
-  errorToast.style.color = '#6bff6b';
-  errorToast.style.borderColor = 'rgba(80, 255, 80, 0.4)';
-  errorToast.classList.add('visible');
-  clearTimeout(errorTimeout);
-  errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 2500);
-}
-
-export function showWarning(msg) {
-  errorToast.textContent = msg;
-  errorToast.style.color = '#ffd966';
-  errorToast.style.borderColor = 'rgba(255, 200, 50, 0.4)';
-  errorToast.classList.add('visible');
-  clearTimeout(errorTimeout);
-  errorTimeout = setTimeout(() => errorToast.classList.remove('visible'), 5000);
-}
-
 // ── Menu ─────────────────────────────────────────────────
 
 export function showMenu() {
@@ -346,36 +250,17 @@ export function showMenu() {
   btnImportFen.disabled = isSpectator;
   btnOfferDraw.disabled = !isPlayer || serverGameOver;
 
-  // Show/hide computer player sections in menu
-  if (isPlayer && !serverGameOver) {
-    const opponentColor = myRole === 'white' ? 'black' : 'white';
-    const opponentSeat = seatStatus[opponentColor];
-    const opponentSeatFree = opponentSeat?.status === 'free';
-
-    if (computerPlayer) {
-      // Computer opponent is active — show skill change section
-      menuComputerSection.classList.remove('visible');
-      menuSkillChangeSection.classList.add('visible');
-      menuSkillChangeDropdown.value = computerPlayer.skill || 'master';
-    } else if (opponentSeatFree) {
-      // No computer opponent and opponent seat is free — show activate section
-      menuComputerSection.classList.add('visible');
-      menuSkillChangeSection.classList.remove('visible');
-    } else {
-      // Opponent seat is occupied, held, or computer — hide both sections
-      menuComputerSection.classList.remove('visible');
-      menuSkillChangeSection.classList.remove('visible');
-    }
-  } else {
-    menuComputerSection.classList.remove('visible');
-    menuSkillChangeSection.classList.remove('visible');
-  }
+  // Delegate computer player sections to sub-module
+  updateMenuComputerSections();
 }
 
 export function hideMenu() {
   menuOverlay.classList.remove('visible');
   menuOpen = false;
 }
+
+// Wire computer menu buttons so they can close the menu (avoids circular import)
+initComputerMenu(hideMenu);
 
 btnResume.addEventListener('click', () => {
   hideMenu();
@@ -386,18 +271,6 @@ btnReconnectAsPlayer.addEventListener('click', () => {
   hideMenu();
   showJoinOverlay();
   updateJoinButtons();
-});
-
-btnGiveUp.addEventListener('click', () => {
-  localStorage.removeItem(tokenKey('white'));
-  localStorage.removeItem(tokenKey('black'));
-  window.location.reload();
-});
-
-btnDropPlayer.addEventListener('click', () => {
-  if (disconnectedOpponentToken) {
-    sendDropPlayer(disconnectedOpponentToken);
-  }
 });
 
 btnJoinGame.addEventListener('click', () => {
@@ -416,25 +289,6 @@ btnOfferDraw.addEventListener('click', () => {
   sendOfferDraw();
   hideMenu();
 });
-
-// Menu computer player activation
-if (btnMenuActivateComputer) {
-  btnMenuActivateComputer.addEventListener('click', () => {
-    const skill = menuComputerSkillDropdown?.value || 'master';
-    const opponentColor = myRole === 'white' ? 'black' : 'white';
-    sendActivateComputer(opponentColor, skill);
-    hideMenu();
-  });
-}
-
-// Menu skill change
-if (btnMenuChangeSkill) {
-  btnMenuChangeSkill.addEventListener('click', () => {
-    const skill = menuSkillChangeDropdown?.value || 'master';
-    sendChangeSkill(skill);
-    hideMenu();
-  });
-}
 
 // Export buttons
 const btnExportFen = document.getElementById('btn-export-fen');
@@ -570,48 +424,6 @@ fenInput.addEventListener('keydown', (e) => {
 
 // ── Unified state update handler ────────────────────────
 
-function syncDisconnectedBanners() {
-  const dp = disconnectedPlayersInfo.filter((p) => p.color === 'white' || p.color === 'black');
-
-  if (myRole === 'white' || myRole === 'black') {
-    const opp = dp.find((p) => p.color !== myRole);
-    if (opp && (!disconnectedOpponentToken || disconnectedOpponentToken !== opp.token)) {
-      showOpponentDisconnectedBanner(opp.color, opp.token, opp.disconnectedAt);
-    } else if (!opp && disconnectedOpponentToken) {
-      hideOpponentDisconnectedBanner();
-    }
-  }
-
-  if (myRole === 'spectator') {
-    if (dp.length >= 1) {
-      const first = dp[0];
-      if (!disconnectedOpponentToken || disconnectedOpponentToken !== first.token) {
-        showOpponentDisconnectedBanner(first.color, first.token, first.disconnectedAt);
-      }
-      if (dp.length >= 2) {
-        const second = dp[1];
-        if (!secondDisconnectedToken || secondDisconnectedToken !== second.token) {
-          showSecondDisconnectedBanner(second.color, second.token, second.disconnectedAt);
-        }
-      } else {
-        hideSecondDisconnectedBanner();
-      }
-    } else {
-      hideOpponentDisconnectedBanner();
-    }
-    if (dp.length < 2) hideGameAvailableBanner();
-  }
-}
-
-function syncJoinOverlay() {
-  if (!myRole) {
-    showJoinOverlay();
-    updateJoinButtons();
-  } else {
-    hideJoinOverlay();
-  }
-}
-
 onStateUpdate((msg) => {
   // Reposition camera when role changes (join, reconnect, etc.)
   if (myRole && myRole !== prevRole) {
@@ -655,11 +467,16 @@ onStateUpdate((msg) => {
     hidePromotionPicker();
   }
 
-  // Disconnected player banners
+  // Disconnected player banners (delegated to sub-module)
   syncDisconnectedBanners();
 
-  // Join overlay
-  syncJoinOverlay();
+  // Join overlay (delegated to sub-module)
+  if (!myRole) {
+    showJoinOverlay();
+    updateJoinButtons();
+  } else {
+    hideJoinOverlay();
+  }
 });
 
 onRestart(() => {
@@ -680,373 +497,6 @@ onInfo((msg) => {
   showInfo(msg.reason);
 });
 
-// ── Reconnection callbacks ──────────────────────────────
-
-function showReconnectingOverlay(status) {
-  reconnectingStatus.textContent = status || 'Attempting to reconnect…';
-  reconnectingOverlay.classList.add('visible');
-}
-
-function hideReconnectingOverlay() {
-  reconnectingOverlay.classList.remove('visible');
-}
-
-onReconnecting((data) => {
-  if (data.maxAttemptsReached) {
-    showReconnectingOverlay('Connection lost. Click Give Up to rejoin.');
-  } else {
-    showReconnectingOverlay('Attempting to reconnect…');
-  }
-});
-
-onReconnected((data) => {
-  hideReconnectingOverlay();
-  if (data.rejoinAsNewPlayer) {
-    showError('Your seat was no longer available. Rejoining…');
-  }
-});
-
-// ── Connection error ────────────────────────────────────
-
-function showConnectionError(message) {
-  connectionErrorMessage.textContent = message;
-  connectionErrorOverlay.classList.add('visible');
-}
-
-function hideConnectionError() {
-  connectionErrorOverlay.classList.remove('visible');
-}
-
-btnRetryConnection.addEventListener('click', () => {
-  hideConnectionError();
-  retryConnection();
-});
-
-onConnectionError((data) => {
-  const code = data.event?.target?.readyState;
-  // WebSocket readyState: 0=CONNECTING, 1=OPEN, 2=CLOSING, 3=CLOSED
-  let message = 'Unable to reach the server. Check your connection and try again.';
-  if (code === 3) {
-    // Connection was rejected or failed
-    message =
-      'Connection to the server was refused. The server may be down or your origin is not allowed.';
-  }
-  showConnectionError(message);
-});
-
-// Hide connection error when a successful connection is established
-onConnected(() => {
-  hideConnectionError();
-});
-
-// ── Opponent disconnected / drop player ─────────────────
-
-function startDropButtonCountdown(disconnectedAt) {
-  // Clear any existing timer
-  if (dropButtonTimer) {
-    clearInterval(dropButtonTimer);
-    dropButtonTimer = null;
-  }
-
-  const enableTime = disconnectedAt + 60000;
-
-  function updateButton() {
-    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
-    if (remaining <= 0) {
-      btnDropPlayer.disabled = false;
-      btnDropPlayer.textContent = 'Drop Player';
-      if (dropButtonTimer) {
-        clearInterval(dropButtonTimer);
-        dropButtonTimer = null;
-      }
-    } else {
-      btnDropPlayer.disabled = true;
-      btnDropPlayer.textContent = `Drop Player (${remaining}s)`;
-    }
-  }
-
-  updateButton();
-  dropButtonTimer = setInterval(updateButton, 1000);
-}
-
-// ── Unified disconnected-banner helpers (D7) ───────────
-
-function buildDisconnectedText(color) {
-  const icon = color === 'white' ? '♔' : '♚';
-  return `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
-}
-
-function startSpectatorCountdown(color, disconnectedAt) {
-  if (spectatorCountdownTimer) {
-    clearInterval(spectatorCountdownTimer);
-    spectatorCountdownTimer = null;
-  }
-
-  const enableTime = disconnectedAt + 60000;
-
-  function updateText() {
-    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
-    if (remaining <= 0) {
-      opponentDisconnectedText.textContent = buildDisconnectedText(color);
-      if (spectatorCountdownTimer) {
-        clearInterval(spectatorCountdownTimer);
-        spectatorCountdownTimer = null;
-      }
-    } else {
-      opponentDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
-    }
-  }
-
-  updateText();
-  spectatorCountdownTimer = setInterval(updateText, 1000);
-}
-
-function stopSpectatorCountdown() {
-  if (spectatorCountdownTimer) {
-    clearInterval(spectatorCountdownTimer);
-    spectatorCountdownTimer = null;
-  }
-}
-
-function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
-  disconnectedOpponentToken = token;
-  opponentDisconnectedText.textContent = buildDisconnectedText(color);
-  opponentDisconnectedBanner.classList.add('visible');
-  if (myRole === 'white' || myRole === 'black') {
-    btnDropPlayer.style.display = '';
-    startDropButtonCountdown(disconnectedAt);
-  } else {
-    btnDropPlayer.style.display = 'none';
-    startSpectatorCountdown(color, disconnectedAt);
-  }
-}
-
-function hideOpponentDisconnectedBanner() {
-  opponentDisconnectedBanner.classList.remove('visible');
-  btnDropPlayer.style.display = ''; // reset for next time
-  disconnectedOpponentToken = null;
-  if (dropButtonTimer) {
-    clearInterval(dropButtonTimer);
-    dropButtonTimer = null;
-  }
-  stopSpectatorCountdown();
-  // Also hide second banner
-  hideSecondDisconnectedBanner();
-}
-
-function startSecondSpectatorCountdown(color, disconnectedAt) {
-  if (secondSpectatorCountdownTimer) {
-    clearInterval(secondSpectatorCountdownTimer);
-    secondSpectatorCountdownTimer = null;
-  }
-
-  const enableTime = disconnectedAt + 60000;
-
-  function updateText() {
-    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
-    if (remaining <= 0) {
-      secondDisconnectedText.textContent = buildDisconnectedText(color);
-      if (secondSpectatorCountdownTimer) {
-        clearInterval(secondSpectatorCountdownTimer);
-        secondSpectatorCountdownTimer = null;
-      }
-    } else {
-      secondDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
-    }
-  }
-
-  updateText();
-  secondSpectatorCountdownTimer = setInterval(updateText, 1000);
-}
-
-function stopSecondSpectatorCountdown() {
-  if (secondSpectatorCountdownTimer) {
-    clearInterval(secondSpectatorCountdownTimer);
-    secondSpectatorCountdownTimer = null;
-  }
-}
-
-function showSecondDisconnectedBanner(color, token, disconnectedAt) {
-  secondDisconnectedToken = token;
-  secondDisconnectedText.textContent = buildDisconnectedText(color);
-  secondDisconnectedBanner.classList.add('visible');
-  startSecondSpectatorCountdown(color, disconnectedAt);
-}
-
-function hideSecondDisconnectedBanner() {
-  secondDisconnectedBanner.classList.remove('visible');
-  secondDisconnectedToken = null;
-  stopSecondSpectatorCountdown();
-}
-
-onPlayerDisconnected((msg) => {
-  hideGameAvailableBanner();
-  if (myRole === 'spectator') {
-    // Spectator: check if this is the first or second disconnected player
-    if (!disconnectedOpponentToken) {
-      showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
-    } else if (disconnectedOpponentToken !== msg.token) {
-      // Second player disconnected
-      showSecondDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
-    }
-  } else {
-    showOpponentDisconnectedBanner(msg.color, msg.token, msg.disconnectedAt);
-  }
-});
-
-onPlayerDropped(() => {
-  hideOpponentDisconnectedBanner();
-  hideSecondDisconnectedBanner();
-});
-
-// ── Game available (spectators) ─────────────────────────
-
-function showGameAvailableBanner() {
-  gameAvailableBanner.classList.add('visible');
-}
-
-function hideGameAvailableBanner() {
-  gameAvailableBanner.classList.remove('visible');
-}
-
-onGameAvailable(() => {
-  showGameAvailableBanner();
-  hideOpponentDisconnectedBanner();
-  hideSecondDisconnectedBanner();
-});
-
-// Show join overlay immediately on connection (before state arrives)
-// Buttons based on tokens; refined when seat status arrives
-onConnected(() => {
-  if (!myRole) {
-    showJoinOverlay();
-    updateJoinButtons(); // uses tokens if seat status not yet available
-  }
-});
-
-// ── Join selection overlay ──────────────────────────────
-
-let joinCountdownTimer = null;
-
-function showJoinOverlay() {
-  joinOverlay.classList.add('visible');
-}
-
-function hideJoinOverlay() {
-  joinOverlay.classList.remove('visible');
-  if (joinCountdownTimer) {
-    clearInterval(joinCountdownTimer);
-    joinCountdownTimer = null;
-  }
-}
-
-function updateJoinButtons() {
-  setJoinButton(btnJoinWhite, seatStatus.white, 'White');
-  setJoinButton(btnJoinBlack, seatStatus.black, 'Black');
-  btnJoinSpectator.disabled = false;
-
-  // Computer skill selector is now in the ESC menu, not the join overlay
-}
-
-function setJoinButton(btn, seat, colorName) {
-  const statusEl = btn.querySelector('.join-status');
-  const color = colorName.toLowerCase();
-  // Only offer "Reconnect" when the SERVER confirmed our stored token is valid
-  const canReconnect = validatedTokens[color] === true;
-
-  if (canReconnect && seat && (seat.status === 'held' || seat.status === 'occupied')) {
-    btn.disabled = false;
-    statusEl.textContent = 'Reconnect';
-  } else if (!seat || seat.status === 'unknown') {
-    btn.disabled = true;
-    statusEl.textContent = 'Loading...';
-  } else if (seat.status === 'free') {
-    btn.disabled = false;
-    statusEl.textContent = 'Available';
-  } else if (seat.status === 'occupied') {
-    btn.disabled = true;
-    statusEl.textContent = 'Occupied';
-  } else if (seat.status === 'computer') {
-    btn.disabled = true;
-    const skillLabel = SKILL_LABELS[seat.skill] || seat.skill;
-    statusEl.textContent = `Computer (${skillLabel})`;
-  } else if (seat.status === 'held') {
-    btn.disabled = true;
-    updateSeatCountdown(btn, seat.freesAt, colorName);
-  }
-}
-
-function updateSeatCountdown(btn, freesAt, colorName) {
-  const statusEl = btn.querySelector('.join-status');
-  if (joinCountdownTimer) clearInterval(joinCountdownTimer);
-
-  function tick() {
-    const remaining = Math.max(0, Math.ceil((freesAt - Date.now()) / 1000));
-    if (remaining <= 0) {
-      clearInterval(joinCountdownTimer);
-      joinCountdownTimer = null;
-      // Seat should be free now — state update will refresh
-      statusEl.textContent = 'Opening...';
-    } else {
-      statusEl.textContent = `${colorName} returns in ${remaining}s`;
-    }
-  }
-
-  tick();
-  joinCountdownTimer = setInterval(tick, 1000);
-}
-
-// Button click handlers
-btnJoinWhite.addEventListener('click', () => {
-  sendJoin('white');
-});
-
-btnJoinBlack.addEventListener('click', () => {
-  sendJoin('black');
-});
-
-btnJoinSpectator.addEventListener('click', () => {
-  sendJoin('spectator');
-});
-
-// ── Computer player callbacks ───────────────────────────
-
-onComputerActivated((msg) => {
-  showInfo(`Computer player activated (${SKILL_LABELS[msg.skill] || msg.skill})`);
-});
-
-onComputerThinking((msg) => {
-  if (computerThinkingIndicator) {
-    const color = msg.color === 'white' ? 'White' : 'Black';
-    computerThinkingIndicator.textContent = `🤖 ${color} is thinking...`;
-    computerThinkingIndicator.classList.add('visible');
-  }
-});
-
-// Hide thinking indicator on any move
-onMove(() => {
-  if (computerThinkingIndicator) {
-    computerThinkingIndicator.classList.remove('visible');
-  }
-});
-
-onComputerSkillChanged((msg) => {
-  showInfo(`Skill changed to ${SKILL_LABELS[msg.skill] || msg.skill}`);
-});
-
-onComputerUnavailable((msg) => {
-  showError(msg.reason || 'Computer player unavailable');
-  if (computerThinkingIndicator) {
-    computerThinkingIndicator.classList.remove('visible');
-  }
-});
-
-// Show join overlay when reconnect fails
-onReconnectFailed(() => {
-  showJoinOverlay();
-  updateJoinButtons();
-});
-
 // ── Draw offer callbacks ────────────────────────────────
 
 onDrawOffer((msg) => {
@@ -1065,12 +515,6 @@ onDrawResult((msg) => {
 onDrawOfferCancelled(() => {
   hideDrawOffer();
   showInfo('Draw offer was cancelled.');
-});
-
-// Player left voluntarily — show join overlay
-onLeft(() => {
-  showJoinOverlay();
-  updateJoinButtons();
 });
 
 // Opponent left voluntarily — show info toast
