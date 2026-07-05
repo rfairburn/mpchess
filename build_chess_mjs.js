@@ -91,20 +91,40 @@ const cjsExportSet = new Set(cjsExports);
 //    './chess.mjs'` statements (including multi-line) across all
 //    non-test client source files.
 
+function findJsFiles(dir, result = []) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      // Skip vendor/ — third-party code is not part of our import boundary
+      if (entry.name === 'vendor') continue;
+      findJsFiles(full, result);
+    } else if (entry.name.endsWith('.js')) {
+      result.push(full);
+    }
+  }
+  return result;
+}
+
 function parseClientImports(clientDir) {
-  const files = fs
-    .readdirSync(clientDir)
-    .filter((f) => f.endsWith('.js'))
-    .map((f) => path.join(clientDir, f));
+  const files = findJsFiles(clientDir);
 
   const imported = new Set();
 
   for (const file of files) {
     const content = fs.readFileSync(file, 'utf8');
-    // Match `import { … } from './chess.mjs'` (single or multi-line)
-    const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]\.\/chess\.mjs['"]/g;
+    // Match `import { … } from 'specifier'` (single or multi-line)
+    // We resolve the specifier relative to the importing file and
+    // only include it when it resolves to the generated chess.mjs.
+    // This handles './chess.mjs' from client/ and '../chess.mjs'
+    // from client/ui/ (or any deeper subdirectory).
+    const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
     let match;
     while ((match = importRegex.exec(content)) !== null) {
+      const specifier = match[2];
+      // Only resolve relative specifiers (skip bare module imports)
+      if (!specifier.startsWith('.')) continue;
+      const resolved = path.resolve(path.dirname(file), specifier);
+      if (resolved !== MJS_OUT) continue;
       const names = match[1]
         .split(',')
         .map((s) => s.trim())
@@ -123,7 +143,7 @@ function parseClientImports(clientDir) {
 const clientImports = parseClientImports(CLIENT_DIR);
 
 if (clientImports.length === 0) {
-  console.error('ERROR: no client imports from ./chess.mjs found in client/*.js');
+  console.error('ERROR: no client imports from chess.mjs found in client/');
   console.error(
     '       The browser build would export nothing — check that client modules still import from chess.mjs.'
   );

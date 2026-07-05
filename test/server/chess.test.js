@@ -2394,18 +2394,34 @@ describe('Build regression — chess.mjs export boundary', () => {
     return names;
   }
 
-  // Helper: scan client/*.js for imports from './chess.mjs'
+  // Helper: recursively find .js files (skip vendor/)
+  function findJsFiles(dir, result = []) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'vendor') continue;
+        findJsFiles(full, result);
+      } else if (entry.name.endsWith('.js')) {
+        result.push(full);
+      }
+    }
+    return result;
+  }
+
+  // Helper: scan client/**/*.js for imports that resolve to chess.mjs
   function parseClientImports(clientDir) {
-    const files = fs
-      .readdirSync(clientDir)
-      .filter((f) => f.endsWith('.js'))
-      .map((f) => path.join(clientDir, f));
+    const mjsOut = path.join(clientDir, 'chess.mjs');
+    const files = findJsFiles(clientDir);
     const imported = new Set();
     for (const file of files) {
       const content = fs.readFileSync(file, 'utf8');
-      const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]\.\/chess\.mjs['"]/g;
+      const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
       let match;
       while ((match = importRegex.exec(content)) !== null) {
+        const specifier = match[2];
+        if (!specifier.startsWith('.')) continue;
+        const resolved = path.resolve(path.dirname(file), specifier);
+        if (resolved !== mjsOut) continue;
         const names = match[1]
           .split(',')
           .map((s) => s.trim())
@@ -2474,6 +2490,43 @@ describe('Build regression — chess.mjs export boundary', () => {
       `chess.mjs is missing exports the client needs: ${omitted.join(', ')}. ` +
         'Run `npm run build:chess` to regenerate.'
     );
+  });
+
+  test('imports from client/ui/ via ../chess.mjs are resolved correctly', () => {
+    // Regression test: the build scanner must resolve relative import
+    // specifiers so that a file in client/ui/ importing from
+    // '../chess.mjs' is treated the same as client/*.js importing
+    // from './chess.mjs'.
+    const { execSync: xSync } = require('child_process');
+    const uiDir = path.join(ROOT, 'client', 'ui');
+    const testFile = path.join(uiDir, '_test_chess_import.js');
+    const buildScript = path.join(ROOT, 'build_chess_mjs.js');
+    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
+
+    // Pick a symbol that is already exported by chess.js
+    const testSymbol = 'pieceColor';
+
+    // 1) Create a temp file in client/ui/ that imports via ../chess.mjs
+    fs.writeFileSync(testFile, `import { ${testSymbol} } from '../chess.mjs';\n`);
+
+    try {
+      // 2) Run the build — it must pick up the new import
+      xSync(`node ${buildScript}`, { stdio: 'pipe' });
+
+      // 3) Verify the generated chess.mjs includes the symbol
+      const rebuilt = fs.readFileSync(mjsPath, 'utf8');
+      const exportMatch = rebuilt.match(/export\s*\{([^}]*)\}/);
+      assert.ok(exportMatch, 'Generated chess.mjs has no export block');
+      const exportedNames = exportMatch[1].split(',').map((s) => s.trim());
+      assert.ok(
+        exportedNames.includes(testSymbol),
+        `Expected ${testSymbol} in chess.mjs exports but got: ${exportedNames.join(', ')}`
+      );
+    } finally {
+      // 4) Clean up the temp file and restore the original build
+      fs.unlinkSync(testFile);
+      xSync(`node ${buildScript}`, { stdio: 'pipe' });
+    }
   });
 });
 
