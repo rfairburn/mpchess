@@ -1719,6 +1719,21 @@ describe('Draw offer — basic flow', () => {
   });
 });
 
+describe('Spectator reconnect failure — not orphaned', () => {
+  test('spectator re-added to spectators set when reconnect fails', () => {
+    const { wss, game } = createTestEnv();
+    joinAs(wss, 'white');
+    joinAs(wss, 'black');
+    const ws3 = joinAs(wss, 'spectator');
+    assert.ok(game.spectators.has(ws3));
+    // Attempt reconnect with a bad token
+    ws3.emit('message', JSON.stringify({ type: 'reconnect', token: 'nonexistent-token' }));
+    assert.strictEqual(ws3.getSent('reconnectFailed').length, 1);
+    // Spectator should still be in the spectators set
+    assert.ok(game.spectators.has(ws3), 'spectator was orphaned after failed reconnect');
+  });
+});
+
 // ── Results — print everything in declaration order ──────
 
 async function printResults() {

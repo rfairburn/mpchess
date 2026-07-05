@@ -267,6 +267,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   }
 
   function handleReconnect(ws, data) {
+    const wasSpectator = game.spectators.has(ws);
     game.spectators.delete(ws);
 
     // 1) Reconnect to a held seat (player was disconnected)
@@ -291,6 +292,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     }
 
     send(ws, { type: 'reconnectFailed', reason: 'Seat no longer available' });
+    if (wasSpectator) game.spectators.add(ws);
     return false;
   }
 
