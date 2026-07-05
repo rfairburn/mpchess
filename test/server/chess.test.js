@@ -2250,6 +2250,26 @@ describe('PGN export', () => {
     const pgn = g.exportPgn();
     assert.ok(pgn.includes('[Result "1/2-1/2"]'));
   });
+
+  test('PGN strips =P placeholder during pending promotion', () => {
+    const g = new Game();
+    // White pawn on e7, black king on h8 — e8 is clear for promotion
+    g.loadFromFen('7k/4P3/8/8/8/8/8/7K w - - 0 1');
+    const ws1 = { _id: 'p1' };
+    const ws2 = { _id: 'p2' };
+    g.addPlayer(ws1); // white
+    g.addPlayer(ws2); // black
+    // Promote: pawn reaches rank 7, =P placeholder recorded
+    g.tryMove(ws1, 4, 6, 4, 7); // e8 — promotes
+    assert.ok(g.promotingPiece !== null, 'promotion should be pending');
+    const pgn = g.exportPgn();
+    assert.ok(!pgn.includes('=P'), 'PGN must not contain =P placeholder');
+    assert.ok(pgn.includes('e8'), 'PGN must contain the pawn move without promotion suffix');
+    // After completing promotion, PGN should show the actual piece
+    g.completePromotion(ws1, 'queen');
+    const pgn2 = g.exportPgn();
+    assert.ok(pgn2.includes('e8=Q'), 'PGN must contain e8=Q after promotion');
+  });
 });
 
 // ═══════════════════════════════════════════════════════════

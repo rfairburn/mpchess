@@ -598,7 +598,12 @@ class Game {
     let moves = '';
     for (let i = 0; i < this.moveHistory.length; i++) {
       if (i % 2 === 0) moves += `${Math.floor(i / 2) + 1}. `;
-      moves += this.moveHistory[i] + ' ';
+      let notation = this.moveHistory[i];
+      // Strip the =P placeholder from the last move if promotion is pending
+      if (this.promotingPiece && i === this.moveHistory.length - 1 && notation.endsWith('=P')) {
+        notation = notation.slice(0, -2);
+      }
+      moves += notation + ' ';
     }
     moves += result;
 
