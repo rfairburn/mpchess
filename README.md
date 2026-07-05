@@ -57,7 +57,7 @@ npm start -- --port=8443 --cert=server.crt --key=server.key
 | `--key=<path>`                     | TLS private key file (PEM); required with `--cert`       |
 | `--chain=<path>`                   | TLS certificate chain file (PEM); optional               |
 | `--allowed-origins=<o1,o2>`        | Comma-separated list of allowed WebSocket origins        |
-| `--debug=<true                     | false>`                                                  | Enable debug logging for piece rebuilding |
+| `--debug=<true\|false>`            | Enable debug logging for piece rebuilding                |
 | `--prefix=<path>`                  | URL prefix for subpath deployments (e.g. `/chess`)       |
 | `--computer-enabled=<bool>`        | Enable/disable computer player (default: true)           |
 | `--computer-stockfish-path=<path>` | Path to Stockfish binary (auto-resolved if unset)        |

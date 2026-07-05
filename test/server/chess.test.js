@@ -1920,27 +1920,63 @@ describe('Position history', () => {
 });
 
 describe('Threefold repetition detection', () => {
-  test('K b8-c8 shuttle produces threefold', () => {
-    // Minimal position: K b8, K g8. White king shuttles b8-c8-b8-c8-b8
+  test('K e1-e2 shuttle with pawns produces threefold via legal moves', () => {
+    // Position: White pawn a2, king e1; Black pawn a7, king e8.
+    // Kings shuttle e1<->e2 / e8<->e7 while pawns stay put.
     const g = new Game();
-    const ws1 = {};
-    const ws2 = {};
+    const ws1 = {}; // white
+    const ws2 = {}; // black
     g.addPlayer(ws1);
     g.addPlayer(ws2);
+
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
-    g.board[7][1] = W_KING; // b8
-    g.board[7][6] = B_KING; // g8
+    g.board[0][4] = W_KING; // Ke1
+    g.board[1][0] = W_PAWN; // Pa2
+    g.board[6][0] = B_PAWN; // Pa7
+    g.board[7][4] = B_KING; // Ke8
     g.turn = 'white';
     g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.enPassantTarget = null;
     g.halfmoveClock = 0;
     g.positionHistory = [];
     g.positionCounts = new Map();
-    g._recordPosition(null); // record initial
 
-    // b8-c8 (position 2)
-    g.tryMove(ws1, 1, 7, 2, 7);
-    // King move increments clock; black has no legal moves → stalemate
-    // Let me use a position where black can move too
+    // Position 0 recorded (repetition = 1)
+    g._recordPosition(null);
+    assert.strictEqual(g.isThreefoldRepetition(), false);
+    assert.strictEqual(g.getCurrentRepetitionCount(), 1);
+
+    // 1: Ke2
+    g.tryMove(ws1, 4, 0, 4, 1);
+    // 1: Ke7
+    g.tryMove(ws2, 4, 7, 4, 6);
+
+    // 2: Ke1 — back to position 0 (repetition = 2)
+    g.tryMove(ws1, 4, 1, 4, 0);
+    // 2: Ke8 — back to position 0 (repetition = 2)
+    g.tryMove(ws2, 4, 6, 4, 7);
+    assert.strictEqual(g.isThreefoldRepetition(), false);
+    assert.strictEqual(g.getCurrentRepetitionCount(), 2);
+
+    // 3: Ke2
+    g.tryMove(ws1, 4, 0, 4, 1);
+    // 3: Ke7
+    g.tryMove(ws2, 4, 7, 4, 6);
+
+    // 4: Ke1
+    g.tryMove(ws1, 4, 1, 4, 0);
+    // 4: Ke8 — back to position 0 (repetition = 3, threefold!)
+    g.tryMove(ws2, 4, 6, 4, 7);
+    assert.strictEqual(
+      g.isThreefoldRepetition(),
+      true,
+      'threefold after Ke1-Ke2-Ke1-Ke2-Ke1 / Ke8-Ke7-Ke8-Ke7-Ke8 shuttle'
+    );
+    assert.strictEqual(g.getCurrentRepetitionCount(), 3);
+
+    g.checkGameEnd();
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('threefold'), `expected threefold draw: ${g.gameResult}`);
   });
 
   test('threefold detected via manual position replay', () => {
