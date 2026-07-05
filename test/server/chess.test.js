@@ -2312,6 +2312,115 @@ describe('Build regression — chess.mjs browser safety', () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════
+//  BUILD REGRESSION — chess.mjs export boundary
+//  Verifies that the generated chess.mjs exports exactly match
+//  the union of all `import { … } from './chess.mjs'` statements
+//  in client/*.js.  This is the programmatic boundary between
+//  server-side chess.js (CommonJS, ~30 exports) and the browser
+//  build (ES module, only what the client imports).  See the
+//  header comment in build_chess_mjs.js for the full rationale.
+// ═══════════════════════════════════════════════════════════
+
+describe('Build regression — chess.mjs export boundary', () => {
+  // Helper: parse module.exports names from shared/chess.js
+  function parseCjsExports(source) {
+    const match = source.match(/module\.exports\s*=\s*\{([\s\S]*)\}/);
+    if (!match) return [];
+    const cleaned = match[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const names = [];
+    for (const line of cleaned.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('//')) continue;
+      const idMatch = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*[:,]?/);
+      if (idMatch) names.push(idMatch[1]);
+    }
+    return names;
+  }
+
+  // Helper: scan client/*.js for imports from './chess.mjs'
+  function parseClientImports(clientDir) {
+    const files = fs
+      .readdirSync(clientDir)
+      .filter((f) => f.endsWith('.js'))
+      .map((f) => path.join(clientDir, f));
+    const imported = new Set();
+    for (const file of files) {
+      const content = fs.readFileSync(file, 'utf8');
+      const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]\.\/chess\.mjs['"]/g;
+      let match;
+      while ((match = importRegex.exec(content)) !== null) {
+        const names = match[1]
+          .split(',')
+          .map((s) => s.trim())
+          .map((s) => s.split(/\s+as\s+/)[0].trim())
+          .filter((s) => s.length > 0);
+        for (const name of names) imported.add(name);
+      }
+    }
+    return [...imported].sort();
+  }
+
+  // Helper: parse `export { … }` from generated chess.mjs
+  function parseMjsExports(mjs) {
+    const match = mjs.match(/export\s*\{([^}]*)\}/);
+    if (!match) return [];
+    return match[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .sort();
+  }
+
+  const chessSrc = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
+  const mjsSrc = fs.readFileSync(path.join(ROOT, 'client', 'chess.mjs'), 'utf8');
+  const cjsExports = parseCjsExports(chessSrc);
+  const clientImports = parseClientImports(path.join(ROOT, 'client'));
+  const mjsExports = parseMjsExports(mjsSrc);
+
+  test('chess.mjs exports match client imports exactly', () => {
+    assert.deepStrictEqual(
+      mjsExports,
+      clientImports,
+      `chess.mjs exports [${mjsExports.join(', ')}] do not match client imports [${clientImports.join(', ')}]. ` +
+        'Run `npm run build:chess` to regenerate, or check for stale imports.'
+    );
+  });
+
+  test('every client import exists in chess.js module.exports', () => {
+    const cjsSet = new Set(cjsExports);
+    const missing = clientImports.filter((name) => !cjsSet.has(name));
+    assert.strictEqual(
+      missing.length,
+      0,
+      `Client imports symbols not in module.exports: ${missing.join(', ')}. ` +
+        'Add them to shared/chess.js module.exports.'
+    );
+  });
+
+  test('chess.mjs does not export symbols the client does not import', () => {
+    const clientSet = new Set(clientImports);
+    const extra = mjsExports.filter((name) => !clientSet.has(name));
+    assert.strictEqual(
+      extra.length,
+      0,
+      `chess.mjs exports symbols not imported by any client module: ${extra.join(', ')}. ` +
+        'Run `npm run build:chess` to regenerate.'
+    );
+  });
+
+  test('chess.mjs does not omit symbols the client imports', () => {
+    const mjsSet = new Set(mjsExports);
+    const omitted = clientImports.filter((name) => !mjsSet.has(name));
+    assert.strictEqual(
+      omitted.length,
+      0,
+      `chess.mjs is missing exports the client needs: ${omitted.join(', ')}. ` +
+        'Run `npm run build:chess` to regenerate.'
+    );
+  });
+});
+
 describe('TLS CLI arguments', () => {
   const { execSync, spawn } = require('child_process');
   const serverPath = path.join(ROOT, 'server.js');
