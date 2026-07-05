@@ -996,6 +996,50 @@ describe('computerThinking -- broadcast on computer turn', () => {
   });
 });
 
+// ===========================================================
+//  TESTS: virtualWs cleanup on unexpected error (Finding 3)
+// ===========================================================
+
+describe('virtualWs cleanup -- try/finally guard', () => {
+  test('virtualWs removed from game.players when tryMove throws', async () => {
+    const mockEngine = createMockEngine({ bestMove: 'e7e5' });
+    const { wss, game } = createEnv({ mockEngine });
+
+    const ws = joinAs(wss, 'white');
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Patch game.tryMove to throw only for the computer's virtualWs (identified by _computer flag)
+    const originalTryMove = game.tryMove.bind(game);
+    game.tryMove = function (...args) {
+      const [callerWs] = args;
+      const result = originalTryMove(...args);
+      if (result.ok && callerWs && callerWs._computer) {
+        throw new Error('Simulated latent bug in tryMove');
+      }
+      return result;
+    };
+
+    // White makes a move to trigger computer's turn
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Restore original tryMove
+    game.tryMove = originalTryMove;
+
+    // virtualWs must have been cleaned up — only the human ws should remain
+    const playerKeys = [...game.players.keys()];
+    assert.strictEqual(playerKeys.length, 1, 'virtualWs must be cleaned up after tryMove throws');
+    assert.strictEqual(playerKeys[0], ws, 'only the human player should remain');
+  });
+});
+
 // -- Run ---------------------------------------------------
 
 run().catch((err) => {
