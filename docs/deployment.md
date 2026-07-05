@@ -73,7 +73,7 @@ The Dockerfile uses a multi-stage build:
 
 ### Stockfish in Docker
 
-The Dockerfile includes a `stockfish-builder` stage that builds Stockfish from source (sf_18 tag) and copies the binary into the production image. See [stockfish_policy.md](../stockfish_policy.md) for details on the integration.
+The Dockerfile includes a `stockfish-builder` stage that builds Stockfish from source (sf_18 tag) and copies the binary into the production image.
 
 ### Import into microk8s
 
