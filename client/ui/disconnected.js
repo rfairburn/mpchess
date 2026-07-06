@@ -28,8 +28,56 @@ let disconnectedOpponentToken = null;
 let secondDisconnectedToken = null;
 
 let dropButtonTimer = null;
-let spectatorCountdownTimer = null;
-let secondSpectatorCountdownTimer = null;
+
+// ── Parameterized spectator countdown ─────────────────────
+
+function startSpectatorCountdown(textEl, timerRef, setTimerRef, color, disconnectedAt) {
+  if (timerRef()) {
+    clearInterval(timerRef());
+    setTimerRef(null);
+  }
+
+  const enableTime = disconnectedAt + 60000;
+
+  function updateText() {
+    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
+    if (remaining <= 0) {
+      textEl.textContent = buildDisconnectedText(color);
+      if (timerRef()) {
+        clearInterval(timerRef());
+        setTimerRef(null);
+      }
+    } else {
+      textEl.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+    }
+  }
+
+  updateText();
+  setTimerRef(setInterval(updateText, 1000));
+}
+
+function stopSpectatorCountdown(timerRef, setTimerRef) {
+  if (timerRef()) {
+    clearInterval(timerRef());
+    setTimerRef(null);
+  }
+}
+
+let firstTimer = null;
+let secondTimer = null;
+
+function getFirstTimer() {
+  return firstTimer;
+}
+function setFirstTimer(v) {
+  firstTimer = v;
+}
+function getSecondTimer() {
+  return secondTimer;
+}
+function setSecondTimer(v) {
+  secondTimer = v;
+}
 
 // ── Helpers ───────────────────────────────────────────────
 
@@ -67,74 +115,6 @@ function startDropButtonCountdown(disconnectedAt) {
   dropButtonTimer = setInterval(updateButton, 1000);
 }
 
-// ── Spectator countdown (first disconnected) ─────────────
-
-function startSpectatorCountdown(color, disconnectedAt) {
-  if (spectatorCountdownTimer) {
-    clearInterval(spectatorCountdownTimer);
-    spectatorCountdownTimer = null;
-  }
-
-  const enableTime = disconnectedAt + 60000;
-
-  function updateText() {
-    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
-    if (remaining <= 0) {
-      opponentDisconnectedText.textContent = buildDisconnectedText(color);
-      if (spectatorCountdownTimer) {
-        clearInterval(spectatorCountdownTimer);
-        spectatorCountdownTimer = null;
-      }
-    } else {
-      opponentDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
-    }
-  }
-
-  updateText();
-  spectatorCountdownTimer = setInterval(updateText, 1000);
-}
-
-function stopSpectatorCountdown() {
-  if (spectatorCountdownTimer) {
-    clearInterval(spectatorCountdownTimer);
-    spectatorCountdownTimer = null;
-  }
-}
-
-// ── Spectator countdown (second disconnected) ────────────
-
-function startSecondSpectatorCountdown(color, disconnectedAt) {
-  if (secondSpectatorCountdownTimer) {
-    clearInterval(secondSpectatorCountdownTimer);
-    secondSpectatorCountdownTimer = null;
-  }
-
-  const enableTime = disconnectedAt + 60000;
-
-  function updateText() {
-    const remaining = Math.ceil((enableTime - Date.now()) / 1000);
-    if (remaining <= 0) {
-      secondDisconnectedText.textContent = buildDisconnectedText(color);
-      if (secondSpectatorCountdownTimer) {
-        clearInterval(secondSpectatorCountdownTimer);
-        secondSpectatorCountdownTimer = null;
-      }
-    } else {
-      secondDisconnectedText.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
-    }
-  }
-
-  updateText();
-  secondSpectatorCountdownTimer = setInterval(updateText, 1000);
-}
-
-function stopSecondSpectatorCountdown() {
-  if (secondSpectatorCountdownTimer) {
-    clearInterval(secondSpectatorCountdownTimer);
-    secondSpectatorCountdownTimer = null;
-  }
-}
-
 // ── Banner show/hide ─────────────────────────────────────
 
 export function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
@@ -146,7 +126,13 @@ export function showOpponentDisconnectedBanner(color, token, disconnectedAt) {
     startDropButtonCountdown(disconnectedAt);
   } else {
     btnDropPlayer.style.display = 'none';
-    startSpectatorCountdown(color, disconnectedAt);
+    startSpectatorCountdown(
+      opponentDisconnectedText,
+      getFirstTimer,
+      setFirstTimer,
+      color,
+      disconnectedAt
+    );
   }
 }
 
@@ -158,7 +144,7 @@ export function hideOpponentDisconnectedBanner() {
     clearInterval(dropButtonTimer);
     dropButtonTimer = null;
   }
-  stopSpectatorCountdown();
+  stopSpectatorCountdown(getFirstTimer, setFirstTimer);
   hideSecondDisconnectedBanner();
 }
 
@@ -166,13 +152,19 @@ export function showSecondDisconnectedBanner(color, token, disconnectedAt) {
   secondDisconnectedToken = token;
   secondDisconnectedText.textContent = buildDisconnectedText(color);
   secondDisconnectedBanner.classList.add('visible');
-  startSecondSpectatorCountdown(color, disconnectedAt);
+  startSpectatorCountdown(
+    secondDisconnectedText,
+    getSecondTimer,
+    setSecondTimer,
+    color,
+    disconnectedAt
+  );
 }
 
 export function hideSecondDisconnectedBanner() {
   secondDisconnectedBanner.classList.remove('visible');
   secondDisconnectedToken = null;
-  stopSecondSpectatorCountdown();
+  stopSpectatorCountdown(getSecondTimer, setSecondTimer);
 }
 
 export function showGameAvailableBanner() {

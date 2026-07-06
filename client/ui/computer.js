@@ -17,6 +17,7 @@ import {
   onComputerUnavailable,
 } from '../network.js';
 import { showInfo, showError } from './toast.js';
+import { SKILL_LABELS } from '../constants.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -28,16 +29,6 @@ const menuComputerSkillDropdown = document.getElementById('menu-computer-skill-d
 const menuSkillChangeDropdown = document.getElementById('menu-skill-change-dropdown');
 const btnMenuActivateComputer = document.getElementById('btn-menu-activate-computer');
 const btnMenuChangeSkill = document.getElementById('btn-menu-change-skill');
-
-// Skill labels (must stay in sync with server)
-const SKILL_LABELS = {
-  beginner: 'Beginner',
-  novice: 'Novice',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  master: 'Master',
-  grandmaster: 'Grandmaster',
-};
 
 // ── Menu computer sections ───────────────────────────────
 

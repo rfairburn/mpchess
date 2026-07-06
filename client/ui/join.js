@@ -11,6 +11,7 @@ import {
   onReconnectFailed,
   onLeft,
 } from '../network.js';
+import { SKILL_LABELS } from '../constants.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -22,16 +23,6 @@ const btnJoinSpectator = document.getElementById('btn-join-spectator');
 // ── State ─────────────────────────────────────────────────
 
 let joinCountdownTimer = null;
-
-// Skill labels (must stay in sync with server)
-const SKILL_LABELS = {
-  beginner: 'Beginner',
-  novice: 'Novice',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  master: 'Master',
-  grandmaster: 'Grandmaster',
-};
 
 // ── Join overlay ──────────────────────────────────────────
 

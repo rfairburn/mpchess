@@ -7,3 +7,4 @@ dist/
 coverage/
 stockfish/
 .ci-test-results.json
+cad-source/
