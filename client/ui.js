@@ -160,16 +160,20 @@ function updateTurnIndicator() {
   }
 }
 
-function updateMoveLog() {
+export function updateMoveLog() {
   const el = document.getElementById('move-log');
-  const pairs = [];
+  el.innerHTML = '';
   for (let i = 0; i < moveHistory.length; i += 2) {
     const num = Math.floor(i / 2) + 1;
     const w = moveHistory[i];
     const b = moveHistory[i + 1] || '';
-    pairs.push(`<div><b>${num}.</b> ${w} ${b}</div>`);
+    const row = document.createElement('div');
+    const numEl = document.createElement('b');
+    numEl.textContent = `${num}.`;
+    row.appendChild(numEl);
+    row.appendChild(document.createTextNode(` ${w} ${b}`));
+    el.appendChild(row);
   }
-  el.innerHTML = pairs.join('');
   // Auto-scroll to bottom
   el.scrollTop = el.scrollHeight;
 }

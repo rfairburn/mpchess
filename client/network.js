@@ -432,14 +432,17 @@ function connect() {
   };
 }
 
-function downloadText(text, filename, mimeType) {
+export function downloadText(text, filename, mimeType) {
   const blob = new Blob([text], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
   a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 100);
+  // Use queueMicrotask (not setTimeout) so the blob URL is revoked
+  // immediately after the current task, avoiding the 100ms delay and
+  // preventing memory leaks from rapid FEN/PGN exports.
+  queueMicrotask(() => URL.revokeObjectURL(url));
 }
 
 function startReconnection() {

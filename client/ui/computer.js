@@ -10,6 +10,7 @@ import {
   sendActivateComputer,
   sendChangeSkill,
   onMove,
+  onRestart,
   onComputerActivated,
   onComputerThinking,
   onComputerSkillChanged,
@@ -116,6 +117,12 @@ onComputerSkillChanged((msg) => {
 
 onComputerUnavailable((msg) => {
   showError(msg.reason || 'Computer player unavailable');
+  if (computerThinkingIndicator) {
+    computerThinkingIndicator.classList.remove('visible');
+  }
+});
+
+onRestart(() => {
   if (computerThinkingIndicator) {
     computerThinkingIndicator.classList.remove('visible');
   }

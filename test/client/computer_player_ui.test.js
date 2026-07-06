@@ -678,6 +678,28 @@ describe('computer player UI -- DOM rendering via real network + ui modules', ()
       });
       expect(indicator.classList.contains('visible')).toBe(false);
     });
+
+    it('hides thinking indicator on restart (New Game / FEN import)', async () => {
+      const { ws } = await setupModules();
+
+      sendState(ws, {
+        role: 'white',
+        seats: {
+          white: { status: 'connected' },
+          black: { status: 'computer', skill: 'beginner' },
+        },
+        computerPlayer: { color: 'black', skill: 'beginner' },
+      });
+
+      // Show thinking indicator
+      sendMessage(ws, { type: 'computerThinking', color: 'black' });
+      const indicator = document.getElementById('computer-thinking');
+      expect(indicator.classList.contains('visible')).toBe(true);
+
+      // Server sends 'restart' for both New Game and FEN import
+      sendMessage(ws, { type: 'restart' });
+      expect(indicator.classList.contains('visible')).toBe(false);
+    });
   });
 
   // -- computerActivated -> info toast ---------------------

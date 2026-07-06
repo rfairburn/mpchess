@@ -330,3 +330,122 @@ describe('network.js — send functions guard', () => {
     expect(() => network.sendConcede()).not.toThrow();
   });
 });
+
+// Tests assert that URL revocation uses queueMicrotask (not setTimeout),
+// which is intentional: rapid FEN/PGN exports must not leak blob URLs.
+// The microtask queue is exposed via __microtaskQueue so tests can flush it
+// deterministically rather than relying on real microtask scheduling.
+describe('network.js — downloadText', () => {
+  let network;
+  let revokeSpy;
+  let createObjectUrlSpy;
+  let createdUrls = [];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    globalThis.WebSocket = class {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      constructor() {
+        this.readyState = 0;
+      }
+      send() {}
+    };
+
+    const store = {};
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+      },
+      writable: true,
+    });
+
+    Object.defineProperty(globalThis, 'location', {
+      value: { protocol: 'http:', host: 'localhost:3000' },
+      writable: true,
+    });
+
+    // Mock URL.createObjectURL and URL.revokeObjectURL
+    createdUrls = [];
+    createObjectUrlSpy = vi.fn((blob) => {
+      const url = `blob:test/${createdUrls.length}`;
+      createdUrls.push(url);
+      return url;
+    });
+    revokeSpy = vi.fn((url) => {
+      const idx = createdUrls.indexOf(url);
+      if (idx !== -1) createdUrls.splice(idx, 1);
+    });
+    globalThis.URL.createObjectURL = createObjectUrlSpy;
+    globalThis.URL.revokeObjectURL = revokeSpy;
+
+    // Mock queueMicrotask so we can control when it fires
+    const microtaskQueue = [];
+    globalThis.queueMicrotask = vi.fn((fn) => {
+      microtaskQueue.push(fn);
+    });
+
+    network = await import('../../client/network.js');
+
+    // Expose the queue for tests to flush
+    network.__microtaskQueue = microtaskQueue;
+  });
+
+  it('should create a Blob and object URL', () => {
+    network.downloadText('test content', 'test.txt', 'text/plain');
+    expect(createObjectUrlSpy).toHaveBeenCalledTimes(1);
+    expect(createObjectUrlSpy.mock.calls[0][0]).toBeInstanceOf(Blob);
+  });
+
+  it('should schedule URL revocation via queueMicrotask', () => {
+    network.downloadText('test content', 'test.txt', 'text/plain');
+    expect(globalThis.queueMicrotask).toHaveBeenCalledTimes(1);
+    // The URL should not be revoked yet (microtask not flushed)
+    expect(revokeSpy).not.toHaveBeenCalled();
+  });
+
+  it('should revoke the object URL after microtask flush', async () => {
+    network.downloadText('test content', 'test.txt', 'text/plain');
+    expect(revokeSpy).not.toHaveBeenCalled();
+
+    // Flush the microtask queue
+    for (const fn of network.__microtaskQueue) {
+      fn();
+    }
+    expect(revokeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should revoke the correct URL', () => {
+    network.downloadText('fen data', 'position.fen', 'text/plain');
+    const createdUrl = createObjectUrlSpy.mock.results[0].value;
+
+    // Flush microtasks
+    for (const fn of network.__microtaskQueue) {
+      fn();
+    }
+
+    expect(revokeSpy).toHaveBeenCalledWith(createdUrl);
+  });
+
+  it('should handle rapid calls without leaking URLs', () => {
+    // Simulate rapid FEN/PGN exports
+    for (let i = 0; i < 10; i++) {
+      network.downloadText(`content ${i}`, `file${i}.txt`, 'text/plain');
+    }
+
+    expect(createObjectUrlSpy).toHaveBeenCalledTimes(10);
+    expect(globalThis.queueMicrotask).toHaveBeenCalledTimes(10);
+
+    // Flush all microtasks
+    for (const fn of network.__microtaskQueue) {
+      fn();
+    }
+
+    // All URLs should be revoked
+    expect(revokeSpy).toHaveBeenCalledTimes(10);
+  });
+});
