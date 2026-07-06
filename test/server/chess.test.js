@@ -35,6 +35,7 @@ const {
   isInsufficientMaterial,
   Game,
   ZOBRIST,
+  MAX_POSITION_HISTORY,
   toFen,
   fromFen,
   validateFenForEngine,
@@ -3148,6 +3149,80 @@ describe('addMove board integrity with try/finally', () => {
     // White pawn should have an en passant capture option
     const epMove = moves.find((m) => m.enPassant === true);
     assert.ok(epMove, 'Expected en passant capture move');
+  });
+});
+
+describe('Position history cap', () => {
+  test('positionHistory prunes excess entries when exceeding cap', () => {
+    const g = new Game();
+    // Constructor already adds 1 entry. Push enough to exceed the cap.
+    for (let i = 0; i < MAX_POSITION_HISTORY + 49; i++) {
+      g.positionHistory.push({
+        zobrist: `test-${i}`,
+        halfmoveClock: 0,
+        fullmoveNumber: 1,
+        move: null,
+      });
+      g.positionCounts.set(`test-${i}`, 1);
+    }
+    // Total: 1 (constructor) + 549 = 550
+    assert.strictEqual(g.positionHistory.length, MAX_POSITION_HISTORY + 50);
+    // _recordPosition adds 1 (551), prunes all excess → back to 500
+    g._recordPosition(null);
+    assert.strictEqual(g.positionHistory.length, MAX_POSITION_HISTORY);
+  });
+
+  test('positionCounts decremented when entries are pruned', () => {
+    const g = new Game();
+    // Fill history with a repeating key so we can verify count decrements
+    const key = 'repeated-key';
+    for (let i = 0; i < MAX_POSITION_HISTORY + 9; i++) {
+      g.positionHistory.push({
+        zobrist: key,
+        halfmoveClock: 0,
+        fullmoveNumber: 1,
+        move: null,
+      });
+      g.positionCounts.set(key, (g.positionCounts.get(key) || 0) + 1);
+    }
+    const countBefore = g.positionCounts.get(key);
+    assert.strictEqual(countBefore, MAX_POSITION_HISTORY + 9);
+    // Record one more — prunes 11 oldest entries (1 constructor key + 10 repeated-key)
+    g._recordPosition(null);
+    // 10 'repeated-key' entries were pruned, count decreased by 10
+    assert.strictEqual(g.positionCounts.get(key), countBefore - 10);
+    assert.strictEqual(g.positionHistory.length, MAX_POSITION_HISTORY);
+  });
+
+  test('positionCounts entry removed when count reaches zero', () => {
+    const g = new Game();
+    // Replace constructor's entry with our own unique key
+    g.positionHistory = [];
+    g.positionCounts = new Map();
+    // Fill history with unique keys
+    for (let i = 0; i < MAX_POSITION_HISTORY; i++) {
+      g.positionHistory.push({
+        zobrist: `unique-${i}`,
+        halfmoveClock: 0,
+        fullmoveNumber: 1,
+        move: null,
+      });
+      g.positionCounts.set(`unique-${i}`, 1);
+    }
+    assert.strictEqual(g.positionCounts.size, MAX_POSITION_HISTORY);
+    // Record one more — prunes oldest entry (unique-0)
+    g._recordPosition(null);
+    assert.ok(!g.positionCounts.has('unique-0'), 'Pruned entry should be removed from counts');
+    assert.strictEqual(g.positionHistory.length, MAX_POSITION_HISTORY);
+  });
+
+  test('normal game play stays well within cap', () => {
+    const { game, white, black } = makeGame();
+    // Make a few moves — should not trigger the cap
+    game.tryMove(white, 4, 1, 4, 3); // e4 (white pawn rank 1 → 3)
+    game.tryMove(black, 4, 6, 4, 4); // e5 (black pawn rank 6 → 4)
+    assert.strictEqual(game.positionHistory.length, 3); // start + 2 moves
+    assert.ok(game.positionHistory.length < MAX_POSITION_HISTORY);
   });
 });
 

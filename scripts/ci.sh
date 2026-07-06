@@ -102,13 +102,14 @@ if [ -n "$HELM_CMD" ] && [ -d chart ]; then
     # Parse test counts from helm-unittest output for summary display.
     # Format: "Tests:       63 passed, 63 total" (passed may come before or after failed)
     # Extract the Tests: line and scan for N passed / N failed / N errored tokens.
-    HELM_TESTS_LINE=$(echo "$HELM_UNITTEST_OUTPUT" | grep -oP '^Tests:\s.*' || true)
-    HELM_TESTS=$(echo "$HELM_TESTS_LINE" | grep -oP '\d+(?=\s+passed)' | head -1 || echo "0")
+    # Use grep -oE (extended regex) — POSIX-compatible on Linux and macOS, unlike grep -oP (Perl).
+    HELM_TESTS_LINE=$(echo "$HELM_UNITTEST_OUTPUT" | grep '^Tests:' || true)
+    HELM_TESTS=$(echo "$HELM_TESTS_LINE" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo "0")
     HELM_TESTS=${HELM_TESTS:-0}
-    HELM_FAILED=$(echo "$HELM_TESTS_LINE" | grep -oP '\d+(?=\s+failed)' | head -1 || echo "0")
+    HELM_FAILED=$(echo "$HELM_TESTS_LINE" | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "0")
     HELM_FAILED=${HELM_FAILED:-0}
     # Treat errored tests as failures too.
-    HELM_ERRORED=$(echo "$HELM_TESTS_LINE" | grep -oP '\d+(?=\s+errored)' | head -1 || echo "0")
+    HELM_ERRORED=$(echo "$HELM_TESTS_LINE" | grep -oE '[0-9]+ errored' | grep -oE '[0-9]+' || echo "0")
     HELM_ERRORED=${HELM_ERRORED:-0}
     HELM_FAILED=$((HELM_FAILED + HELM_ERRORED))
     if [ "$HELM_EXIT" -ne 0 ]; then

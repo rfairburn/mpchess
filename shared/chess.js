@@ -316,6 +316,11 @@ function hasAnyMoves(board, color, castlingRights, enPassantTarget) {
   return false;
 }
 
+// Maximum position history entries — chess games rarely exceed 200 moves,
+// and the 50-move rule triggers a draw well before unbounded growth matters.
+// This cap prevents memory growth in pathological cases (e.g., FEN imports).
+const MAX_POSITION_HISTORY = 500;
+
 // Collect all pieces on the board as {type, color, file, rank}
 function collectPieces(board) {
   const pieces = { white: [], black: [] };
@@ -540,6 +545,17 @@ class Game {
       move: moveData,
     });
     this.positionCounts.set(key, (this.positionCounts.get(key) || 0) + 1);
+
+    // Prune oldest entries when history exceeds the cap
+    while (this.positionHistory.length > MAX_POSITION_HISTORY) {
+      const removed = this.positionHistory.shift();
+      const count = this.positionCounts.get(removed.zobrist);
+      if (count <= 1) {
+        this.positionCounts.delete(removed.zobrist);
+      } else {
+        this.positionCounts.set(removed.zobrist, count - 1);
+      }
+    }
   }
 
   isThreefoldRepetition() {
@@ -1392,6 +1408,7 @@ module.exports = {
   Game,
   Zobrist,
   ZOBRIST,
+  MAX_POSITION_HISTORY,
   toFen,
   fromFen,
   validateFenForEngine,

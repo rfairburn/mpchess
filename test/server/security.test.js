@@ -695,6 +695,38 @@ describe('Rate limiter — existing behavior preserved', () => {
   });
 });
 
+describe('joinTimeout cleared on close', () => {
+  test('joinTimeout is cleared when connection closes', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 5000,
+    });
+
+    const ws = wss.simulateConnection('127.0.0.1');
+
+    // The join timeout should have been set
+    assert.ok(ws._joinTimeout, 'joinTimeout should be set on connection');
+
+    // Track if clearTimeout was called with the joinTimeout
+    const originalClearTimeout = global.clearTimeout;
+    let clearedTimeout = null;
+    global.clearTimeout = (id) => {
+      clearedTimeout = id;
+      return originalClearTimeout(id);
+    };
+
+    // Simulate disconnect
+    wss.simulateDisconnect(ws);
+
+    // The joinTimeout should have been cleared
+    assert.strictEqual(clearedTimeout, ws._joinTimeout, 'joinTimeout should be cleared on close');
+
+    global.clearTimeout = originalClearTimeout;
+  });
+});
+
 // ── Print results ─────────────────────────────────────────
 
 async function printResults() {

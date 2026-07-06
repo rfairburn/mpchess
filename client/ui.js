@@ -192,7 +192,11 @@ function updateDrawInfo() {
 
   el.classList.add('visible');
   const parts = [repLabel, fiftyLabel].filter(Boolean);
-  el.innerHTML = parts.join('<br>');
+  el.innerHTML = '';
+  for (const part of parts) {
+    el.appendChild(document.createTextNode(part));
+    el.appendChild(document.createElement('br'));
+  }
 }
 
 const CAPTURE_SYMBOLS = {

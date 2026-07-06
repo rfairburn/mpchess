@@ -1130,6 +1130,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     });
 
     ws.on('close', () => {
+      // Clear the join timeout to prevent it from firing after disconnect
+      clearTimeout(ws._joinTimeout);
+
       // Rate limit buckets are keyed by IP and persist across connections —
       // do NOT delete here, otherwise a close/reopen resets the IP limit.
       // Buckets are cleaned up by the periodic sweep when timestamps expire.
