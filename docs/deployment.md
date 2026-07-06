@@ -274,7 +274,7 @@ microk8s helm uninstall mpchess --namespace mpchess
 | `server.port`                           | Server listen port                                         | `3000`                  |
 | `server.fen`                            | Custom starting FEN                                        | _(none)_                |
 | `server.allowedOrigins`                 | Allowed WebSocket origins                                  | _(none)_                |
-| `config.enabled`                        | Mount config.json from ConfigMap                           | `false`                 |
+| `config.enabled`                        | Mount config.jsonc from ConfigMap                          | `false`                 |
 | `config.content`                        | JSON config content                                        | _(none)_                |
 | `tls.enabled`                           | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars) | `false`                 |
 | `tls.secretName`                        | TLS secret for pod certificate                             | `mpchess-tls`           |

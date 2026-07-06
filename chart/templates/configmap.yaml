@@ -6,6 +6,6 @@ metadata:
   labels:
     {{- include "mpchess.labels" . | nindent 4 }}
 data:
-  config.json: |
+  config.jsonc: |
     {{- .Values.config.content | nindent 4 }}
 {{- end }}

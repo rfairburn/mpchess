@@ -153,10 +153,10 @@ tests:
           value: config
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[1].mountPath
-          value: /app/config.json
+          value: /app/config.jsonc
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[1].subPath
-          value: config.json
+          value: config.jsonc
       - equal:
           path: spec.template.spec.volumes[0].name
           value: tmp

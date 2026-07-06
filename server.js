@@ -1255,7 +1255,7 @@ Usage: node server.js [options]
 
 Options:
   --help, -h              Show this help message
-  --config=<path>         Config file path (default: config.json in cwd)
+  --config=<path>         Config file path (default: config.jsonc, falls back to config.json)
   --fen=<fen_string>      Load a custom starting position (first game only;
                           restarts reset to standard setup)
   --port=<number>         Port for the HTTP/WebSocket server
@@ -1291,7 +1291,7 @@ Config sources (highest priority first):
      MPCHESS_COMPUTER_SKILLS, MPCHESS_SEAT_TIMEOUT, MPCHESS_JOIN_TIMEOUT,
      MPCHESS_RATE_LIMIT_MAX, MPCHESS_RATE_LIMIT_WINDOW, MPCHESS_SLOW_CLIENT_THRESHOLD,
      MPCHESS_MIN_MOVE_DELAY, MPCHESS_HOST)
-  3. Config file (config.json or --config=<path>)
+  3. Config file (config.jsonc, config.json, or --config=<path>)
   4. Built-in defaults
 
 Examples:

@@ -26,7 +26,7 @@ tests:
           path: metadata.name
           value: mpchess-config
       - exists:
-          path: data["config.json"]
+          path: data["config.jsonc"]
       - matchRegex:
-          path: data["config.json"]
+          path: data["config.jsonc"]
           pattern: 'port.*8080'

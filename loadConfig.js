@@ -2,7 +2,12 @@ const fs = require('fs');
 const path = require('path');
 
 function defaultConfigPath() {
-  return path.join(process.cwd(), 'config.json');
+  // Prefer .jsonc (JSON with comments); fall back to .json for backwards compatibility.
+  const jsoncPath = path.join(process.cwd(), 'config.jsonc');
+  const jsonPath = path.join(process.cwd(), 'config.json');
+  if (fs.existsSync(jsoncPath)) return jsoncPath;
+  if (fs.existsSync(jsonPath)) return jsonPath;
+  return jsoncPath; // preferred default when neither exists
 }
 
 const DEFAULTS = {
@@ -170,12 +175,50 @@ function stripComments(content) {
   // Remove // and /* */ comments while preserving strings.
   // The regex matches strings, line comments, or block comments in order.
   // Strings are kept as-is; comments are removed.
-  return content.replace(
+  let result = content.replace(
     /("(?:[^"\\]|\\.)*")|(\/\/[^\n]*)|(\/\*[\s\S]*?\*\/)/g,
     (match, captured) => {
       return captured !== undefined ? captured : '';
     }
   );
+  // Remove trailing commas before } or ] (JSONC support).
+  // Walk character-by-character tracking string state so we never
+  // touch commas inside string literals.
+  let out = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < result.length; i++) {
+    const ch = result[i];
+    if (inString) {
+      out += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === '\\') {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    // Outside a string: check for trailing comma pattern ",<ws>}" or ",<ws>]"
+    if (ch === ',') {
+      // Look ahead past whitespace for } or ]
+      let j = i + 1;
+      while (j < result.length && ' \t\r\n'.includes(result[j])) j++;
+      if (j < result.length && (result[j] === '}' || result[j] === ']')) {
+        // Skip the comma and whitespace; let the loop handle the bracket
+        i = j - 1; // loop increment will set i to j (the bracket)
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
 }
 
 function loadFromFile(filePath) {

@@ -51,7 +51,7 @@ function makeTempDir() {
 }
 
 function writeConfig(dir, content) {
-  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify(content));
+  fs.writeFileSync(path.join(dir, 'config.jsonc'), JSON.stringify(content));
 }
 
 // ── Tests ────────────────────────────────────────────────
@@ -320,7 +320,7 @@ describe('loadConfig — full integration', () => {
 
   test('invalid JSON in config file throws', () => {
     inTempDir((tmpDir) => {
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), '{ invalid json }');
+      fs.writeFileSync(path.join(tmpDir, 'config.jsonc'), '{ invalid json }');
       process.argv = ['node', 'server.js'];
       assert.throws(() => loadConfig(), /Failed to parse config file/);
     });
@@ -407,6 +407,43 @@ describe('stripComments', () => {
     assert.ok(!result.includes('/*'));
     assert.ok(result.includes('"port"'));
   });
+
+  test('removes trailing commas before }', () => {
+    const result = stripComments('{"port": 3000,}');
+    assert.strictEqual(result, '{"port": 3000}');
+  });
+
+  test('removes trailing commas before ]', () => {
+    const result = stripComments('{"arr": [1, 2,]}');
+    assert.strictEqual(result, '{"arr": [1, 2]}');
+  });
+
+  test('removes trailing commas with whitespace', () => {
+    const result = stripComments('{"port": 3000, \n}');
+    assert.strictEqual(result, '{"port": 3000}');
+  });
+
+  test('preserves ",}" inside string literals', () => {
+    const input = '{"x": ",}"}';
+    const result = stripComments(input);
+    assert.strictEqual(result, input, 'string containing ",}" must not be corrupted');
+  });
+
+  test('preserves ",]" inside string literals', () => {
+    const input = '{"x": ",]"}';
+    const result = stripComments(input);
+    assert.strictEqual(result, input, 'string containing ",]" must not be corrupted');
+  });
+
+  test('preserves comma-bracket patterns in strings while removing real trailing commas', () => {
+    const input = '{"x": ",}", "y": 1,}';
+    const result = stripComments(input);
+    assert.strictEqual(
+      result,
+      '{"x": ",}", "y": 1}',
+      'trailing comma removed but string preserved'
+    );
+  });
 });
 
 describe('config file with comments (integration)', () => {
@@ -415,7 +452,7 @@ describe('config file with comments (integration)', () => {
     const prevCwd = process.cwd();
     try {
       fs.writeFileSync(
-        path.join(tmpDir, 'config.json'),
+        path.join(tmpDir, 'config.jsonc'),
         `
 {
   "port": 9999
@@ -439,7 +476,7 @@ describe('config file with comments (integration)', () => {
     const prevCwd = process.cwd();
     try {
       fs.writeFileSync(
-        path.join(tmpDir, 'config.json'),
+        path.join(tmpDir, 'config.jsonc'),
         `
 {
   "port": 7777,  // port number
@@ -463,7 +500,7 @@ describe('config file with comments (integration)', () => {
     const prevCwd = process.cwd();
     try {
       fs.writeFileSync(
-        path.join(tmpDir, 'config.json'),
+        path.join(tmpDir, 'config.jsonc'),
         `
 /* Server config */
 {
@@ -481,15 +518,30 @@ describe('config file with comments (integration)', () => {
     }
   });
 
-  test('config.example.json can be copied and used as-is', () => {
+  test('backwards compatible: config.json is loaded when config.jsonc absent', () => {
+    const tmpDir = makeTempDir();
+    const prevCwd = process.cwd();
+    try {
+      fs.writeFileSync(path.join(tmpDir, 'config.json'), JSON.stringify({ port: 4444 }));
+      process.argv = ['node', 'server.js'];
+      process.chdir(tmpDir);
+      const config = loadConfig();
+      assert.strictEqual(config.port, 4444, 'should load config.json when no .jsonc exists');
+    } finally {
+      process.chdir(prevCwd);
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  });
+
+  test('config.example.jsonc can be copied and used as-is', () => {
     const tmpDir = makeTempDir();
     const prevCwd = process.cwd();
     try {
       const exampleContent = fs.readFileSync(
-        path.join(__dirname, '../../config.example.json'),
+        path.join(__dirname, '../../config.example.jsonc'),
         'utf8'
       );
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), exampleContent);
+      fs.writeFileSync(path.join(tmpDir, 'config.jsonc'), exampleContent);
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);
       const config = loadConfig();
@@ -502,8 +554,30 @@ describe('config file with comments (integration)', () => {
 });
 
 describe('Constants', () => {
-  test('defaultConfigPath ends with config.json', () => {
-    assert.ok(defaultConfigPath().endsWith('config.json'));
+  test('defaultConfigPath prefers config.jsonc over config.json', () => {
+    // When no file exists, defaultConfigPath returns config.jsonc
+    const tmpDir = makeTempDir();
+    const prevCwd = process.cwd();
+    try {
+      process.chdir(tmpDir);
+      // Neither file exists — should return .jsonc
+      assert.ok(defaultConfigPath().endsWith('config.jsonc'));
+
+      // Create config.json only — should still return .jsonc (doesn't exist yet)
+      // Actually, defaultConfigPath checks existence, so with only .json present it returns .json
+      fs.writeFileSync(path.join(tmpDir, 'config.json'), '{}');
+      assert.ok(
+        defaultConfigPath().endsWith('config.json'),
+        'falls back to .json when only .json exists'
+      );
+
+      // Create config.jsonc — should prefer .jsonc
+      fs.writeFileSync(path.join(tmpDir, 'config.jsonc'), '{}');
+      assert.ok(defaultConfigPath().endsWith('config.jsonc'), 'prefers .jsonc when both exist');
+    } finally {
+      process.chdir(prevCwd);
+      fs.rmSync(tmpDir, { recursive: true });
+    }
   });
 
   test('ENV_MAP has entries for all CLI_FLAG_MAP keys', () => {
@@ -894,15 +968,15 @@ describe('loadConfig — computer player integration', () => {
     cleanupEnv();
   });
 
-  test('config.example.json parses with computerPlayer', () => {
+  test('config.example.jsonc parses with computerPlayer', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpchess-config-test-'));
     const prevCwd = process.cwd();
     try {
       const exampleContent = fs.readFileSync(
-        path.join(__dirname, '../../config.example.json'),
+        path.join(__dirname, '../../config.example.jsonc'),
         'utf8'
       );
-      fs.writeFileSync(path.join(tmpDir, 'config.json'), exampleContent);
+      fs.writeFileSync(path.join(tmpDir, 'config.jsonc'), exampleContent);
       process.argv = ['node', 'server.js'];
       process.chdir(tmpDir);
       const config = loadConfig();
