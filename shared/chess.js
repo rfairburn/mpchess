@@ -160,27 +160,30 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
     const target = board[tr][tf];
     if (target !== 0 && isOwn(target, color)) return true;
     const saved = board[tr][tf];
-    board[tr][tf] = piece;
-    board[rank][file] = 0;
     let epCaptured = null;
-    if (
-      type === 'pawn' &&
-      enPassantTarget &&
-      tf === enPassantTarget.file &&
-      tr === enPassantTarget.rank
-    ) {
-      const capturedRank = color === 'white' ? tr - 1 : tr + 1;
-      epCaptured = board[capturedRank][tf];
-      board[capturedRank][tf] = 0;
+    try {
+      board[tr][tf] = piece;
+      board[rank][file] = 0;
+      if (
+        type === 'pawn' &&
+        enPassantTarget &&
+        tf === enPassantTarget.file &&
+        tr === enPassantTarget.rank
+      ) {
+        const capturedRank = color === 'white' ? tr - 1 : tr + 1;
+        epCaptured = board[capturedRank][tf];
+        board[capturedRank][tf] = 0;
+      }
+      const inCheck = isInCheck(board, color);
+      if (!inCheck) moves.push({ file: tf, rank: tr, enPassant: isEnPassant });
+    } finally {
+      board[rank][file] = piece;
+      board[tr][tf] = saved;
+      if (epCaptured !== null) {
+        const capturedRank = color === 'white' ? tr - 1 : tr + 1;
+        board[capturedRank][tf] = epCaptured;
+      }
     }
-    const inCheck = isInCheck(board, color);
-    board[rank][file] = piece;
-    board[tr][tf] = saved;
-    if (epCaptured !== null) {
-      const capturedRank = color === 'white' ? tr - 1 : tr + 1;
-      board[capturedRank][tf] = epCaptured;
-    }
-    if (!inCheck) moves.push({ file: tf, rank: tr, enPassant: isEnPassant });
     return target !== 0;
   }
 
@@ -942,7 +945,7 @@ class Game {
     return {
       board: cloneBoard(this.board),
       turn: this.turn,
-      castlingRights: this.castlingRights,
+      castlingRights: { ...this.castlingRights },
       enPassantTarget: this.enPassantTarget,
       promotingPiece: this.promotingPiece
         ? {

@@ -1380,6 +1380,81 @@ describe('loadConfig — additional server tuning integration', () => {
   });
 });
 
+// ── finalizeComputerPlayer does not mutate input ──
+describe('finalizeComputerPlayer immutability', () => {
+  test('input config object is not mutated', () => {
+    const input = {
+      port: 3000,
+      computerEnabled: true,
+      computerStockfishPath: '/usr/bin/stockfish',
+      computerSpawnTimeout: 5000,
+      computerMoveTimeout: 30000,
+      computerSkills: { beginner: 0 },
+    };
+    const inputKeysBefore = Object.keys(input);
+    const result = finalizeComputerPlayer(input);
+    // Original object must still have all its keys
+    assert.deepStrictEqual(Object.keys(input), inputKeysBefore);
+    assert.strictEqual(input.computerEnabled, true);
+    assert.strictEqual(input.computerStockfishPath, '/usr/bin/stockfish');
+    assert.strictEqual(input.computerSpawnTimeout, 5000);
+    assert.strictEqual(input.computerMoveTimeout, 30000);
+    assert.deepStrictEqual(input.computerSkills, { beginner: 0 });
+  });
+
+  test('returned object is different from input', () => {
+    const input = {
+      port: 3000,
+      computerEnabled: true,
+    };
+    const result = finalizeComputerPlayer(input);
+    assert.notStrictEqual(result, input);
+  });
+
+  test('flat keys are removed from returned object only', () => {
+    const input = {
+      port: 3000,
+      computerEnabled: true,
+      computerStockfishPath: '/usr/bin/stockfish',
+    };
+    const result = finalizeComputerPlayer(input);
+    assert.strictEqual(result.computerEnabled, undefined);
+    assert.strictEqual(result.computerStockfishPath, undefined);
+    assert.ok(result.computerPlayer);
+    assert.strictEqual(result.computerPlayer.enabled, true);
+    assert.strictEqual(result.computerPlayer.stockfishPath, '/usr/bin/stockfish');
+    // Input still has the flat keys
+    assert.strictEqual(input.computerEnabled, true);
+    assert.strictEqual(input.computerStockfishPath, '/usr/bin/stockfish');
+  });
+
+  test('non-computer keys preserved in result', () => {
+    const input = {
+      port: 8080,
+      debug: true,
+      computerEnabled: true,
+    };
+    const result = finalizeComputerPlayer(input);
+    assert.strictEqual(result.port, 8080);
+    assert.strictEqual(result.debug, true);
+  });
+
+  test('existing computerPlayer nested object is merged, not replaced', () => {
+    const input = {
+      computerPlayer: { enabled: false, customKey: 'value' },
+      computerEnabled: true,
+    };
+    const result = finalizeComputerPlayer(input);
+    // Flat key takes priority for enabled
+    assert.strictEqual(result.computerPlayer.enabled, true);
+    // Custom key from nested object preserved
+    assert.strictEqual(result.computerPlayer.customKey, 'value');
+    // Input nested object not mutated
+    assert.strictEqual(input.computerPlayer.enabled, false);
+    assert.strictEqual(input.computerPlayer.customKey, 'value');
+  });
+});
+
 // ── Summary ──────────────────────────────────────────────
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Results: ${passed}/${total} passed, ${failed} failed`);

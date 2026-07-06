@@ -256,25 +256,26 @@ function loadFromFile(filePath) {
  * @returns {object} config with computerPlayer assembled and flat keys removed
  */
 function finalizeComputerPlayer(config) {
-  const cp = { ...(config.computerPlayer || {}) };
+  const result = { ...config };
+  const cp = { ...(result.computerPlayer || {}) };
 
-  if (config.computerEnabled !== undefined) cp.enabled = config.computerEnabled;
-  if (config.computerStockfishPath !== undefined) cp.stockfishPath = config.computerStockfishPath;
-  if (config.computerSpawnTimeout !== undefined) cp.spawnTimeout = config.computerSpawnTimeout;
-  if (config.computerMoveTimeout !== undefined) cp.moveTimeout = config.computerMoveTimeout;
-  if (config.computerSkills !== undefined) cp.skills = config.computerSkills;
+  if (result.computerEnabled !== undefined) cp.enabled = result.computerEnabled;
+  if (result.computerStockfishPath !== undefined) cp.stockfishPath = result.computerStockfishPath;
+  if (result.computerSpawnTimeout !== undefined) cp.spawnTimeout = result.computerSpawnTimeout;
+  if (result.computerMoveTimeout !== undefined) cp.moveTimeout = result.computerMoveTimeout;
+  if (result.computerSkills !== undefined) cp.skills = result.computerSkills;
 
   if (Object.keys(cp).length > 0) {
-    config.computerPlayer = cp;
+    result.computerPlayer = cp;
   }
 
-  delete config.computerEnabled;
-  delete config.computerStockfishPath;
-  delete config.computerSpawnTimeout;
-  delete config.computerMoveTimeout;
-  delete config.computerSkills;
+  delete result.computerEnabled;
+  delete result.computerStockfishPath;
+  delete result.computerSpawnTimeout;
+  delete result.computerMoveTimeout;
+  delete result.computerSkills;
 
-  return config;
+  return result;
 }
 
 function loadConfig(argv = process.argv) {
