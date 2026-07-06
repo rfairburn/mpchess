@@ -156,7 +156,9 @@ class StockfishEngine {
     }
     this._currentSkill = skillName;
 
-    if (!this.isReady) return;
+    if (!this.isReady) {
+      throw new Error('Stockfish engine is not ready');
+    }
 
     return this._enqueue(async () => {
       this.transport.send(`setoption name Threads value ${skill.threads}`);

@@ -695,6 +695,54 @@ describe('changeSkill -- while computer is active', () => {
     assert.ok(errors.length > 0, 'spectator should receive an error');
     assert.ok(errors[0].reason.includes('Only the human player'));
   });
+
+  test('skill change rolls back and sends error when setSkill throws', async () => {
+    const mockEngine = createMockEngine({ bestMove: 'e7e5' });
+    let setSkillCallCount = 0;
+    // Override setSkill to throw on the second call (first call is during activation)
+    mockEngine.setSkill = async () => {
+      setSkillCallCount++;
+      if (setSkillCallCount > 1) {
+        throw new Error('Simulated setSkill failure during changeSkill');
+      }
+    };
+
+    const { wss } = createEnv({ mockEngine });
+    const ws = joinAs(wss, 'white');
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // Verify initial skill
+    let state = getLastState(ws);
+    assert.strictEqual(state.computerPlayer.skill, 'beginner');
+
+    // Attempt skill change — setSkill will throw
+    ws.emit('message', JSON.stringify({ type: 'changeSkill', skill: 'master' }));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Client should receive an error
+    const errors = ws.getSent('error');
+    assert.ok(errors.length > 0, 'should receive an error message');
+    assert.ok(
+      errors[0].reason.includes('Skill change failed'),
+      `expected "Skill change failed" in reason, got: ${errors[0].reason}`
+    );
+
+    // State should still show the original skill (rolled back)
+    state = getLastState(ws);
+    assert.strictEqual(
+      state.computerPlayer.skill,
+      'beginner',
+      'skill should be rolled back to previous value after setSkill failure'
+    );
+
+    // No computerSkillChanged broadcast should have been sent
+    const changed = ws.getSent('computerSkillChanged');
+    assert.strictEqual(changed.length, 0, 'should have no computerSkillChanged messages');
+  });
 });
 
 // ===========================================================
@@ -1037,6 +1085,157 @@ describe('virtualWs cleanup -- try/finally guard', () => {
     const playerKeys = [...game.players.keys()];
     assert.strictEqual(playerKeys.length, 1, 'virtualWs must be cleaned up after tryMove throws');
     assert.strictEqual(playerKeys[0], ws, 'only the human player should remain');
+  });
+});
+
+// ===========================================================
+//  TESTS: setSkill throws when engine not ready (Finding 5)
+// ===========================================================
+
+describe('setSkill -- throws when engine not ready', () => {
+  test('StockfishEngine.setSkill throws when binary not found', async () => {
+    const { StockfishEngine, resetStockfishEngine } = require('../../shared/stockfish_engine');
+    // Create an engine with no binary — isReady will always be false
+    const engine = new StockfishEngine({ stockfishPath: '/nonexistent/stockfish' });
+    try {
+      await engine.setSkill('beginner');
+      assert.fail('setSkill should have thrown');
+    } catch (err) {
+      assert.ok(
+        err.message.includes('not ready'),
+        `expected "not ready" error, got: ${err.message}`
+      );
+    }
+  });
+
+  test('StockfishEngine.setSkill throws consistently with getBestMove', async () => {
+    const { StockfishEngine } = require('../../shared/stockfish_engine');
+    const engine = new StockfishEngine({ stockfishPath: '/nonexistent/stockfish' });
+
+    // Both should throw the same "not ready" error
+    let setSkillError = null;
+    try {
+      await engine.setSkill('beginner');
+    } catch (err) {
+      setSkillError = err.message;
+    }
+
+    let getBestMoveError = null;
+    try {
+      await engine.getBestMove(
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+        'beginner'
+      );
+    } catch (err) {
+      getBestMoveError = err.message;
+    }
+
+    assert.ok(setSkillError, 'setSkill should throw');
+    assert.ok(getBestMoveError, 'getBestMove should throw');
+    assert.strictEqual(
+      setSkillError,
+      getBestMoveError,
+      'setSkill and getBestMove should throw the same error when engine not ready'
+    );
+  });
+});
+
+// ===========================================================
+//  TESTS: handleActivateComputer resets state on setSkill failure (Finding 4)
+// ===========================================================
+
+describe('handleActivateComputer -- state reset on setSkill failure', () => {
+  test('computerColor and computerSkill cleared when setSkill throws after spawn', async () => {
+    // Mock engine: spawn succeeds, setSkill throws
+    const mockEngine = createMockEngine({
+      bestMove: 'e7e5',
+    });
+    // Override setSkill to throw
+    mockEngine.setSkill = async () => {
+      throw new Error('Simulated setSkill failure');
+    };
+
+    const { wss, handlers } = createEnv({ mockEngine });
+
+    const ws = joinAs(wss, 'white');
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+
+    // Wait for async activation to complete (and fail)
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Computer state must be fully reset
+    const state = getLastState(ws);
+    assert.strictEqual(
+      state.computerPlayer,
+      null,
+      'computerPlayer should be null after setSkill failure'
+    );
+    assert.strictEqual(
+      state.seats.black.status,
+      'free',
+      'black seat should be free after setSkill failure'
+    );
+
+    // Client should receive an error
+    const errors = ws.getSent('error');
+    assert.ok(errors.length > 0, 'should receive an error message');
+    assert.ok(
+      errors[0].reason.includes('Failed to start'),
+      `expected "Failed to start" error, got: ${errors[0].reason}`
+    );
+  });
+
+  test('computerColor and computerSkill cleared when engine not ready after spawn', async () => {
+    // Mock engine: starts not ready, spawn succeeds but engine crashes right after
+    const mockEngine = createMockEngine({ bestMove: 'e7e5' });
+    mockEngine.isReady = false; // start not ready so spawn is called
+    let spawnCalled = false;
+
+    // Override spawn to set isReady to false after resolving (simulates crash)
+    mockEngine.spawn = async () => {
+      spawnCalled = true;
+      // Simulate engine crashing right after spawn completes
+      mockEngine.isReady = false;
+    };
+
+    // Override setSkill to throw when not ready (matches real StockfishEngine behavior after Finding 5 fix)
+    mockEngine.setSkill = async () => {
+      if (!mockEngine.isReady) {
+        throw new Error('Stockfish engine is not ready');
+      }
+    };
+
+    const { wss } = createEnv({ mockEngine });
+
+    const ws = joinAs(wss, 'white');
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'activateComputer', color: 'black', skill: 'beginner' })
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Spawn should have been called
+    assert.strictEqual(spawnCalled, true, 'spawn should have been called');
+
+    // Computer state must be fully reset
+    const state = getLastState(ws);
+    assert.strictEqual(
+      state.computerPlayer,
+      null,
+      'computerPlayer should be null after engine not ready'
+    );
+    assert.strictEqual(
+      state.seats.black.status,
+      'free',
+      'black seat should be free after engine not ready'
+    );
+
+    const errors = ws.getSent('error');
+    assert.ok(errors.length > 0, 'should receive an error message');
   });
 });
 

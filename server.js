@@ -590,6 +590,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         if (!engine.isReady) {
           await engine.spawn();
         }
+        // Explicit isReady check after spawn — if the engine crashed
+        // between spawn() and setSkill(), setSkill will throw (Finding 5 fix)
+        // but we verify here for clarity.
+        if (!engine.isReady) {
+          throw new Error('Engine not ready after spawn');
+        }
         await engine.setSkill(skill);
       } catch (err) {
         console.error(`[Stockfish] Activation failed: ${err.message}`);
@@ -1034,15 +1040,20 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             });
             break;
           }
-          computerSkill = skill;
-          // Reconfigure engine
+          const previousSkill = computerSkill;
+          // Reconfigure engine — assign computerSkill only after setSkill succeeds
           (async () => {
             try {
               await engine.setSkill(skill);
+              computerSkill = skill;
               broadcastState();
               broadcast({ type: 'computerSkillChanged', color: computerColor, skill });
             } catch (err) {
               console.error(`[Stockfish] Skill change failed: ${err.message}`);
+              // Roll back to previous skill so server state stays consistent
+              computerSkill = previousSkill;
+              send(ws, { type: 'error', reason: `Skill change failed: ${err.message}` });
+              broadcastState();
             }
           })();
           break;
