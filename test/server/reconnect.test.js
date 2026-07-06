@@ -11,12 +11,17 @@ const { setupWebSocketHandlers } = require('../../server');
 // ── Mock WebSocket ────────────────────────────────────────
 
 class MockWebSocket {
+  static _ipCounter = 0;
+
   constructor() {
     this.readyState = 1; // OPEN
     this.sentMessages = [];
     this._listeners = {};
     this._closed = false;
     this.bufferedAmount = 0;
+    // Simulate the underlying TCP socket with a unique IP per connection
+    MockWebSocket._ipCounter++;
+    this._socket = { remoteAddress: `10.0.0.${MockWebSocket._ipCounter}` };
   }
 
   send(data) {
@@ -990,8 +995,8 @@ describe('Rate limiter — basic behavior', () => {
     }
     // No rateLimited messages should be sent
     assert.strictEqual(ws.getSent('rateLimited').length, 0);
-    // Bucket should have 3 entries (join + 3 moves = 4 total, but join was before)
-    const bucket = handlers.rateLimitBuckets.get(ws);
+    // Bucket should have 4 entries (1 join + 3 moves), keyed by IP
+    const bucket = handlers.rateLimitBuckets.get(ws._socket.remoteAddress);
     assert.ok(bucket);
     assert.strictEqual(bucket.length, 4); // 1 join + 3 moves
   });
@@ -1162,40 +1167,45 @@ describe('Rate limiter — configurable limits', () => {
   });
 });
 
-describe('Rate limiter — cleanup on disconnect', () => {
-  test('rate limit bucket removed on disconnect', () => {
+describe('Rate limiter — bucket persists across disconnect', () => {
+  test('rate limit bucket persists after disconnect', () => {
     const { wss, handlers } = createTestEnv();
     const ws = joinAs(wss, 'white');
-    assert.ok(handlers.rateLimitBuckets.has(ws));
+    assert.ok(handlers.rateLimitBuckets.has(ws._socket.remoteAddress));
     wss.simulateDisconnect(ws);
-    assert.ok(!handlers.rateLimitBuckets.has(ws));
+    // Bucket should still exist — not deleted on disconnect
+    assert.ok(handlers.rateLimitBuckets.has(ws._socket.remoteAddress));
   });
 
-  test('reconnected client gets fresh rate limit bucket', () => {
-    const { wss, handlers } = createTestEnv();
-    const ws1 = joinAs(wss, 'white');
-    const token = safeGet(ws1.getSent('joined')[0], 'token');
-    joinAs(wss, 'black');
-    // Fill ws1's bucket
-    for (let i = 0; i < 60; i++) {
+  test('reconnected client from same IP stays rate limited', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      rateLimitMax: 3,
+      rateLimitWindow: 10_000,
+    });
+    const ws1 = wss.simulateConnection();
+    const ip = ws1._socket.remoteAddress;
+    // Fill the bucket
+    for (let i = 0; i < 3; i++) {
       ws1.emit(
         'message',
         JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
       );
     }
-    assert.ok(ws1.getSent('rateLimited').length >= 1);
-    // Disconnect ws1
+    assert.strictEqual(ws1.getSent('rateLimited').length, 0);
+    // Disconnect
     wss.simulateDisconnect(ws1);
-    // Reconnect with new socket
+    // Reconnect from same IP — should still be rate limited
     const ws1_new = wss.simulateConnection();
-    ws1_new.emit('message', JSON.stringify({ type: 'reconnect', token }));
-    assert.strictEqual(ws1_new.getSent('reconnected').length, 1);
-    // New socket should have a fresh bucket — messages should work
+    ws1_new._socket.remoteAddress = ip; // force same IP
     ws1_new.emit(
       'message',
       JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
     );
-    assert.strictEqual(ws1_new.getSent('rateLimited').length, 0);
+    assert.strictEqual(ws1_new.getSent('rateLimited').length, 1);
   });
 });
 
@@ -1246,15 +1256,22 @@ describe('Rate limiter — different message types all count', () => {
       'message',
       JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
     ); // 3
-    // 4th — rate limited, bucket is deleted
+    // 4th — rate limited, bucket is NOT deleted
     ws.emit(
       'message',
       JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
     );
     assert.strictEqual(ws.getSent('rateLimited').length, 1);
-    // Bucket was deleted on rate limit — next message starts fresh
-    const bucket = handlers.rateLimitBuckets.get(ws);
-    assert.strictEqual(bucket, undefined);
+    // Bucket persists — next message is also rate limited
+    const bucket = handlers.rateLimitBuckets.get(ws._socket.remoteAddress);
+    assert.ok(bucket, 'Bucket should persist after rate limit');
+    assert.strictEqual(bucket.length, 3);
+    // 5th message should also be rate limited
+    ws.emit(
+      'message',
+      JSON.stringify({ type: 'move', fromFile: 0, fromRank: 0, toFile: 0, toRank: 0 })
+    );
+    assert.strictEqual(ws.getSent('rateLimited').length, 2);
   });
 
   test('reconnect and validateToken messages count toward limit', () => {
@@ -1287,8 +1304,8 @@ describe('Rate limiter — malformed messages count toward limit', () => {
     // Send malformed JSON — should be caught by JSON.parse before rate limit check
     ws.emit('message', 'not json at all');
     ws.emit('message', '{broken');
-    // Bucket should only have the join message
-    const bucket = handlers.rateLimitBuckets.get(ws);
+    // Bucket should only have the join message, keyed by IP
+    const bucket = handlers.rateLimitBuckets.get(ws._socket.remoteAddress);
     assert.strictEqual(bucket.length, 1);
   });
 });

@@ -21,7 +21,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   const sessions = new Map();
   const disconnectedPlayers = new Map();
-  // Per-connection sliding window: ws -> number[] of timestamps
+  // Per-IP sliding window: ip -> number[] of timestamps
   const rateLimitBuckets = new Map();
   let bothDisconnectedTimer = null;
 
@@ -107,22 +107,43 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     lastMoveTime = Date.now();
   }
 
-  // ── Rate limiter (sliding window per connection) ──
+  // ── Rate limiter (sliding window per IP) ──
+  // Buckets are never deleted on rejection or disconnect — timestamps
+  // naturally expire as they slide out of the window. A periodic sweep
+  // removes buckets whose oldest entry has expired, preventing unbounded growth.
 
-  function checkRateLimit(ws) {
+  function pruneBucket(bucket) {
     const now = Date.now();
-    let bucket = rateLimitBuckets.get(ws);
-    if (!bucket) {
-      bucket = [];
-      rateLimitBuckets.set(ws, bucket);
-    }
-    // Prune timestamps outside the window
     while (bucket.length > 0 && bucket[0] <= now - rateLimitWindow) {
       bucket.shift();
     }
+  }
+
+  function sweepStaleBuckets() {
+    for (const [ip, bucket] of rateLimitBuckets) {
+      pruneBucket(bucket);
+      if (bucket.length === 0) {
+        rateLimitBuckets.delete(ip);
+      }
+    }
+  }
+
+  // Run sweep every rateLimitWindow to clean up expired buckets
+  const sweepInterval = setInterval(sweepStaleBuckets, rateLimitWindow);
+  // Don't let the interval keep the process alive
+  if (sweepInterval.unref) sweepInterval.unref();
+
+  function checkRateLimit(ws) {
+    const now = Date.now();
+    const clientIp = ws._socket?.remoteAddress || 'unknown';
+    let bucket = rateLimitBuckets.get(clientIp);
+    if (!bucket) {
+      bucket = [];
+      rateLimitBuckets.set(clientIp, bucket);
+    }
+    pruneBucket(bucket);
     if (bucket.length >= rateLimitMax) {
       const retryAfter = Math.ceil((bucket[0] - (now - rateLimitWindow)) / 1000);
-      rateLimitBuckets.delete(ws);
       return { allowed: false, retryAfter: Math.max(1, retryAfter) };
     }
     bucket.push(now);
@@ -1109,7 +1130,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     });
 
     ws.on('close', () => {
-      rateLimitBuckets.delete(ws);
+      // Rate limit buckets are keyed by IP and persist across connections —
+      // do NOT delete here, otherwise a close/reopen resets the IP limit.
+      // Buckets are cleaned up by the periodic sweep when timestamps expire.
       // Clear any pending draw offer involving this player
       if (drawOffer && (drawOffer.from === ws || drawOffer.to === ws)) {
         clearDrawOffer();
@@ -1246,6 +1269,33 @@ const requestHandler = (req, res) => {
   }
 };
 
+// Build WebSocketServer options with security defaults.
+// Exported for testing so tests can verify the production configuration.
+function buildWssOptions(server, allowedOrigins = []) {
+  const opts = { server, maxPayload: 1024 * 64 }; // 64 KB
+  if (allowedOrigins.length > 0) {
+    opts.verifyClient = (info, cb) => {
+      const origin = info.req.headers.origin;
+      if (!origin) {
+        cb(true);
+        return;
+      }
+      try {
+        const url = new URL(origin);
+        const ok = allowedOrigins.some((allowed) => {
+          if (url.origin === allowed) return true;
+          if (url.hostname === allowed) return true;
+          return false;
+        });
+        cb(ok, ok ? 200 : 403);
+      } catch {
+        cb(false, 403);
+      }
+    };
+  }
+  return opts;
+}
+
 if (require.main === module) {
   // CLI help (check before loading config)
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -1349,30 +1399,7 @@ Examples:
 
   // Origin checking for WebSocket connections
   const allowedOrigins = config.allowedOrigins;
-  const wssOptions = { server };
-  if (allowedOrigins.length > 0) {
-    wssOptions.verifyClient = (info, cb) => {
-      const origin = info.req.headers.origin;
-      if (!origin) {
-        cb(true);
-        return;
-      }
-      try {
-        const url = new URL(origin);
-        const ok = allowedOrigins.some((allowed) => {
-          // Exact origin match (e.g. "https://chess.example.com")
-          if (url.origin === allowed) return true;
-          // Exact hostname match (e.g. "chess.example.com")
-          if (url.hostname === allowed) return true;
-          return false;
-        });
-        cb(ok, ok ? 200 : 403);
-      } catch {
-        // Malformed origin header — reject
-        cb(false, 403);
-      }
-    };
-  }
+  const wssOptions = buildWssOptions(server, allowedOrigins);
 
   const wss = new WebSocketServer(wssOptions);
   const game = new Game();
@@ -1434,4 +1461,4 @@ Examples:
 }
 
 // Exported for testing
-module.exports = { setupWebSocketHandlers, requestHandler, MIME, CLIENT_ROOT };
+module.exports = { setupWebSocketHandlers, requestHandler, MIME, CLIENT_ROOT, buildWssOptions };
