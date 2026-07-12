@@ -650,10 +650,73 @@ describe('controls.js', () => {
       expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
     });
 
-    it('should restore piece and clear selection on invalid drop', async () => {
+    it('should move piece smoothly over invalid squares, snap over valid ones', async () => {
       const renderer = setupGame();
       const pieceMesh = mockPieceMeshes[0];
-      const origY = pieceMesh.mesh.position.y;
+
+      // mousedown on pawn at a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousemove beyond threshold — commits the drag
+      const mm1 = new MouseEvent('mousemove', {
+        clientX: 200,
+        clientY: 200,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm1);
+
+      // Move cursor to an invalid square (between squares, not a valid target)
+      // Point on b3 (file=1, rank=4) — not a valid pawn move from a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -2.1, y: 0.041, z: 1.3 } }];
+      const mm2 = new MouseEvent('mousemove', {
+        clientX: 250,
+        clientY: 250,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm2);
+
+      // Piece should follow the exact raycast point (free drag)
+      expect(pieceMesh.mesh.position.x).toBe(-2.1);
+      expect(pieceMesh.mesh.position.z).toBe(1.3);
+
+      // Move cursor over a valid destination (a4 = file=0, rank=3)
+      // Raycast point is offset from center to verify snapping
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.2, y: 0.041, z: 0.8 } }];
+      const mm3 = new MouseEvent('mousemove', {
+        clientX: 300,
+        clientY: 300,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm3);
+
+      // Piece should snap to square center (a4: file=0 → x=-3.5, rank=3 → z=0.5)
+      expect(pieceMesh.mesh.position.x).toBe(-3.5);
+      expect(pieceMesh.mesh.position.z).toBe(0.5);
+
+      // Finish the drag by dropping on an invalid square to clean up drag state
+      globalThis.__mockRaycasterResult = [{ point: { x: -1.5, y: 0.041, z: 0.5 } }];
+      const mu = new MouseEvent('mouseup', {
+        clientX: 350,
+        clientY: 350,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      // Verify invalid drop behavior: no move sent, selection cleared
+      expect(network.sendMove).not.toHaveBeenCalled();
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('should not send move and clear selection on invalid drop', async () => {
+      const renderer = setupGame();
+      const pieceMesh = mockPieceMeshes[0];
 
       // mousedown on pawn at a2
       globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
@@ -685,11 +748,12 @@ describe('controls.js', () => {
       });
       document.dispatchEvent(mu);
 
-      // Piece should be restored to original position
-      expect(pieceMesh.mesh.position.y).toBe(origY);
-      // Selection cleared
-      expect(controls.selectedSquare).toBeNull();
+      // Key behaviors: no move sent, selection cleared, highlights reset
       expect(network.sendMove).not.toHaveBeenCalled();
+      expect(controls.selectedSquare).toBeNull();
+      expect(controls.validMoves).toEqual([]);
+      expect(board.clearHighlights).toHaveBeenCalled();
+      expect(board.highlightCheck).toHaveBeenCalled();
     });
 
     it('should clear drag candidate on restart', async () => {

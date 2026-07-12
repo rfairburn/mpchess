@@ -309,12 +309,34 @@ function onDragMove(event) {
     if (!dragging) return; // commit may have aborted
   }
 
-  // Raycast to find the square under the cursor
-  const sq = getBoardSquareFromRay(event);
-  if (sq && dragPiece) {
+  if (!dragPiece) return;
+
+  // Raycast to find position under cursor
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, _camera);
+  ensureAllSquares();
+  const hits = raycaster.intersectObjects(allSquares);
+  if (hits.length > 0) {
     const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
     if (pm) {
-      pm.mesh.position.set(sq.file - 3.5, DRAG_HEIGHT, 3.5 - sq.rank);
+      // Check if hovering over a valid destination — snap to square center
+      const x = hits[0].point.x + 3.5;
+      const z = 3.5 - hits[0].point.z;
+      const file = Math.round(x);
+      const rank = Math.round(z);
+      const isValidTarget =
+        file >= 0 &&
+        file < 8 &&
+        rank >= 0 &&
+        rank < 8 &&
+        validMoves.some((m) => m.file === file && m.rank === rank);
+
+      if (isValidTarget) {
+        pm.mesh.position.set(file - 3.5, DRAG_HEIGHT, 3.5 - rank);
+      } else {
+        pm.mesh.position.set(hits[0].point.x, DRAG_HEIGHT, hits[0].point.z);
+      }
     }
   }
 }
