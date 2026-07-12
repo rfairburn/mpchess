@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
 
 // ── Module mocks ──────────────────────────────────────────
@@ -34,6 +34,7 @@ vi.mock('../../client/ui.js', () => ({
   hidePromotionPicker: vi.fn(),
   hideConcedeConfirm: vi.fn(),
   mouseSensitivity: 0.002,
+  showError: vi.fn(),
 }));
 
 vi.mock('../../client/board.js', () => ({
@@ -51,6 +52,22 @@ vi.mock('../../client/chess.mjs', () => ({
   isInCheck: vi.fn(() => false),
 }));
 
+const mockPieceMeshes = [];
+vi.mock('../../client/pieces.js', () => ({
+  pieceMeshes: mockPieceMeshes,
+}));
+
+// Helper to create a mock piece mesh
+function mockPieceMesh(file, rank) {
+  return {
+    file,
+    rank,
+    mesh: {
+      position: new THREE.Vector3(file - 3.5, 0.01, 3.5 - rank),
+    },
+  };
+}
+
 // ── Tests ─────────────────────────────────────────────────
 
 describe('controls.js', () => {
@@ -59,6 +76,7 @@ describe('controls.js', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
+    mockPieceMeshes.length = 0;
 
     // Set up DOM elements that controls.js expects
     document.body.innerHTML = '<div id="hud" class="hidden"></div>';
@@ -69,6 +87,11 @@ describe('controls.js', () => {
     board = await import('../../client/board.js');
     chess = await import('../../client/chess.mjs');
     controls = await import('../../client/controls.js');
+  });
+
+  afterEach(() => {
+    // Clean up global mock state
+    delete globalThis.__mockRaycasterResult;
   });
 
   // ── allSquares initialization (the regression bug) ──
@@ -414,6 +437,280 @@ describe('controls.js', () => {
 
       expect(controls.mouseLookOn).toBe(false);
       expect(ui.updateMouseModeDisplay).toHaveBeenCalledWith(false);
+    });
+  });
+
+  // ── Drag-to-move ──
+
+  describe('drag-to-move', () => {
+    function setupBoard() {
+      for (let r = 0; r < 8; r++) {
+        board.squares[r] = [];
+        for (let f = 0; f < 8; f++) {
+          board.squares[r][f] = { rank: r, file: f };
+        }
+      }
+    }
+
+    function setupGame(pawnFile = 0, pawnRank = 1) {
+      setupBoard();
+      mockPieceMeshes.length = 0;
+      mockPieceMeshes.push(mockPieceMesh(pawnFile, pawnRank));
+
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setClickHandler(renderer);
+      controls.setDragHandlers(renderer);
+
+      network.myRole = 'white';
+      network.serverTurn = 'white';
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+      network.serverBoard[pawnRank][pawnFile] = 1;
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      chess.pieceColor.mockImplementation((p) => (p > 0 ? 'white' : 'black'));
+      chess.getValidMoves.mockReturnValue([{ file: 0, rank: 3 }]);
+
+      return renderer;
+    }
+
+    it('should not set selectedSquare on mousedown alone (candidate only)', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits white pawn at a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousedown should NOT set selectedSquare — only stores a candidate
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('should not start drag on empty square', async () => {
+      setupBoard();
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setClickHandler(renderer);
+      controls.setDragHandlers(renderer);
+
+      network.myRole = 'white';
+      network.serverTurn = 'white';
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      globalThis.__mockRaycasterResult = [{ point: { x: -2.5, y: 0.041, z: 2.5 } }];
+
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('should ignore right-click for drag', async () => {
+      const renderer = setupGame();
+
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      const md = new MouseEvent('mousedown', {
+        button: 2, // right click
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('should preserve click-to-select when drag handlers are installed', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits white pawn at a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Simulate a normal click: mousedown → mouseup (no movement) → click
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mouseup with no movement — candidate released, no drag committed
+      const mu = new MouseEvent('mouseup', {
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      // Click fires — should select the piece (normal click behavior)
+      const click = new MouseEvent('click', { bubbles: true });
+      renderer.domElement.dispatchEvent(click);
+
+      expect(controls.selectedSquare).not.toBeNull();
+      expect(controls.selectedSquare.file).toBe(0);
+      expect(controls.selectedSquare.rank).toBe(1);
+      expect(board.highlightSelected).toHaveBeenCalledWith(0, 1);
+    });
+
+    it('should preserve click-to-move when drag handlers are installed', async () => {
+      const renderer = setupGame();
+
+      // Step 1: Click on pawn at a2 to select it
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      const md1 = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md1);
+      const mu1 = new MouseEvent('mouseup', { clientX: 100, clientY: 100, bubbles: true });
+      document.dispatchEvent(mu1);
+      const click1 = new MouseEvent('click', { bubbles: true });
+      renderer.domElement.dispatchEvent(click1);
+
+      expect(controls.selectedSquare).not.toBeNull();
+
+      // Step 2: Click on a4 (valid move) to move
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 0.5 } }];
+
+      const md2 = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 200,
+        clientY: 200,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md2);
+      const mu2 = new MouseEvent('mouseup', { clientX: 200, clientY: 200, bubbles: true });
+      document.dispatchEvent(mu2);
+      const click2 = new MouseEvent('click', { bubbles: true });
+      renderer.domElement.dispatchEvent(click2);
+
+      expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
+    });
+
+    it('should commit drag and send move on valid drop beyond threshold', async () => {
+      const renderer = setupGame();
+
+      // mousedown on pawn at a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousemove beyond threshold — commits the drag
+      const mm = new MouseEvent('mousemove', {
+        clientX: 200,
+        clientY: 200,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm);
+
+      // Piece should now be selected (drag committed)
+      expect(controls.selectedSquare).not.toBeNull();
+
+      // mouseup on valid destination a4
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 0.5 } }];
+      const mu = new MouseEvent('mouseup', {
+        clientX: 300,
+        clientY: 300,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
+    });
+
+    it('should restore piece and clear selection on invalid drop', async () => {
+      const renderer = setupGame();
+      const pieceMesh = mockPieceMeshes[0];
+      const origY = pieceMesh.mesh.position.y;
+
+      // mousedown on pawn at a2
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousemove beyond threshold — commits the drag (piece lifted)
+      const mm = new MouseEvent('mousemove', {
+        clientX: 200,
+        clientY: 200,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm);
+
+      // Piece should be lifted
+      expect(pieceMesh.mesh.position.y).toBe(0.6);
+
+      // mouseup on invalid square (c4)
+      globalThis.__mockRaycasterResult = [{ point: { x: -1.5, y: 0.041, z: 0.5 } }];
+      const mu = new MouseEvent('mouseup', {
+        clientX: 300,
+        clientY: 300,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      // Piece should be restored to original position
+      expect(pieceMesh.mesh.position.y).toBe(origY);
+      // Selection cleared
+      expect(controls.selectedSquare).toBeNull();
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('should clear drag candidate on restart', async () => {
+      const renderer = setupGame();
+
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // Simulate restart
+      const restartCb = network.onRestart.mock.calls[0][0];
+      restartCb({});
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(controls.validMoves).toEqual([]);
     });
   });
 });

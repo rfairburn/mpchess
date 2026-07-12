@@ -13,6 +13,7 @@ import {
   enPassantTarget,
   sendMove,
   onRestart,
+  onStateUpdate,
 } from './network.js';
 import {
   menuOpen,
@@ -32,6 +33,7 @@ import {
   highlightCheck,
 } from './board.js';
 import { pieceColor, getValidMoves } from './chess.mjs';
+import { pieceMeshes } from './pieces.js';
 
 // ── Camera state ─────────────────────────────────────────
 
@@ -144,6 +146,16 @@ function ensureAllSquares() {
 export let selectedSquare = null;
 export let validMoves = [];
 
+// ── Drag state ───────────────────────────────────────────
+
+let dragging = false; // true once drag threshold is crossed
+let dragCandidate = null; // { file, rank } — piece under mousedown (not yet committed)
+let dragPiece = null; // { file, rank } — committed drag piece (after threshold)
+let dragStartPos = null; // { x, y, z } — original 3D position of committed piece
+let dragStartX = 0; // clientX at mousedown
+let dragStartY = 0; // clientY at mousedown
+let dragCompleted = false; // true after a committed drag mouseup (suppresses click)
+
 function getBoardSquareFromRay(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -169,6 +181,10 @@ export function setClickHandler(renderer) {
     if (menuOpen) return;
     if (serverPromotingPiece) return;
     if (serverGameOver) return;
+    if (dragCompleted) {
+      dragCompleted = false;
+      return;
+    }
     if (mouseLookOn) {
       renderer.domElement.requestPointerLock();
       return;
@@ -245,6 +261,147 @@ export function setClickHandler(renderer) {
   });
 }
 
+// ── Drag-to-move handlers ────────────────────────────────
+
+const DRAG_THRESHOLD = 5; // pixels — movement below this is treated as a click
+const DRAG_HEIGHT = 0.6; // piece elevation during drag
+
+function commitDrag() {
+  // Transition from candidate to committed drag: select, highlight, lift piece
+  if (!dragCandidate) return;
+  const { file, rank } = dragCandidate;
+
+  selectedSquare = { file, rank };
+  validMoves = getValidMoves(
+    serverBoard.map((r) => [...r]),
+    file,
+    rank,
+    castlingRights,
+    enPassantTarget
+  );
+  clearHighlights();
+  highlightSelected(file, rank);
+  highlightValidMoves(validMoves);
+
+  const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
+  if (!pm) {
+    // No mesh found — abort drag
+    dragCandidate = null;
+    return;
+  }
+
+  dragging = true;
+  dragPiece = { file, rank };
+  dragStartPos = { x: pm.mesh.position.x, y: pm.mesh.position.y, z: pm.mesh.position.z };
+  pm.mesh.position.y = DRAG_HEIGHT;
+  dragCandidate = null;
+}
+
+function onDragMove(event) {
+  if (!dragCandidate && !dragging) return;
+
+  // Check if mouse moved beyond threshold (only matters before commit)
+  if (!dragging) {
+    const dx = event.clientX - dragStartX;
+    const dy = event.clientY - dragStartY;
+    if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+    commitDrag();
+    if (!dragging) return; // commit may have aborted
+  }
+
+  // Raycast to find the square under the cursor
+  const sq = getBoardSquareFromRay(event);
+  if (sq && dragPiece) {
+    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
+    if (pm) {
+      pm.mesh.position.set(sq.file - 3.5, DRAG_HEIGHT, 3.5 - sq.rank);
+    }
+  }
+}
+
+function onDragEnd(event) {
+  if (!dragging && !dragCandidate) return;
+
+  // Check if this was a committed drag or just a candidate (click)
+  if (!dragging) {
+    // Never crossed threshold — release candidate, let click handler handle selection
+    dragCandidate = null;
+    return;
+  }
+
+  dragging = false;
+  dragCompleted = true;
+
+  // Find the square under the cursor
+  const sq = getBoardSquareFromRay(event);
+  const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
+
+  if (sq && validMoves.some((m) => m.file === sq.file && m.rank === sq.rank)) {
+    // Valid drop — execute the move
+    sendMove(dragPiece.file, dragPiece.rank, sq.file, sq.rank);
+    selectedSquare = null;
+    validMoves = [];
+    clearHighlights();
+    highlightCheck();
+  } else {
+    // Invalid drop — return piece to original position
+    if (pm && dragStartPos) {
+      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
+    }
+    selectedSquare = null;
+    validMoves = [];
+    clearHighlights();
+    highlightCheck();
+  }
+
+  dragPiece = null;
+  dragStartPos = null;
+}
+
+export function setDragHandlers(renderer) {
+  _renderer = renderer;
+
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return; // only left button
+    if (menuOpen || serverPromotingPiece || serverGameOver || mouseLookOn) return;
+    if (!serverBoard) return;
+
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+
+    const sq = getBoardSquareFromRay(event);
+    if (!sq) return;
+    const { file, rank } = sq;
+    const piece = serverBoard[rank][file];
+
+    if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+
+    // Store as candidate — do NOT select yet (click handler will handle that)
+    dragCandidate = { file, rank };
+    dragging = false;
+    dragPiece = null;
+    dragStartPos = null;
+  });
+
+  document.addEventListener('mousemove', onDragMove);
+  document.addEventListener('mouseup', onDragEnd);
+}
+
+// ── Cancel drag on board state change ────────────────────
+
+onStateUpdate(() => {
+  if (dragging && dragPiece) {
+    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
+    if (pm && dragStartPos) {
+      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
+    }
+    dragging = false;
+    dragPiece = null;
+    dragStartPos = null;
+  }
+  dragCandidate = null;
+});
+
 // ── Restart handler ──────────────────────────────────────
 
 onRestart(() => {
@@ -253,4 +410,9 @@ onRestart(() => {
   hidePromotionPicker();
   hideConcedeConfirm();
   clearHighlights();
+  dragging = false;
+  dragCandidate = null;
+  dragPiece = null;
+  dragStartPos = null;
+  dragCompleted = false;
 });

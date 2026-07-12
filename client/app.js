@@ -15,7 +15,15 @@ import {
   setScene,
   animateMove,
 } from './pieces.js';
-import { setRenderer, setClickHandler, keys, yaw, pitch, mouseLookOn } from './controls.js';
+import {
+  setRenderer,
+  setClickHandler,
+  setDragHandlers,
+  keys,
+  yaw,
+  pitch,
+  mouseLookOn,
+} from './controls.js';
 
 // ── Materials ────────────────────────────────────────────
 
@@ -111,6 +119,7 @@ scene.add(fillLight);
 
 setRenderer(renderer, camera);
 setClickHandler(renderer);
+setDragHandlers(renderer);
 setScene(scene);
 
 // ── Build scene ──────────────────────────────────────────
