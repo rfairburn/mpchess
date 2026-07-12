@@ -339,6 +339,62 @@ describe('controls.js', () => {
     });
   });
 
+  // ── Deselect on second click ──
+
+  describe('deselect on second click', () => {
+    it('should deselect a piece when clicking the same square again', async () => {
+      // Populate squares so ensureAllSquares() works
+      for (let r = 0; r < 8; r++) {
+        board.squares[r] = [];
+        for (let f = 0; f < 8; f++) {
+          board.squares[r][f] = { rank: r, file: f };
+        }
+      }
+
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setClickHandler(renderer);
+
+      // Game state: white to move, white pawn at a2 (rank=1, file=0)
+      network.myRole = 'white';
+      network.serverTurn = 'white';
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+      network.serverBoard[1][0] = 1;
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      chess.pieceColor.mockImplementation((p) => (p > 0 ? 'white' : 'black'));
+      chess.getValidMoves.mockReturnValue([{ file: 0, rank: 3 }]);
+
+      // Make the raycaster hit a2 (file=0, rank=1)
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Click on a2 to select the piece
+      const selectEvent = new MouseEvent('click', { bubbles: true });
+      renderer.domElement.dispatchEvent(selectEvent);
+
+      expect(controls.selectedSquare).not.toBeNull();
+      expect(controls.selectedSquare.file).toBe(0);
+      expect(controls.selectedSquare.rank).toBe(1);
+
+      // Click the same square again to deselect
+      const deselectEvent = new MouseEvent('click', { bubbles: true });
+      renderer.domElement.dispatchEvent(deselectEvent);
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(controls.validMoves).toEqual([]);
+      expect(board.clearHighlights).toHaveBeenCalled();
+      expect(board.highlightCheck).toHaveBeenCalled();
+
+      // Clean up
+      delete globalThis.__mockRaycasterResult;
+    });
+  });
+
   // ── Pointer lock ──
 
   describe('pointer lock', () => {

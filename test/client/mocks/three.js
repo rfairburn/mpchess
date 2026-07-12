@@ -93,7 +93,9 @@ export class Raycaster {
   }
   setFromCamera() {}
   intersectObjects() {
-    return this._intersectFn ? this._intersectFn() : [];
+    if (this._intersectFn) return this._intersectFn();
+    if (globalThis.__mockRaycasterResult !== undefined) return globalThis.__mockRaycasterResult;
+    return [];
   }
   setIntersectResult(fn) {
     this._intersectFn = fn;

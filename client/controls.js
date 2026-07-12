@@ -181,6 +181,14 @@ export function setClickHandler(renderer) {
     const piece = serverBoard[rank][file];
 
     if (selectedSquare) {
+      // Clicking the same piece again deselects it
+      if (selectedSquare.file === file && selectedSquare.rank === rank) {
+        selectedSquare = null;
+        validMoves = [];
+        clearHighlights();
+        highlightCheck();
+        return;
+      }
       const isValid = validMoves.some((m) => m.file === file && m.rank === rank);
       if (!isValid) {
         // Clicked an invalid square — if it's one of our pieces on our turn, select it instead
