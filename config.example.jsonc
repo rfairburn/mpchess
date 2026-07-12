@@ -1,6 +1,7 @@
 {
   "port": 3000,
   "fen": null,
+  "initHalfmoveClock": null,
   "cert": null,
   "key": null,
   "chain": null,
@@ -34,6 +35,9 @@
 // Options:
 //   port            — Port for the HTTP/WebSocket server (default: 3000)
 //   fen             — Custom starting FEN position (default: standard setup)
+//   initHalfmoveClock — Initial halfmove clock value for testing (default: 0)
+//                       Set to 99+ to test the 50-move draw claim immediately.
+//                       MPCHESS_INIT_HALFMOVE_CLOCK  --init-halfmove-clock=99
 //   cert            — TLS certificate file path (PEM format)
 //   key             — TLS private key file path (PEM format, required with cert)
 //   chain           — TLS certificate chain file path (PEM format, optional)

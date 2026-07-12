@@ -31,6 +31,7 @@ export let validatedTokens = {}; // { white: true/false, black: true/false } —
 export let computerPlayer = null; // { color: 'white'|'black', skill: string } | null
 export let halfmoveClock = 0;
 export let threefoldCount = 0;
+export let canClaimDraw = false;
 export let currentFen = '';
 export let debugEnabled = false; // set by server in state message
 
@@ -245,6 +246,7 @@ function connect() {
         computerPlayer = msg.computerPlayer || null;
         halfmoveClock = msg.halfmoveClock ?? 0;
         threefoldCount = msg.threefoldCount ?? 0;
+        canClaimDraw = msg.canClaimDraw ?? false;
         currentFen = msg.fen || '';
         if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
         fireCallbacks(onStateUpdateCallbacks, msg);
@@ -554,6 +556,12 @@ export function sendOfferDraw() {
 export function sendDrawResponse(accepted) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'drawResponse', accepted }));
+  }
+}
+
+export function sendClaimDraw() {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'claimDraw' }));
   }
 }
 

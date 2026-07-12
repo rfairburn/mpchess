@@ -5,7 +5,7 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 ## Features
 
 - **Full chess rules**: castling, en passant, pawn promotion, check/checkmate/stalemate
-- **Draw rules**: insufficient material, threefold repetition (Zobrist hashing), 50-move rule
+- **Draw rules**: insufficient material (incl. K+N vs K+N), threefold repetition (Zobrist hashing), 50-move rule (manual claim), 75-move rule (forced)
 - **Real-time multiplayer** over WebSockets with server-authority move validation
 - **3D rendered board** with low-poly piece models (Three.js)
 - **Session management**: token-based reconnection, seat holding with countdowns, drop player
@@ -83,10 +83,10 @@ If `--cert` is given without `--key` (or vice versa), the server logs a warning 
 ## Testing & Linting
 
 ```bash
-npm test             # lint + format check + server tests + client tests
+npm test             # full CI check (build + lint + format + test + helm)
 npm run test:server  # server tests (chess, reconnect, config, stockfish)
 npm run test:client  # client tests (controls, network)
-npm run test:all     # same as npm test
+npm run test:all     # same as npm test (full CI check)
 npm run lint         # ESLint
 npm run lint:fix     # auto-fix ESLint issues
 npm run format       # Prettier format all files

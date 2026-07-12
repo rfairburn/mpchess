@@ -1679,13 +1679,13 @@ describe('Insufficient material — draw detection', () => {
     assert.strictEqual(isInsufficientMaterial(b), false);
   });
 
-  test('K+N vs K+N is NOT insufficient material', () => {
+  test('K+N vs K+N is insufficient material', () => {
     const b = emptyBoard();
     b[0][4] = W_KING;
     b[0][3] = W_KNIGHT;
     b[7][4] = B_KING;
     b[7][3] = B_KNIGHT;
-    assert.strictEqual(isInsufficientMaterial(b), false);
+    assert.strictEqual(isInsufficientMaterial(b), true);
   });
 
   test('starting position is NOT insufficient material', () => {
@@ -2058,25 +2058,137 @@ describe('Fifty-move rule', () => {
     assert.strictEqual(g.isFiftyMoveRule(), true);
   });
 
-  test('checkGameEnd declares draw on 50-move rule', () => {
+  test('isSeventyFiveMoveRule returns true when clock >= 150', () => {
+    const g = new Game();
+    g.halfmoveClock = 149;
+    assert.strictEqual(g.isSeventyFiveMoveRule(), false);
+    g.halfmoveClock = 150;
+    assert.strictEqual(g.isSeventyFiveMoveRule(), true);
+  });
+
+  test('canClaimDrawByFiftyMoves returns true when clock >= 100', () => {
+    const g = new Game();
+    g.halfmoveClock = 99;
+    assert.strictEqual(g.canClaimDrawByFiftyMoves(), false);
+    g.halfmoveClock = 100;
+    assert.strictEqual(g.canClaimDrawByFiftyMoves(), true);
+  });
+
+  test('checkGameEnd does NOT auto-draw at 100 half-moves (manual claim only)', () => {
     const g = new Game();
     const ws1 = {};
     const ws2 = {};
     g.addPlayer(ws1);
     g.addPlayer(ws2);
-    // Position with legal moves but 50-move clock reached
+    // K+R vs K — sufficient material, legal moves exist
     g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
     g.board[0][4] = W_KING;
-    g.board[0][3] = W_KNIGHT;
+    g.board[0][0] = W_ROOK;
     g.board[7][4] = B_KING;
-    g.board[7][3] = B_KNIGHT;
     g.turn = 'white';
     g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
     g.halfmoveClock = 100;
 
     g.checkGameEnd();
+    assert.strictEqual(g.gameOver, false, 'should NOT auto-draw at 100 half-moves');
+  });
+
+  test('checkGameEnd declares draw on 75-move rule at 150 half-moves', () => {
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
+    // K+R vs K — sufficient material, legal moves exist
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_ROOK;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 150;
+
+    g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('50-move'), `expected 50-move draw: ${g.gameResult}`);
+    assert.ok(g.gameResult.includes('75-move'), `expected 75-move draw: ${g.gameResult}`);
+  });
+
+  test("claimDraw succeeds when halfmoveClock >= 100 and it is the player's turn", () => {
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_ROOK;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 100;
+
+    const result = g.claimDraw(ws1);
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('50-move'), `expected 50-move claimed: ${g.gameResult}`);
+  });
+
+  test('claimDraw fails when halfmoveClock < 100', () => {
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_ROOK;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 99;
+
+    const result = g.claimDraw(ws1);
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.reason.includes('50-move'));
+  });
+
+  test("claimDraw fails when it is not the player's turn", () => {
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1); // white
+    g.addPlayer(ws2); // black
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_ROOK;
+    g.board[7][4] = B_KING;
+    g.turn = 'black'; // black's turn
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 100;
+
+    const result = g.claimDraw(ws1); // white tries to claim
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.reason.includes('Not your turn'));
+  });
+
+  test('claimDraw fails when game is already over', () => {
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1);
+    g.addPlayer(ws2);
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING;
+    g.board[0][0] = W_ROOK;
+    g.board[7][4] = B_KING;
+    g.turn = 'white';
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 100;
+    g.gameOver = true;
+
+    const result = g.claimDraw(ws1);
+    assert.strictEqual(result.ok, false);
+    assert.ok(result.reason.includes('already over'));
   });
 
   test('pawn move resets clock below 100', () => {
@@ -2085,6 +2197,39 @@ describe('Fifty-move rule', () => {
     game.tryMove(white, 4, 1, 4, 3); // e2-e4
     assert.strictEqual(game.halfmoveClock, 0, 'pawn move resets clock');
     assert.strictEqual(game.isFiftyMoveRule(), false);
+  });
+
+  test('checkmate at halfmoveClock 150 takes precedence over 75-move rule', () => {
+    // Regression: the 75-move rule must not override checkmate.
+    // Setup: white king on e1 trapped, black queen on e2 delivers checkmate.
+    // halfmoveClock = 150 so the 75-move rule would also trigger.
+    const g = new Game();
+    const ws1 = {};
+    const ws2 = {};
+    g.addPlayer(ws1); // white
+    g.addPlayer(ws2); // black
+
+    g.board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    g.board[0][4] = W_KING; // e1
+    g.board[0][3] = W_ROOK; // d1 (blocks escape)
+    g.board[0][5] = W_ROOK; // f1 (blocks escape)
+    g.board[1][3] = W_PAWN; // d2 (blocks escape)
+    g.board[1][5] = W_PAWN; // f2 (blocks escape)
+    g.board[7][4] = B_QUEEN; // e8
+    g.board[2][2] = B_KNIGHT; // c3 (protects e2)
+    g.turn = 'black';
+    g.castlingRights = { wK: false, wQ: false, bK: false, bQ: false };
+    g.halfmoveClock = 150; // 75-move rule would trigger
+
+    // Black plays Qe2# — checkmate should win, not 75-move draw
+    const result = g.tryMove(ws2, 4, 7, 4, 1); // Qe2#
+    assert.strictEqual(result.ok, true);
+    assert.strictEqual(g.gameOver, true);
+    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate, got: ${g.gameResult}`);
+    assert.ok(
+      !g.gameResult.includes('75-move'),
+      `75-move rule must not override checkmate: ${g.gameResult}`
+    );
   });
 });
 

@@ -56,6 +56,13 @@ PASS=$((PASS + 1))
 
 echo ""
 
+# Always rebuild client/chess.mjs — it is derived from shared/chess.js
+# and can go stale even when the file exists. Run this before any step
+# that depends on it (Docker build, client tests).
+run_check "Build shared module" npm run build:chess
+
+echo ""
+
 # 1. Stockfish compile (long-running — start early)
 if [ -f scripts/build_stockfish.sh ]; then
   run_check "Stockfish build" bash scripts/build_stockfish.sh
@@ -70,16 +77,13 @@ else
   echo -e "${YELLOW}→ Docker build skipped (docker not found)${NC}"
 fi
 
-# 3. Build shared module
-run_check "Build shared module" npm run build:chess
-
-# 4. Lint
+# 3. Lint
 run_check "ESLint" npm run lint
 
-# 5. Format check
+# 4. Format check
 run_check "Prettier" npm run format:check
 
-# 6. Helm chart checks
+# 5. Helm chart checks
 HELM_CMD=""
 if command -v helm &>/dev/null; then
   HELM_CMD="helm"
@@ -132,7 +136,7 @@ else
   fi
 fi
 
-# 7. All tests (consolidated — runs server + client suites, writes results JSON)
+# 6. All tests (consolidated — runs server + client suites, writes results JSON)
 run_check "All tests" node scripts/test_orchestrator.js --no-summary
 
 # ---- CI check summary (before consolidated test summary so grand total is last) ----

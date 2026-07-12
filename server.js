@@ -1087,6 +1087,17 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           handleDrawResponse(ws, msg);
           break;
         }
+        case 'claimDraw': {
+          const result = game.claimDraw(ws);
+          if (result.ok) {
+            bumpRevision();
+            clearDrawOffer();
+            broadcastState();
+          } else {
+            send(ws, { type: 'error', reason: result.reason });
+          }
+          break;
+        }
         case 'leave': {
           // Clear any pending draw offer involving this player
           if (drawOffer && (drawOffer.from === ws || drawOffer.to === ws)) {
@@ -1311,6 +1322,8 @@ Options:
   --config=<path>         Config file path (default: config.jsonc, falls back to config.json)
   --fen=<fen_string>      Load a custom starting position (first game only;
                           restarts reset to standard setup)
+  --init-halfmove-clock=<n>  Set initial halfmove clock for testing (e.g. 99 to
+                              make the 50-move draw claim available immediately)
   --port=<number>         Port for the HTTP/WebSocket server
   --cert=<path>           TLS certificate file (enables HTTPS)
   --key=<path>            TLS private key file (required with --cert)
@@ -1337,7 +1350,7 @@ Options:
 
 Config sources (highest priority first):
   1. CLI arguments
-  2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_CERT,
+  2. Environment variables (MPCHESS_PORT, MPCHESS_FEN, MPCHESS_INIT_HALFMOVE_CLOCK, MPCHESS_CERT,
      MPCHESS_KEY, MPCHESS_CHAIN, MPCHESS_ALLOWED_ORIGINS, MPCHESS_DEBUG,
      MPCHESS_PREFIX, MPCHESS_COMPUTER_ENABLED, MPCHESS_COMPUTER_STOCKFISH_PATH,
      MPCHESS_COMPUTER_SPAWN_TIMEOUT, MPCHESS_COMPUTER_MOVE_TIMEOUT,
@@ -1416,6 +1429,12 @@ Examples:
       console.error(`Invalid FEN: ${e.message}`);
       process.exit(1);
     }
+  }
+
+  // Optional: set initial halfmove clock for testing (e.g., 50-move rule)
+  if (config.initHalfmoveClock != null && config.initHalfmoveClock > 0) {
+    game.halfmoveClock = config.initHalfmoveClock;
+    console.log(`Set initial halfmove clock to ${config.initHalfmoveClock}`);
   }
 
   setupWebSocketHandlers(wss, game, {

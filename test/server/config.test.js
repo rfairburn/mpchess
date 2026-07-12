@@ -1455,6 +1455,177 @@ describe('finalizeComputerPlayer immutability', () => {
   });
 });
 
+// ── initHalfmoveClock config option ──────────────────────
+describe('convertType — initHalfmoveClock', () => {
+  test('initHalfmoveClock: string to number', () => {
+    assert.strictEqual(convertType('initHalfmoveClock', '99'), 99);
+  });
+
+  test('initHalfmoveClock: zero string to number', () => {
+    assert.strictEqual(convertType('initHalfmoveClock', '0'), 0);
+  });
+
+  test('initHalfmoveClock: invalid string returns undefined', () => {
+    assert.strictEqual(convertType('initHalfmoveClock', 'abc'), undefined);
+  });
+
+  test('initHalfmoveClock: empty string returns undefined', () => {
+    assert.strictEqual(convertType('initHalfmoveClock', ''), undefined);
+  });
+
+  test('initHalfmoveClock: number passthrough', () => {
+    assert.strictEqual(convertType('initHalfmoveClock', 100), 100);
+  });
+});
+
+describe('loadFromCli — init-halfmove-clock flag', () => {
+  test('parses --init-halfmove-clock=99', () => {
+    const result = loadFromCli(['--init-halfmove-clock=99']);
+    assert.strictEqual(result.initHalfmoveClock, 99);
+  });
+
+  test('parses --init-halfmove-clock=100', () => {
+    const result = loadFromCli(['--init-halfmove-clock=100']);
+    assert.strictEqual(result.initHalfmoveClock, 100);
+  });
+
+  test('parses --init-halfmove-clock=0', () => {
+    const result = loadFromCli(['--init-halfmove-clock=0']);
+    assert.strictEqual(result.initHalfmoveClock, 0);
+  });
+
+  test('ignores --init-halfmove-clock with invalid value', () => {
+    const result = loadFromCli(['--init-halfmove-clock=abc']);
+    assert.strictEqual(result.initHalfmoveClock, undefined);
+  });
+});
+
+describe('loadFromEnv — initHalfmoveClock env var', () => {
+  const origEnv = { ...process.env };
+
+  test('reads MPCHESS_INIT_HALFMOVE_CLOCK', () => {
+    process.env.MPCHESS_INIT_HALFMOVE_CLOCK = '99';
+    const result = loadFromEnv();
+    assert.strictEqual(result.initHalfmoveClock, 99);
+    delete process.env.MPCHESS_INIT_HALFMOVE_CLOCK;
+  });
+
+  test('ignores invalid MPCHESS_INIT_HALFMOVE_CLOCK', () => {
+    process.env.MPCHESS_INIT_HALFMOVE_CLOCK = 'not-a-number';
+    const result = loadFromEnv();
+    assert.strictEqual(result.initHalfmoveClock, undefined);
+    delete process.env.MPCHESS_INIT_HALFMOVE_CLOCK;
+  });
+});
+
+describe('Constants — initHalfmoveClock keys', () => {
+  test('DEFAULTS has initHalfmoveClock', () => {
+    assert.ok('initHalfmoveClock' in DEFAULTS);
+    assert.strictEqual(DEFAULTS.initHalfmoveClock, undefined);
+  });
+
+  test('ENV_MAP has initHalfmoveClock entry', () => {
+    assert.strictEqual(ENV_MAP.initHalfmoveClock, 'MPCHESS_INIT_HALFMOVE_CLOCK');
+  });
+
+  test('CLI_FLAG_MAP has init-halfmove-clock entry', () => {
+    const cliKeys = CLI_FLAG_MAP.map(([, key]) => key);
+    assert.ok(cliKeys.includes('initHalfmoveClock'));
+  });
+});
+
+describe('loadConfig — initHalfmoveClock integration', () => {
+  const origArgv = process.argv;
+  const origEnv = { ...process.env };
+  const origCwd = process.cwd();
+
+  function inTempDir(fn) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mpchess-config-test-'));
+    const prevCwd = process.cwd();
+    try {
+      process.chdir(tmpDir);
+      fn(tmpDir);
+    } finally {
+      process.chdir(prevCwd);
+      fs.rmSync(tmpDir, { recursive: true });
+    }
+  }
+
+  function cleanupEnv() {
+    process.argv = origArgv;
+    for (const key of Object.keys(origEnv)) {
+      process.env[key] = origEnv[key];
+    }
+    for (const key of Object.keys(process.env)) {
+      if (!(key in origEnv)) delete process.env[key];
+    }
+  }
+
+  test('config file initHalfmoveClock value used', () => {
+    inTempDir((tmpDir) => {
+      writeConfig(tmpDir, { initHalfmoveClock: 99 });
+      process.argv = ['node', 'server.js'];
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, 99);
+    });
+    cleanupEnv();
+  });
+
+  test('env var overrides config file for initHalfmoveClock', () => {
+    inTempDir((tmpDir) => {
+      writeConfig(tmpDir, { initHalfmoveClock: 50 });
+      process.argv = ['node', 'server.js'];
+      process.env.MPCHESS_INIT_HALFMOVE_CLOCK = '99';
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, 99, 'env overrides config file');
+    });
+    cleanupEnv();
+  });
+
+  test('CLI overrides env var for initHalfmoveClock', () => {
+    inTempDir((tmpDir) => {
+      process.argv = ['node', 'server.js', '--init-halfmove-clock=100'];
+      process.env.MPCHESS_INIT_HALFMOVE_CLOCK = '50';
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, 100, 'CLI wins over env');
+    });
+    cleanupEnv();
+  });
+
+  test('null initHalfmoveClock in config file falls back to undefined', () => {
+    inTempDir((tmpDir) => {
+      writeConfig(tmpDir, { initHalfmoveClock: null });
+      process.argv = ['node', 'server.js'];
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, undefined, 'null falls back to default');
+    });
+    cleanupEnv();
+  });
+
+  test('no initHalfmoveClock config yields undefined', () => {
+    inTempDir((tmpDir) => {
+      process.argv = ['node', 'server.js'];
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, undefined);
+    });
+    cleanupEnv();
+  });
+
+  test('initHalfmoveClock works alongside fen config', () => {
+    inTempDir((tmpDir) => {
+      writeConfig(tmpDir, {
+        fen: '4k3/8/8/8/8/8/8/4K2R w K - 0 1',
+        initHalfmoveClock: 99,
+      });
+      process.argv = ['node', 'server.js'];
+      const config = loadConfig();
+      assert.strictEqual(config.initHalfmoveClock, 99);
+      assert.ok(config.fen.includes('4k3'));
+    });
+    cleanupEnv();
+  });
+});
+
 // ── Summary ──────────────────────────────────────────────
 console.log(`\n${'='.repeat(50)}`);
 console.log(`Results: ${passed}/${total} passed, ${failed} failed`);

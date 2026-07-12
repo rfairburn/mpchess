@@ -362,6 +362,13 @@ function isInsufficientMaterial(board) {
     }
   }
 
+  // K+N vs K+N — two knights cannot force checkmate
+  if (wp.length === 2 && bp.length === 2) {
+    const wn = wp.find((p) => p.type === 'knight');
+    const bn = bp.find((p) => p.type === 'knight');
+    if (wn && bn) return true;
+  }
+
   return false;
 }
 
@@ -563,6 +570,16 @@ class Game {
   }
 
   isFiftyMoveRule() {
+    return this.halfmoveClock >= 100;
+  }
+
+  // 75-move rule — forced draw at 150 half-moves (no manual claim needed)
+  isSeventyFiveMoveRule() {
+    return this.halfmoveClock >= 150;
+  }
+
+  // Check if the current player can claim a draw by the 50-move rule
+  canClaimDrawByFiftyMoves() {
     return this.halfmoveClock >= 100;
   }
 
@@ -912,27 +929,9 @@ class Game {
   checkGameEnd() {
     if (this.gameOver) return;
 
-    // Threefold repetition — draw
-    if (this.isThreefoldRepetition()) {
-      this.gameOver = true;
-      this.gameResult = 'Draw — threefold repetition.';
-      return;
-    }
-
-    // Fifty-move rule — draw
-    if (this.isFiftyMoveRule()) {
-      this.gameOver = true;
-      this.gameResult = 'Draw — 50-move rule.';
-      return;
-    }
-
-    // Insufficient material — draw
-    if (isInsufficientMaterial(this.board)) {
-      this.gameOver = true;
-      this.gameResult = 'Draw — insufficient material.';
-      return;
-    }
-
+    // Checkmate/stalemate always takes precedence over draw rules.
+    // If the side to move has no legal moves, the game ends immediately
+    // regardless of the 75-move clock or other draw conditions.
     const inCheck = isInCheck(this.board, this.turn);
     const hasMoves = hasAnyMoves(this.board, this.turn, this.castlingRights, this.enPassantTarget);
 
@@ -944,6 +943,28 @@ class Game {
       } else {
         this.gameResult = 'Stalemate! Draw.';
       }
+      return;
+    }
+
+    // Threefold repetition — draw
+    if (this.isThreefoldRepetition()) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — threefold repetition.';
+      return;
+    }
+
+    // Seventy-five-move rule — forced draw (no manual claim needed)
+    if (this.isSeventyFiveMoveRule()) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — 75-move rule.';
+      return;
+    }
+
+    // Insufficient material — draw
+    if (isInsufficientMaterial(this.board)) {
+      this.gameOver = true;
+      this.gameResult = 'Draw — insufficient material.';
+      return;
     }
   }
 
@@ -955,6 +976,23 @@ class Game {
     const winner = color === 'white' ? 'black' : 'white';
     this.gameResult = `${color.charAt(0).toUpperCase() + color.slice(1)} conceded. ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
     return true;
+  }
+
+  // Claim a draw by the 50-move rule (manual claim, requires halfmoveClock >= 100)
+  claimDraw(ws) {
+    if (this.gameOver) return { ok: false, reason: 'Game is already over' };
+    const color = this.players.get(ws);
+    if (!color) return { ok: false, reason: 'Only seated players can claim a draw' };
+    if (this.turn !== color) return { ok: false, reason: 'Not your turn' };
+    if (!this.canClaimDrawByFiftyMoves()) {
+      return {
+        ok: false,
+        reason: '50-move rule not met (need 100 half-moves without pawn move or capture)',
+      };
+    }
+    this.gameOver = true;
+    this.gameResult = 'Draw — 50-move rule claimed.';
+    return { ok: true };
   }
 
   getState() {
@@ -983,6 +1021,7 @@ class Game {
       spectatorCount: this.spectators.size,
       halfmoveClock: this.halfmoveClock,
       threefoldCount: this.getCurrentRepetitionCount(),
+      canClaimDraw: this.canClaimDrawByFiftyMoves(),
       fen: this.currentFen(),
     };
   }

@@ -13,6 +13,7 @@ function defaultConfigPath() {
 const DEFAULTS = {
   port: 3000,
   fen: undefined,
+  initHalfmoveClock: undefined,
   cert: undefined,
   key: undefined,
   chain: undefined,
@@ -41,6 +42,7 @@ const DEFAULTS = {
 const ENV_MAP = {
   port: 'MPCHESS_PORT',
   fen: 'MPCHESS_FEN',
+  initHalfmoveClock: 'MPCHESS_INIT_HALFMOVE_CLOCK',
   cert: 'MPCHESS_CERT',
   key: 'MPCHESS_KEY',
   chain: 'MPCHESS_CHAIN',
@@ -65,6 +67,7 @@ const ENV_MAP = {
 const CLI_FLAG_MAP = [
   ['--port=', 'port'],
   ['--fen=', 'fen'],
+  ['--init-halfmove-clock=', 'initHalfmoveClock'],
   ['--cert=', 'cert'],
   ['--key=', 'key'],
   ['--chain=', 'chain'],
@@ -89,6 +92,7 @@ function convertType(key, value) {
   if (value === undefined || value === null || value === '') return undefined;
   if (
     key === 'port' ||
+    key === 'initHalfmoveClock' ||
     key === 'computerSpawnTimeout' ||
     key === 'computerMoveTimeout' ||
     key === 'seatTimeout' ||

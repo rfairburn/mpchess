@@ -14,6 +14,7 @@ import {
   tokenKey,
   halfmoveClock,
   threefoldCount,
+  canClaimDraw,
   sendPromotion,
   sendRestart,
   sendConcede,
@@ -23,6 +24,7 @@ import {
   sendImportFen,
   sendOfferDraw,
   sendDrawResponse,
+  sendClaimDraw,
   onStateUpdate,
   onRestart,
   onError,
@@ -54,6 +56,7 @@ const roleBadge = document.getElementById('role-badge');
 const playerCountEl = document.getElementById('player-count');
 const turnIndicator = document.getElementById('turn-indicator');
 const mouseModeEl = document.getElementById('mouse-mode');
+const btnClaimDraw = document.getElementById('btn-claim-draw');
 const menuOverlay = document.getElementById('menu-overlay');
 const btnResume = document.getElementById('btn-resume');
 const btnGiveUpSpot = document.getElementById('btn-give-up-spot');
@@ -184,18 +187,28 @@ function updateDrawInfo() {
 
   const repLabel = threefoldCount > 0 ? `Repetition: ${threefoldCount}/3` : '';
   const fiftyLabel = halfmoveClock > 0 ? `50-move: ${halfmoveClock}/100` : '';
+  const seventyFiveLabel = halfmoveClock >= 100 ? `75-move: ${halfmoveClock}/150` : '';
 
-  if (!repLabel && !fiftyLabel) {
+  if (!repLabel && !fiftyLabel && !seventyFiveLabel) {
     el.classList.remove('visible');
     return;
   }
 
   el.classList.add('visible');
-  const parts = [repLabel, fiftyLabel].filter(Boolean);
+  const parts = [repLabel, fiftyLabel, seventyFiveLabel].filter(Boolean);
   el.innerHTML = '';
   for (const part of parts) {
     el.appendChild(document.createTextNode(part));
     el.appendChild(document.createElement('br'));
+  }
+}
+
+function updateClaimDrawButton() {
+  if (!btnClaimDraw) return;
+  if (canClaimDraw && myRole && myRole !== 'spectator' && !serverGameOver) {
+    btnClaimDraw.classList.add('visible');
+  } else {
+    btnClaimDraw.classList.remove('visible');
   }
 }
 
@@ -297,6 +310,13 @@ btnOfferDraw.addEventListener('click', () => {
   sendOfferDraw();
   hideMenu();
 });
+
+// Claim draw button (on-screen, not in menu)
+if (btnClaimDraw) {
+  btnClaimDraw.addEventListener('click', () => {
+    sendClaimDraw();
+  });
+}
 
 // Export buttons
 const btnExportFen = document.getElementById('btn-export-fen');
@@ -445,6 +465,7 @@ onStateUpdate((msg) => {
   updateTurnIndicator();
   updateMoveLog();
   updateDrawInfo();
+  updateClaimDrawButton();
   updateCapturedPieces(msg.capturedPieces);
   hideConcedeConfirm();
   hideGiveUpSpotConfirm();

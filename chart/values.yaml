@@ -61,6 +61,7 @@ resources:
 server:
   port: 3000
   # fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+  # initHalfmoveClock: 98   # Initial halfmove clock for testing 50-move rule
   # allowedOrigins: "chess.example.com,localhost"
   # prefix: "/chess"   # URL prefix — configures both the app and Gateway/Ingress
 

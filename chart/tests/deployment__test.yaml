@@ -327,3 +327,22 @@ tests:
       - equal:
           path: spec.selector.matchLabels["app.kubernetes.io/instance"]
           value: mpchess
+
+  - it: initHalfmoveClock adds MPCHESS_INIT_HALFMOVE_CLOCK env var
+    set:
+      server:
+        initHalfmoveClock: 98
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[1].name
+          value: MPCHESS_INIT_HALFMOVE_CLOCK
+      - equal:
+          path: spec.template.spec.containers[0].env[1].value
+          value: "98"
+
+  - it: initHalfmoveClock env var is absent when unset
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_INIT_HALFMOVE_CLOCK

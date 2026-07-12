@@ -41,6 +41,10 @@ spec:
             - name: MPCHESS_FEN
               value: {{ .Values.server.fen | quote }}
             {{- end }}
+            {{- if .Values.server.initHalfmoveClock }}
+            - name: MPCHESS_INIT_HALFMOVE_CLOCK
+              value: {{ .Values.server.initHalfmoveClock | toString | quote }}
+            {{- end }}
             {{- if .Values.server.allowedOrigins }}
             - name: MPCHESS_ALLOWED_ORIGINS
               value: {{ .Values.server.allowedOrigins | quote }}

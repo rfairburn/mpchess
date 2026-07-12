@@ -82,6 +82,33 @@ canvas {
   pointer-events: none;
   z-index: 10;
 }
+#btn-claim-draw {
+  position: fixed;
+  top: 62px;
+  right: 20px;
+  color: #f0d9b5;
+  font:
+    bold 13px/1.4 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(139, 58, 58, 0.85);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 120, 80, 0.5);
+  cursor: pointer;
+  z-index: 10;
+  display: none;
+  transition: background 0.2s;
+}
+#btn-claim-draw.visible {
+  display: block;
+}
+#btn-claim-draw:hover {
+  background: rgba(160, 64, 64, 0.95);
+  border-color: rgba(255, 160, 100, 0.7);
+}
 #role-badge {
   position: fixed;
   top: 20px;
@@ -604,7 +631,7 @@ canvas {
 }
 #move-log {
   position: fixed;
-  bottom: 80px;
+  bottom: 100px;
   right: 20px;
   color: #c4a882;
   font:
@@ -617,7 +644,7 @@ canvas {
   border: 1px solid rgba(181, 136, 99, 0.25);
   pointer-events: none;
   z-index: 10;
-  max-height: 300px;
+  max-height: 280px;
   overflow-y: auto;
   text-align: right;
   min-width: 140px;
