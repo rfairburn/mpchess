@@ -15,3 +15,14 @@ review*.md
 .gitignore
 .prettierignore
 .prettierrc
+.nvmrc
+docs/
+scripts/
+cad-source/
+stockfish/
+AGENTS.md
+README.md
+LICENSE
+config.example.jsonc
+eslint.config.js
+vitest.config.js

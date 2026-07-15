@@ -1,7 +1,7 @@
 # ── Stockfish build stage ────────────────────────────────────
 # Use Alpine so the resulting musl-linked binary is compatible with the
 # node:alpine production image — no glibc dependency.
-FROM alpine:3.21 AS stockfish-builder
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d AS stockfish-builder
 RUN apk add --no-cache g++ make git
 ARG STOCKFISH_TAG=sf_18
 ARG STOCKFISH_ARCH=x86-64

@@ -1679,13 +1679,13 @@ describe('Insufficient material — draw detection', () => {
     assert.strictEqual(isInsufficientMaterial(b), false);
   });
 
-  test('K+N vs K+N is insufficient material', () => {
+  test('K+N vs K+N is NOT insufficient material (checkmate possible with knight constraining own king)', () => {
     const b = emptyBoard();
     b[0][4] = W_KING;
     b[0][3] = W_KNIGHT;
     b[7][4] = B_KING;
     b[7][3] = B_KNIGHT;
-    assert.strictEqual(isInsufficientMaterial(b), true);
+    assert.strictEqual(isInsufficientMaterial(b), false);
   });
 
   test('starting position is NOT insufficient material', () => {

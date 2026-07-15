@@ -362,13 +362,6 @@ function isInsufficientMaterial(board) {
     }
   }
 
-  // K+N vs K+N — two knights cannot force checkmate
-  if (wp.length === 2 && bp.length === 2) {
-    const wn = wp.find((p) => p.type === 'knight');
-    const bn = bp.find((p) => p.type === 'knight');
-    if (wn && bn) return true;
-  }
-
   return false;
 }
 
