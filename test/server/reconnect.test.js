@@ -1648,6 +1648,21 @@ describe('Draw offer — basic flow', () => {
     assert.strictEqual(game.gameOver, false);
   });
 
+  test('spectator cannot respond to draw offer', () => {
+    const { wss, game } = createTestEnv();
+    const ws1 = joinAs(wss, 'white');
+    const ws2 = joinAs(wss, 'black');
+    const ws3 = joinAs(wss, 'spectator');
+    ws1.emit('message', JSON.stringify({ type: 'offerDraw' }));
+    // Spectator tries to accept the draw offer
+    ws3.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
+    const errors = ws3.getSent('error');
+    assert.strictEqual(errors.length, 1);
+    assert.ok(errors[0].reason.includes('receive'));
+    // Game should NOT be over
+    assert.strictEqual(game.gameOver, false);
+  });
+
   test('draw response rejected after game restart', () => {
     const { wss, game } = createTestEnv();
     const ws1 = joinAs(wss, 'white');
