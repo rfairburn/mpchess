@@ -424,115 +424,92 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // Must remain registered through completePromotion() because it validates
       // this.players.get(ws) against the promoting piece's color.
       const virtualWs = { _computer: true, color: thinkingColor };
-      game.players.set(virtualWs, thinkingColor);
 
-      try {
-        let moveApplied = false;
+      /**
+       * Apply a parsed UCI move for the computer player.
+       * Registers virtualWs, attempts the move (with optional queen promotion),
+       * broadcasts the result, and cleans up virtualWs.
+       * @returns {boolean} true if the move was applied successfully
+       */
+      function applyMove(fromFile, fromRank, toFile, toRank) {
+        game.players.set(virtualWs, thinkingColor);
         try {
           const result = game.tryMove(virtualWs, fromFile, fromRank, toFile, toRank);
-
-          if (result.ok) {
-            debugLog('Computer move:', { color: thinkingColor, uciMove, result });
-
-            // Handle promotion if needed — virtualWs must still be in game.players
-            let promotedPieceType = null;
-            if (result.promotion) {
-              // For computer, always promote to queen
-              const promoOk = game.completePromotion(virtualWs, 'queen');
-              if (promoOk) {
-                promotedPieceType = 'queen';
-              }
-            }
-
-            bumpRevision();
-            noteMoveBroadcast();
-            broadcast({ type: 'move', ...result, color: thinkingColor });
-            if (promotedPieceType) {
-              broadcast({
-                type: 'promotion',
-                pieceType: promotedPieceType,
-                color: thinkingColor,
-                file: result.toFile,
-                rank: result.toRank,
-              });
-            }
-            broadcastState();
-            moveApplied = true;
-          } else {
-            console.warn(`[Stockfish] Illegal move ${uciMove}: ${result.reason}`);
+          if (!result.ok) {
+            return false;
           }
+
+          // Handle promotion if needed — virtualWs must still be in game.players
+          let promotedPieceType = null;
+          if (result.promotion) {
+            // For computer, always promote to queen
+            const promoOk = game.completePromotion(virtualWs, 'queen');
+            if (promoOk) {
+              promotedPieceType = 'queen';
+            }
+          }
+
+          bumpRevision();
+          noteMoveBroadcast();
+          broadcast({ type: 'move', ...result, color: thinkingColor });
+          if (promotedPieceType) {
+            broadcast({
+              type: 'promotion',
+              pieceType: promotedPieceType,
+              color: thinkingColor,
+              file: result.toFile,
+              rank: result.toRank,
+            });
+          }
+          broadcastState();
+          return true;
         } finally {
           game.players.delete(virtualWs);
         }
+      }
 
-        if (!moveApplied) {
-          // Retry up to 2 more times — engine calls outside inner catch so
-          // ENOENT / crash errors propagate to the outer engine-error handler.
-          for (let retry = 0; retry < 2; retry++) {
-            const retryFen = game.currentFen();
-            const retryRevision = gameRevision;
-            const retryMove = await engine.getBestMove(retryFen, computerSkill);
-            // Guard: state may have changed during the retry await
-            if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
-            if (gameRevision !== retryRevision) return;
-            // Validate retry move
-            if (!retryMove || retryMove.length < 4 || retryMove === '0000') {
-              console.warn(
-                `[Stockfish] Invalid retry bestmove: "${retryMove}"; continuing retries`
-              );
-              continue;
-            }
-            const rf = retryMove.charCodeAt(0) - 97;
-            const rr = parseInt(retryMove[1]) - 1;
-            const tf = retryMove.charCodeAt(2) - 97;
-            const tr = parseInt(retryMove[3]) - 1;
-            game.players.set(virtualWs, thinkingColor);
-            try {
-              const retryResult = game.tryMove(virtualWs, rf, rr, tf, tr);
-              if (retryResult.ok) {
-                // Handle promotion if needed — same as primary path
-                let retryPromotedPieceType = null;
-                if (retryResult.promotion) {
-                  const promoOk = game.completePromotion(virtualWs, 'queen');
-                  if (promoOk) {
-                    retryPromotedPieceType = 'queen';
-                  }
-                }
-                bumpRevision();
-                noteMoveBroadcast();
-                broadcast({ type: 'move', ...retryResult, color: thinkingColor });
-                if (retryPromotedPieceType) {
-                  broadcast({
-                    type: 'promotion',
-                    pieceType: retryPromotedPieceType,
-                    color: thinkingColor,
-                    file: retryResult.toFile,
-                    rank: retryResult.toRank,
-                  });
-                }
-                broadcastState();
-                moveApplied = true;
-                break;
-              }
-            } finally {
-              game.players.delete(virtualWs);
-            }
+      let moveApplied = applyMove(fromFile, fromRank, toFile, toRank);
+      if (!moveApplied) {
+        debugLog('Computer move failed, will retry', { uciMove });
+      }
+
+      if (!moveApplied) {
+        // Retry up to 2 more times — engine calls outside inner catch so
+        // ENOENT / crash errors propagate to the outer engine-error handler.
+        for (let retry = 0; retry < 2; retry++) {
+          const retryFen = game.currentFen();
+          const retryRevision = gameRevision;
+          const retryMove = await engine.getBestMove(retryFen, computerSkill);
+          // Guard: state may have changed during the retry await
+          if (!computerColor || game.gameOver || game.turn !== thinkingColor) return;
+          if (gameRevision !== retryRevision) return;
+          // Validate retry move
+          if (!retryMove || retryMove.length < 4 || retryMove === '0000') {
+            console.warn(`[Stockfish] Invalid retry bestmove: "${retryMove}"; continuing retries`);
+            continue;
           }
-          // All attempts (primary + 2 retries) failed — engine cannot make a legal move.
-          // This can happen with impossible FEN positions or engine bugs.
-          if (!moveApplied) {
-            console.error(
-              `[Stockfish] All move attempts failed for ${thinkingColor}; marking unavailable`
-            );
-            broadcast({
-              type: 'computerUnavailable',
-              color: thinkingColor,
-              reason: 'Engine could not find a legal move',
-            });
+          const rf = retryMove.charCodeAt(0) - 97;
+          const rr = parseInt(retryMove[1]) - 1;
+          const tf = retryMove.charCodeAt(2) - 97;
+          const tr = parseInt(retryMove[3]) - 1;
+          if (applyMove(rf, rr, tf, tr)) {
+            moveApplied = true;
+            break;
           }
         }
-      } finally {
-        game.players.delete(virtualWs);
+      }
+
+      // All attempts (primary + 2 retries) failed — engine cannot make a legal move.
+      // This can happen with impossible FEN positions or engine bugs.
+      if (!moveApplied) {
+        console.error(
+          `[Stockfish] All move attempts failed for ${thinkingColor}; marking unavailable`
+        );
+        broadcast({
+          type: 'computerUnavailable',
+          color: thinkingColor,
+          reason: 'Engine could not find a legal move',
+        });
       }
     } catch (err) {
       console.error(`[Stockfish] Move error: ${err.message}`);
