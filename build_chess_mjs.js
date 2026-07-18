@@ -43,6 +43,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const acorn = require('acorn');
 
 const ROOT = __dirname;
 const CHESS_SRC = path.join(ROOT, 'shared', 'chess.js');
@@ -53,31 +54,60 @@ const MJS_OUT = path.join(CLIENT_DIR, 'chess.mjs');
 
 const src = fs.readFileSync(CHESS_SRC, 'utf8');
 
-// ── 2. Parse module.exports names from chess.js ──────────────
-//    We extract the { … } block of `module.exports = { … }`
-//    and collect every identifier, skipping comments and the
-//    `module.exports =` prefix itself.  This gives us the
-//    authoritative list of symbols that exist in the source.
+// ── 2. Parse module.exports names from chess.js (AST-based) ──
+//    We parse the full file with acorn, walk the AST to find
+//    `module.exports = { … }`, and collect every property key
+//    from the ObjectExpression.  This is robust against any
+//    valid JS formatting — comments, line breaks, shorthand,
+//    computed keys, etc. are all handled by the parser.
 
 function parseCommonJsExports(source) {
-  const match = source.match(/module\.exports\s*=\s*\{([\s\S]*)\}/);
-  if (!match) {
-    throw new Error('Could not find module.exports block in shared/chess.js');
-  }
-  const body = match[1];
-  // Strip line comments and block comments
-  const cleaned = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  // Each export entry is either `name,` or `name: alias,` or `name }`
-  // We only need the key (the exported local name).
+  const ast = acorn.parse(source, { ecmaVersion: 2022 });
   const names = [];
-  for (const line of cleaned.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('//')) continue;
-    // Match `identifier` or `identifier,` or `identifier:` (shorthand or keyed)
-    const idMatch = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*[:,]?/);
-    if (idMatch) {
-      names.push(idMatch[1]);
+
+  function walk(node) {
+    if (!node) return;
+
+    // module.exports = { … }
+    if (
+      node.type === 'AssignmentExpression' &&
+      node.operator === '=' &&
+      node.left.type === 'MemberExpression' &&
+      node.left.object.type === 'Identifier' &&
+      node.left.object.name === 'module' &&
+      node.left.property.type === 'Identifier' &&
+      node.left.property.name === 'exports' &&
+      node.right.type === 'ObjectExpression'
+    ) {
+      for (const prop of node.right.properties) {
+        if (prop.type === 'Property') {
+          const key = prop.key;
+          if (key.type === 'Identifier') {
+            names.push(key.name);
+          } else if (key.type === 'Literal' && typeof key.value === 'string') {
+            names.push(key.value);
+          }
+        }
+      }
+      return; // found it, no need to recurse further
     }
+
+    // Recurse into children
+    for (const child of Object.values(node)) {
+      if (Array.isArray(child)) {
+        for (const item of child) {
+          if (item && typeof item === 'object') walk(item);
+        }
+      } else if (child && typeof child === 'object') {
+        walk(child);
+      }
+    }
+  }
+
+  walk(ast);
+
+  if (names.length === 0) {
+    throw new Error('Could not find module.exports block in shared/chess.js');
   }
   return names;
 }
@@ -107,32 +137,28 @@ function findJsFiles(dir, result = []) {
 
 function parseClientImports(clientDir) {
   const files = findJsFiles(clientDir);
-
   const imported = new Set();
 
   for (const file of files) {
     const content = fs.readFileSync(file, 'utf8');
-    // Match `import { … } from 'specifier'` (single or multi-line)
-    // We resolve the specifier relative to the importing file and
-    // only include it when it resolves to the generated chess.mjs.
-    // This handles './chess.mjs' from client/ and '../chess.mjs'
-    // from client/ui/ (or any deeper subdirectory).
-    const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
-    let match;
-    while ((match = importRegex.exec(content)) !== null) {
-      const specifier = match[2];
+    // Parse with acorn to find import declarations targeting chess.mjs.
+    // This handles multi-line imports, comments, aliases, and any valid
+    // ES module syntax — no regex fragility.
+    const ast = acorn.parse(content, { ecmaVersion: 2022, sourceType: 'module' });
+
+    for (const node of ast.body) {
+      if (node.type !== 'ImportDeclaration') continue;
+      const specifier = node.source.value;
       // Only resolve relative specifiers (skip bare module imports)
       if (!specifier.startsWith('.')) continue;
       const resolved = path.resolve(path.dirname(file), specifier);
       if (resolved !== MJS_OUT) continue;
-      const names = match[1]
-        .split(',')
-        .map((s) => s.trim())
-        // Strip `as alias` — we export the original name, not the alias
-        .map((s) => s.split(/\s+as\s+/)[0].trim())
-        .filter((s) => s.length > 0);
-      for (const name of names) {
-        imported.add(name);
+
+      for (const spec of node.specifiers) {
+        if (spec.type === 'ImportSpecifier') {
+          // spec.imported holds the original name (handles `as alias`)
+          imported.add(spec.imported.name);
+        }
       }
     }
   }

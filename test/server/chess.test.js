@@ -42,6 +42,7 @@ const {
 } = require('../../shared/chess');
 
 const fs = require('fs');
+const acorn = require('acorn');
 
 // ── Test runner — buffered output, prints in declaration order ──
 let passed = 0;
@@ -2525,18 +2526,44 @@ describe('Build regression — chess.mjs browser safety', () => {
 // ═══════════════════════════════════════════════════════════
 
 describe('Build regression — chess.mjs export boundary', () => {
-  // Helper: parse module.exports names from shared/chess.js
+  // Helper: parse module.exports names from shared/chess.js (AST-based)
   function parseCjsExports(source) {
-    const match = source.match(/module\.exports\s*=\s*\{([\s\S]*)\}/);
-    if (!match) return [];
-    const cleaned = match[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const ast = acorn.parse(source, { ecmaVersion: 2022 });
     const names = [];
-    for (const line of cleaned.split('\n')) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('//')) continue;
-      const idMatch = trimmed.match(/^([A-Za-z_$][A-Za-z0-9_$]*)\s*[:,]?/);
-      if (idMatch) names.push(idMatch[1]);
+
+    function walk(node) {
+      if (!node) return;
+      if (
+        node.type === 'AssignmentExpression' &&
+        node.operator === '=' &&
+        node.left.type === 'MemberExpression' &&
+        node.left.object.type === 'Identifier' &&
+        node.left.object.name === 'module' &&
+        node.left.property.type === 'Identifier' &&
+        node.left.property.name === 'exports' &&
+        node.right.type === 'ObjectExpression'
+      ) {
+        for (const prop of node.right.properties) {
+          if (prop.type === 'Property') {
+            const key = prop.key;
+            if (key.type === 'Identifier') names.push(key.name);
+            else if (key.type === 'Literal' && typeof key.value === 'string') names.push(key.value);
+          }
+        }
+        return;
+      }
+      for (const child of Object.values(node)) {
+        if (Array.isArray(child)) {
+          for (const item of child) {
+            if (item && typeof item === 'object') walk(item);
+          }
+        } else if (child && typeof child === 'object') {
+          walk(child);
+        }
+      }
     }
+
+    walk(ast);
     return names;
   }
 
@@ -2554,40 +2581,40 @@ describe('Build regression — chess.mjs export boundary', () => {
     return result;
   }
 
-  // Helper: scan client/**/*.js for imports that resolve to chess.mjs
+  // Helper: scan client/**/*.js for imports that resolve to chess.mjs (AST-based)
   function parseClientImports(clientDir) {
     const mjsOut = path.join(clientDir, 'chess.mjs');
     const files = findJsFiles(clientDir);
     const imported = new Set();
     for (const file of files) {
       const content = fs.readFileSync(file, 'utf8');
-      const importRegex = /import\s*\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g;
-      let match;
-      while ((match = importRegex.exec(content)) !== null) {
-        const specifier = match[2];
+      const ast = acorn.parse(content, { ecmaVersion: 2022, sourceType: 'module' });
+      for (const node of ast.body) {
+        if (node.type !== 'ImportDeclaration') continue;
+        const specifier = node.source.value;
         if (!specifier.startsWith('.')) continue;
         const resolved = path.resolve(path.dirname(file), specifier);
         if (resolved !== mjsOut) continue;
-        const names = match[1]
-          .split(',')
-          .map((s) => s.trim())
-          .map((s) => s.split(/\s+as\s+/)[0].trim())
-          .filter((s) => s.length > 0);
-        for (const name of names) imported.add(name);
+        for (const spec of node.specifiers) {
+          if (spec.type === 'ImportSpecifier') imported.add(spec.imported.name);
+        }
       }
     }
     return [...imported].sort();
   }
 
-  // Helper: parse `export { … }` from generated chess.mjs
+  // Helper: parse `export { … }` from generated chess.mjs (AST-based)
   function parseMjsExports(mjs) {
-    const match = mjs.match(/export\s*\{([^}]*)\}/);
-    if (!match) return [];
-    return match[1]
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0)
-      .sort();
+    const ast = acorn.parse(mjs, { ecmaVersion: 2022, sourceType: 'module' });
+    const names = [];
+    for (const node of ast.body) {
+      if (node.type === 'ExportNamedDeclaration') {
+        for (const spec of node.specifiers) {
+          names.push(spec.local.name);
+        }
+      }
+    }
+    return names.sort();
   }
 
   const chessSrc = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
