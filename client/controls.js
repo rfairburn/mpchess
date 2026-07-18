@@ -35,6 +35,15 @@ import {
 import { pieceColor, getValidMoves } from './chess.mjs';
 import { pieceMeshes } from './pieces.js';
 
+// ── Controls configuration (from standalone module, re-exported) ──
+
+import { CONTROLS_CONFIG as _CONTROLS_CONFIG } from './controls_config.js';
+export { _CONTROLS_CONFIG as CONTROLS_CONFIG };
+const CONTROLS_CONFIG = _CONTROLS_CONFIG;
+
+// Backward-compatible export
+export const CAMERA_POSITIONS = CONTROLS_CONFIG.cameraPositions;
+
 // ── Camera state ─────────────────────────────────────────
 
 export const keys = {};
@@ -59,27 +68,10 @@ export function setRenderer(renderer, camera) {
   pitch = euler.x;
 }
 
-// Reusable camera positions map — keys 1-6
-// 1-3: role views (white, black, spectator)
-// 4-6: overhead views from (0, 3, 0) looking down, oriented per role
-export const CAMERA_POSITIONS = {
-  1: { x: 0, y: 7, z: 10, lookAt: [0, 0, 0] }, // white
-  2: { x: 0, y: 7, z: -10, lookAt: [0, 0, 0] }, // black
-  3: { x: -10, y: 7, z: 0, lookAt: [0, 0, 0] }, // spectator
-  // Overhead views: directly above center, y=10 so the full 8×8 board fits in view
-  // pitch=-π/2 points camera along -Y (down at the board); yaw sets horizontal orientation
-  4: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, 0, 0] }, // white overhead (white's side at bottom)
-  5: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, Math.PI, 0] }, // black overhead (black's side at bottom)
-  6: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, -Math.PI / 2, 0] }, // spectator overhead
-};
-
-// Role-to-key mapping for setCameraForRole
-const ROLE_KEY = { white: 1, black: 2, spectator: 3 };
-
-// Warp camera to a position from CAMERA_POSITIONS by key
+// Warp camera to a position from CONTROLS_CONFIG.cameraPositions by key
 export function warpCamera(key) {
   if (!_camera) return;
-  const cfg = CAMERA_POSITIONS[key];
+  const cfg = CONTROLS_CONFIG.cameraPositions[key];
   if (!cfg) return;
 
   _camera.position.set(cfg.x, cfg.y, cfg.z);
@@ -100,7 +92,7 @@ export function warpCamera(key) {
 }
 
 export function setCameraForRole(role) {
-  const key = ROLE_KEY[role];
+  const key = CONTROLS_CONFIG.roleKey[role];
   if (key == null) return;
   warpCamera(key);
 }
@@ -113,7 +105,7 @@ document.addEventListener('mousemove', (e) => {
   if (document.pointerLockElement !== _renderer.domElement) return;
   yaw -= e.movementX * mouseSensitivity;
   pitch -= e.movementY * mouseSensitivity;
-  pitch = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, pitch));
+  pitch = Math.max(CONTROLS_CONFIG.pitchMin, Math.min(CONTROLS_CONFIG.pitchMax, pitch));
 });
 
 // ── Keyboard ─────────────────────────────────────────────
@@ -294,8 +286,8 @@ export function setClickHandler(renderer) {
 
 // ── Drag-to-move handlers ────────────────────────────────
 
-const DRAG_THRESHOLD = 5; // pixels — movement below this is treated as a click
-const DRAG_HEIGHT = 0.6; // piece elevation during drag
+const DRAG_THRESHOLD = CONTROLS_CONFIG.dragThreshold;
+const DRAG_HEIGHT = CONTROLS_CONFIG.dragHeight;
 
 function commitDrag() {
   // Transition from candidate to committed drag: select, highlight, lift piece

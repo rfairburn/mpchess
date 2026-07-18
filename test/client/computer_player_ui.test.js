@@ -13,6 +13,14 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // Mock controls.js -- we only need setCameraForRole (no-op)
 vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
+  CONTROLS_CONFIG: {
+    defaultMouseSensitivity: 0.002,
+    sensitivityMin: 0.0002,
+    sensitivityMax: 0.004,
+    sensitivitySliderMin: 1,
+    sensitivitySliderMax: 100,
+    sensitivitySliderBase: 20,
+  },
 }));
 
 // -- DOM fixture -------------------------------------------

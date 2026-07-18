@@ -35,6 +35,14 @@ vi.mock('../../client/network.js', () => ({
 
 vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
+  CONTROLS_CONFIG: {
+    defaultMouseSensitivity: 0.002,
+    sensitivityMin: 0.0002,
+    sensitivityMax: 0.004,
+    sensitivitySliderMin: 1,
+    sensitivitySliderMax: 100,
+    sensitivitySliderBase: 20,
+  },
 }));
 
 vi.mock('../../client/ui/toast.js', () => ({

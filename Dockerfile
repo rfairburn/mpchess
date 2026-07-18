@@ -34,7 +34,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy only what's needed from builder
 COPY --from=builder /app/server.js ./
-COPY --from=builder /app/server/ws-handlers.js ./server/
+COPY --from=builder /app/server  ./server/
 COPY --from=builder /app/loadConfig.js ./
 COPY --from=builder /app/shared/chess.js ./shared/
 COPY --from=builder /app/shared/stockfish_engine.js ./shared/

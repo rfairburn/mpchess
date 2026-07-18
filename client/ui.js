@@ -36,6 +36,7 @@ import {
   onFenImportWarning,
 } from './network.js';
 import { setCameraForRole } from './controls.js';
+import { CONTROLS_CONFIG } from './controls_config.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -104,18 +105,35 @@ let prevRole = null;
 // Linear mapping (v * 0.0001) gave 0.0001–0.01, where the upper end was
 // too fast for most users.  The exponential curve keeps low values precise
 // and caps the top at a comfortable speed.
+// Constants are defined in CONTROLS_CONFIG (controls.js).
 
 const sensitivitySlider = document.getElementById('sensitivity-slider');
 const sensitivityValue = document.getElementById('sensitivity-value');
-export let mouseSensitivity = parseFloat(localStorage.getItem('mouseSensitivity') || '0.002');
+export let mouseSensitivity = parseFloat(
+  localStorage.getItem('mouseSensitivity') || String(CONTROLS_CONFIG.defaultMouseSensitivity)
+);
 
 function sliderToSens(v) {
-  // Exponential: 1 → 0.0002, 50 → 0.002, 100 → 0.004
-  return 0.0002 * Math.pow(20, (v - 1) / 99);
+  // Exponential: sliderMin → sensitivityMin, sliderMax → sensitivityMax
+  const { sensitivityMin, sensitivitySliderMin, sensitivitySliderMax, sensitivitySliderBase } =
+    CONTROLS_CONFIG;
+  return (
+    sensitivityMin *
+    Math.pow(
+      sensitivitySliderBase,
+      (v - sensitivitySliderMin) / (sensitivitySliderMax - sensitivitySliderMin)
+    )
+  );
 }
 function sensToSlider(s) {
   // Inverse of sliderToSens
-  return Math.round(1 + (99 * Math.log(s / 0.0002)) / Math.log(20));
+  const { sensitivityMin, sensitivitySliderMin, sensitivitySliderMax, sensitivitySliderBase } =
+    CONTROLS_CONFIG;
+  return Math.round(
+    sensitivitySliderMin +
+      ((sensitivitySliderMax - sensitivitySliderMin) * Math.log(s / sensitivityMin)) /
+        Math.log(sensitivitySliderBase)
+  );
 }
 sensitivitySlider.value = sensToSlider(mouseSensitivity);
 sensitivityValue.textContent = sensitivitySlider.value;

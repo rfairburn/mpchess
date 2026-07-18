@@ -1146,4 +1146,218 @@ describe('controls.js', () => {
       expect(camera.position.x).toBe(99);
     });
   });
+
+  // ── CONTROLS_CONFIG ──
+
+  describe('CONTROLS_CONFIG', () => {
+    it('should export CONTROLS_CONFIG', async () => {
+      expect(controls.CONTROLS_CONFIG).toBeDefined();
+      expect(typeof controls.CONTROLS_CONFIG).toBe('object');
+    });
+
+    it('should have dragThreshold set to 5', async () => {
+      expect(controls.CONTROLS_CONFIG.dragThreshold).toBe(5);
+    });
+
+    it('should have dragHeight set to 0.6', async () => {
+      expect(controls.CONTROLS_CONFIG.dragHeight).toBe(0.6);
+    });
+
+    it('should have pitchMin and pitchMax as symmetric values', async () => {
+      expect(controls.CONTROLS_CONFIG.pitchMin).toBe(-Math.PI / 2.1);
+      expect(controls.CONTROLS_CONFIG.pitchMax).toBe(Math.PI / 2.1);
+      expect(controls.CONTROLS_CONFIG.pitchMin).toBe(-controls.CONTROLS_CONFIG.pitchMax);
+    });
+
+    it('should have cameraPositions with entries 1-6', async () => {
+      const cp = controls.CONTROLS_CONFIG.cameraPositions;
+      for (let i = 1; i <= 6; i++) {
+        expect(cp[i]).toBeDefined();
+        expect(cp[i].x).toBeDefined();
+        expect(cp[i].y).toBeDefined();
+        expect(cp[i].z).toBeDefined();
+      }
+    });
+
+    it('should have roleKey mapping for white, black, spectator', async () => {
+      expect(controls.CONTROLS_CONFIG.roleKey.white).toBe(1);
+      expect(controls.CONTROLS_CONFIG.roleKey.black).toBe(2);
+      expect(controls.CONTROLS_CONFIG.roleKey.spectator).toBe(3);
+    });
+
+    it('should have CAMERA_POSITIONS as a reference to cameraPositions', async () => {
+      expect(controls.CAMERA_POSITIONS).toBe(controls.CONTROLS_CONFIG.cameraPositions);
+    });
+
+    it('should use config dragHeight for piece elevation during drag', async () => {
+      // Populate squares
+      for (let r = 0; r < 8; r++) {
+        board.squares[r] = [];
+        for (let f = 0; f < 8; f++) {
+          board.squares[r][f] = { rank: r, file: f };
+        }
+      }
+
+      mockPieceMeshes.length = 0;
+      mockPieceMeshes.push(mockPieceMesh(0, 1));
+
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setDragHandlers(renderer);
+
+      network.myRole = 'white';
+      network.serverTurn = 'white';
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+      network.serverBoard[1][0] = 1;
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      chess.pieceColor.mockImplementation((p) => (p > 0 ? 'white' : 'black'));
+
+      // mousedown on pawn
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousemove beyond threshold — commits drag
+      const mm = new MouseEvent('mousemove', {
+        clientX: 200,
+        clientY: 200,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm);
+
+      // Piece Y should equal config dragHeight
+      expect(mockPieceMeshes[0].mesh.position.y).toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // Clean up drag state
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const mu = new MouseEvent('mouseup', { clientX: 200, clientY: 200, bubbles: true });
+      document.dispatchEvent(mu);
+    });
+
+    it('should use config dragThreshold for click-vs-drag distinction', async () => {
+      // Populate squares
+      for (let r = 0; r < 8; r++) {
+        board.squares[r] = [];
+        for (let f = 0; f < 8; f++) {
+          board.squares[r][f] = { rank: r, file: f };
+        }
+      }
+
+      mockPieceMeshes.length = 0;
+      mockPieceMeshes.push(mockPieceMesh(0, 1));
+
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setDragHandlers(renderer);
+
+      network.myRole = 'white';
+      network.serverTurn = 'white';
+      network.serverBoard = Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+      network.serverBoard[1][0] = 1;
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      chess.pieceColor.mockImplementation((p) => (p > 0 ? 'white' : 'black'));
+
+      // mousedown on pawn
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+      const md = new MouseEvent('mousedown', {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // mousemove just below threshold — should NOT commit drag
+      const threshold = controls.CONTROLS_CONFIG.dragThreshold;
+      const mm = new MouseEvent('mousemove', {
+        clientX: 100 + threshold - 1,
+        clientY: 100,
+        bubbles: true,
+      });
+      document.dispatchEvent(mm);
+
+      // Drag should not be committed — piece should not be lifted
+      expect(mockPieceMeshes[0].mesh.position.y).not.toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // Clean up
+      const mu = new MouseEvent('mouseup', { clientX: 100, clientY: 100, bubbles: true });
+      document.dispatchEvent(mu);
+    });
+
+    // ── Sensitivity configuration ──
+
+    it('should have defaultMouseSensitivity set to 0.002', async () => {
+      expect(controls.CONTROLS_CONFIG.defaultMouseSensitivity).toBe(0.002);
+    });
+
+    it('should have sensitivityMin set to 0.0002', async () => {
+      expect(controls.CONTROLS_CONFIG.sensitivityMin).toBe(0.0002);
+    });
+
+    it('should have sensitivityMax set to 0.004', async () => {
+      expect(controls.CONTROLS_CONFIG.sensitivityMax).toBe(0.004);
+    });
+
+    it('should have slider range 1–100', async () => {
+      expect(controls.CONTROLS_CONFIG.sensitivitySliderMin).toBe(1);
+      expect(controls.CONTROLS_CONFIG.sensitivitySliderMax).toBe(100);
+    });
+
+    it('should have sensitivitySliderBase set to 20', async () => {
+      expect(controls.CONTROLS_CONFIG.sensitivitySliderBase).toBe(20);
+    });
+
+    it('should produce correct exponential mapping at slider endpoints', async () => {
+      const cfg = controls.CONTROLS_CONFIG;
+      // sliderMin (1) → sensitivityMin
+      const minVal =
+        cfg.sensitivityMin *
+        Math.pow(
+          cfg.sensitivitySliderBase,
+          (cfg.sensitivitySliderMin - cfg.sensitivitySliderMin) /
+            (cfg.sensitivitySliderMax - cfg.sensitivitySliderMin)
+        );
+      expect(minVal).toBe(cfg.sensitivityMin);
+
+      // sliderMax (100) → sensitivityMax
+      const maxVal =
+        cfg.sensitivityMin *
+        Math.pow(
+          cfg.sensitivitySliderBase,
+          (cfg.sensitivitySliderMax - cfg.sensitivitySliderMin) /
+            (cfg.sensitivitySliderMax - cfg.sensitivitySliderMin)
+        );
+      expect(maxVal).toBeCloseTo(cfg.sensitivityMax, 6);
+
+      // defaultMouseSensitivity should fall within the range
+      expect(cfg.defaultMouseSensitivity).toBeGreaterThan(cfg.sensitivityMin);
+      expect(cfg.defaultMouseSensitivity).toBeLessThan(cfg.sensitivityMax);
+
+      // Verify the slider value that produces the default sensitivity
+      const sliderForDefault =
+        cfg.sensitivitySliderMin +
+        ((cfg.sensitivitySliderMax - cfg.sensitivitySliderMin) *
+          Math.log(cfg.defaultMouseSensitivity / cfg.sensitivityMin)) /
+          Math.log(cfg.sensitivitySliderBase);
+      expect(sliderForDefault).toBeGreaterThan(cfg.sensitivitySliderMin);
+      expect(sliderForDefault).toBeLessThan(cfg.sensitivitySliderMax);
+    });
+  });
 });
