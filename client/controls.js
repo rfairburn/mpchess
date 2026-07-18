@@ -59,25 +59,50 @@ export function setRenderer(renderer, camera) {
   pitch = euler.x;
 }
 
-// Camera starting positions per role
-const CAM_POS = {
-  spectator: { x: -10, y: 7, z: 0 }, // west side, between ranks 4-5, rank labels visible
-  white: { x: 0, y: 7, z: 10 }, // south side, between files d-e
-  black: { x: 0, y: 7, z: -10 }, // north side, between files d-e
+// Reusable camera positions map — keys 1-6
+// 1-3: role views (white, black, spectator)
+// 4-6: overhead views from (0, 3, 0) looking down, oriented per role
+export const CAMERA_POSITIONS = {
+  1: { x: 0, y: 7, z: 10, lookAt: [0, 0, 0] }, // white
+  2: { x: 0, y: 7, z: -10, lookAt: [0, 0, 0] }, // black
+  3: { x: -10, y: 7, z: 0, lookAt: [0, 0, 0] }, // spectator
+  // Overhead views: directly above center, y=10 so the full 8×8 board fits in view
+  // pitch=-π/2 points camera along -Y (down at the board); yaw sets horizontal orientation
+  4: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, 0, 0] }, // white overhead (white's side at bottom)
+  5: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, Math.PI, 0] }, // black overhead (black's side at bottom)
+  6: { x: 0, y: 11, z: 0, euler: [-Math.PI / 2, -Math.PI / 2, 0] }, // spectator overhead
 };
 
-export function setCameraForRole(role) {
-  if (!_camera) return;
-  const p = CAM_POS[role];
-  if (!p) return;
+// Role-to-key mapping for setCameraForRole
+const ROLE_KEY = { white: 1, black: 2, spectator: 3 };
 
-  _camera.position.set(p.x, p.y, p.z);
-  _camera.lookAt(0, 0, 0);
+// Warp camera to a position from CAMERA_POSITIONS by key
+export function warpCamera(key) {
+  if (!_camera) return;
+  const cfg = CAMERA_POSITIONS[key];
+  if (!cfg) return;
+
+  _camera.position.set(cfg.x, cfg.y, cfg.z);
+
+  if (cfg.euler) {
+    // Overhead view: use explicit euler angles for precise orientation
+    const _euler = new THREE.Euler(cfg.euler[0], cfg.euler[1], cfg.euler[2], 'YXZ');
+    _camera.quaternion.setFromEuler(_euler);
+  } else {
+    // Standard view: look at target
+    _camera.lookAt(cfg.lookAt[0], cfg.lookAt[1], cfg.lookAt[2]);
+  }
 
   // Sync yaw/pitch from the new quaternion
   euler.setFromQuaternion(_camera.quaternion);
   yaw = euler.y;
   pitch = euler.x;
+}
+
+export function setCameraForRole(role) {
+  const key = ROLE_KEY[role];
+  if (key == null) return;
+  warpCamera(key);
 }
 
 // ── Mouse movement ───────────────────────────────────────
@@ -112,6 +137,12 @@ document.addEventListener('keydown', (e) => {
     } else {
       if (document.pointerLockElement) document.exitPointerLock();
     }
+    return;
+  }
+  // Camera warp keys: 1-6
+  const digitKey = parseInt(e.code.replace('Digit', ''), 10);
+  if (digitKey >= 1 && digitKey <= 6) {
+    warpCamera(digitKey);
     return;
   }
 });

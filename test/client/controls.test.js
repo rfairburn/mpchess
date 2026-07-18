@@ -777,4 +777,373 @@ describe('controls.js', () => {
       expect(controls.validMoves).toEqual([]);
     });
   });
+
+  // ── Camera positions map ──
+
+  describe('CAMERA_POSITIONS', () => {
+    it('should export the CAMERA_POSITIONS map', async () => {
+      expect(controls.CAMERA_POSITIONS).toBeDefined();
+    });
+
+    it('should have entries for keys 1 through 6', async () => {
+      for (let i = 1; i <= 6; i++) {
+        expect(controls.CAMERA_POSITIONS[i]).toBeDefined();
+        expect(controls.CAMERA_POSITIONS[i].x).toBeDefined();
+        expect(controls.CAMERA_POSITIONS[i].y).toBeDefined();
+        expect(controls.CAMERA_POSITIONS[i].z).toBeDefined();
+      }
+    });
+
+    it('should have correct positions for role views (1-3)', async () => {
+      expect(controls.CAMERA_POSITIONS[1]).toEqual({ x: 0, y: 7, z: 10, lookAt: [0, 0, 0] });
+      expect(controls.CAMERA_POSITIONS[2]).toEqual({ x: 0, y: 7, z: -10, lookAt: [0, 0, 0] });
+      expect(controls.CAMERA_POSITIONS[3]).toEqual({ x: -10, y: 7, z: 0, lookAt: [0, 0, 0] });
+    });
+
+    it('should have overhead positions at (0, 3, 0) for keys 4-6', async () => {
+      for (let i = 4; i <= 6; i++) {
+        expect(controls.CAMERA_POSITIONS[i].x).toBe(0);
+        expect(controls.CAMERA_POSITIONS[i].y).toBe(11);
+        expect(controls.CAMERA_POSITIONS[i].z).toBe(0);
+      }
+    });
+
+    it('should have euler overrides for overhead views (4-6)', async () => {
+      for (let i = 4; i <= 6; i++) {
+        expect(controls.CAMERA_POSITIONS[i].euler).toBeDefined();
+        expect(Array.isArray(controls.CAMERA_POSITIONS[i].euler)).toBe(true);
+        expect(controls.CAMERA_POSITIONS[i].euler.length).toBe(3);
+      }
+    });
+
+    it('should not have euler overrides for role views (1-3)', async () => {
+      for (let i = 1; i <= 3; i++) {
+        expect(controls.CAMERA_POSITIONS[i].euler).toBeUndefined();
+      }
+    });
+  });
+
+  // ── warpCamera ──
+
+  describe('warpCamera', () => {
+    it('should warp to white position on key 1', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(1);
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(7);
+      expect(camera.position.z).toBe(10);
+    });
+
+    it('should warp to black position on key 2', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(2);
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(7);
+      expect(camera.position.z).toBe(-10);
+    });
+
+    it('should warp to spectator position on key 3', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(3);
+
+      expect(camera.position.x).toBe(-10);
+      expect(camera.position.y).toBe(7);
+      expect(camera.position.z).toBe(0);
+    });
+
+    it('should warp to overhead white position on key 4', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(4);
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(11);
+      expect(camera.position.z).toBe(0);
+      // Overhead view should have a non-default quaternion
+      expect(camera.quaternion.x).not.toBe(0);
+    });
+
+    it('should warp to overhead black position on key 5', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(5);
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(11);
+      expect(camera.position.z).toBe(0);
+    });
+
+    it('should warp to overhead spectator position on key 6', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(6);
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(11);
+      expect(camera.position.z).toBe(0);
+    });
+
+    it('should not change camera for invalid key', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(1, 2, 3);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(0);
+      expect(camera.position.x).toBe(1);
+      expect(camera.position.y).toBe(2);
+      expect(camera.position.z).toBe(3);
+
+      controls.warpCamera(7);
+      expect(camera.position.x).toBe(1);
+      expect(camera.position.y).toBe(2);
+      expect(camera.position.z).toBe(3);
+    });
+
+    it('should handle being called before setRenderer', async () => {
+      expect(() => controls.warpCamera(1)).not.toThrow();
+    });
+
+    it('should sync yaw and pitch after warping', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(1);
+
+      expect(Number.isFinite(controls.yaw)).toBe(true);
+      expect(Number.isFinite(controls.pitch)).toBe(true);
+    });
+
+    it('should produce different orientations for overhead views 4, 5, 6', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      controls.warpCamera(4);
+      const q4 = {
+        x: camera.quaternion.x,
+        y: camera.quaternion.y,
+        z: camera.quaternion.z,
+        w: camera.quaternion.w,
+      };
+
+      controls.warpCamera(5);
+      const q5 = {
+        x: camera.quaternion.x,
+        y: camera.quaternion.y,
+        z: camera.quaternion.z,
+        w: camera.quaternion.w,
+      };
+
+      controls.warpCamera(6);
+      const q6 = {
+        x: camera.quaternion.x,
+        y: camera.quaternion.y,
+        z: camera.quaternion.z,
+        w: camera.quaternion.w,
+      };
+
+      // All three overhead views should have different quaternions
+      expect(q4).not.toEqual(q5);
+      expect(q4).not.toEqual(q6);
+      expect(q5).not.toEqual(q6);
+    });
+
+    it('should point camera forward vector toward negative Y for all overhead views', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      for (let i = 4; i <= 6; i++) {
+        controls.warpCamera(i);
+        // getWorldDirection returns the camera's local -Z in world space
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        // Forward vector should point downward (negative Y)
+        expect(dir.y).toBeLessThan(-0.9);
+        // X and Z components should be near zero (straight down)
+        expect(Math.abs(dir.x)).toBeLessThan(0.01);
+        expect(Math.abs(dir.z)).toBeLessThan(0.01);
+      }
+    });
+
+    it('should distinguish white, black, spectator overhead orientations via right vector', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      // Compute right vector from quaternion: q * (1, 0, 0)
+      function getRightVector(cam) {
+        const q = cam.quaternion;
+        const x = 1,
+          y = 0,
+          z = 0;
+        const qx = q.x,
+          qy = q.y,
+          qz = q.z,
+          qw = q.w;
+        const ix = qw * x + qy * z - qz * y;
+        const iy = qw * y + qz * x - qx * z;
+        const iz = qw * z + qx * y - qy * x;
+        const iw = -qx * x - qy * y - qz * z;
+        return {
+          x: ix * qw + iw * -qx + iy * -qz - iz * -qy,
+          y: iy * qw + iw * -qy + iz * -qx - ix * -qz,
+          z: iz * qw + iw * -qz + ix * -qy - iy * -qx,
+        };
+      }
+
+      controls.warpCamera(4); // white overhead
+      const r4 = getRightVector(camera);
+
+      controls.warpCamera(5); // black overhead
+      const r5 = getRightVector(camera);
+
+      controls.warpCamera(6); // spectator overhead
+      const r6 = getRightVector(camera);
+
+      // White overhead: right ≈ +X (1, 0, 0)
+      expect(r4.x).toBeGreaterThan(0.9);
+      expect(Math.abs(r4.z)).toBeLessThan(0.01);
+
+      // Black overhead: right ≈ -X (-1, 0, 0)
+      expect(r5.x).toBeLessThan(-0.9);
+      expect(Math.abs(r5.z)).toBeLessThan(0.01);
+
+      // Spectator overhead: right ≈ +Z (0, 0, 1)
+      expect(r6.z).toBeGreaterThan(0.9);
+      expect(Math.abs(r6.x)).toBeLessThan(0.01);
+    });
+
+    it('should be equivalent to setCameraForRole for role keys', async () => {
+      const camera1 = new THREE.PerspectiveCamera();
+      const camera2 = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+
+      controls.setRenderer(renderer, camera1);
+      controls.setCameraForRole('white');
+
+      controls.setRenderer(renderer, camera2);
+      controls.warpCamera(1);
+
+      expect(camera1.position.x).toBe(camera2.position.x);
+      expect(camera1.position.y).toBe(camera2.position.y);
+      expect(camera1.position.z).toBe(camera2.position.z);
+    });
+  });
+
+  // ── Keyboard warp keys ──
+
+  describe('keyboard warp keys', () => {
+    it('should warp camera on Digit1 key', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit1' }));
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(7);
+      expect(camera.position.z).toBe(10);
+    });
+
+    it('should warp camera on Digit2 key', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit2' }));
+
+      expect(camera.position.z).toBe(-10);
+    });
+
+    it('should warp camera on Digit3 key', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit3' }));
+
+      expect(camera.position.x).toBe(-10);
+    });
+
+    it('should warp camera on Digit4 key (overhead white)', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit4' }));
+
+      expect(camera.position.x).toBe(0);
+      expect(camera.position.y).toBe(11);
+      expect(camera.position.z).toBe(0);
+    });
+
+    it('should warp camera on Digit5 key (overhead black)', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit5' }));
+
+      expect(camera.position.y).toBe(11);
+    });
+
+    it('should warp camera on Digit6 key (overhead spectator)', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit6' }));
+
+      expect(camera.position.y).toBe(11);
+    });
+
+    it('should not warp on keys outside 1-6 range', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit0' }));
+      expect(camera.position.x).toBe(99);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Digit7' }));
+      expect(camera.position.x).toBe(99);
+    });
+
+    it('should not warp on non-digit keys', async () => {
+      const camera = new THREE.PerspectiveCamera();
+      camera.position.set(99, 99, 99);
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyA' }));
+      expect(camera.position.x).toBe(99);
+    });
+  });
 });

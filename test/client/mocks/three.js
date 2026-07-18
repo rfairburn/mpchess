@@ -109,9 +109,23 @@ export class PerspectiveCamera {
   }
   lookAt() {}
   getWorldDirection(v) {
-    v.x = 0;
-    v.y = 0;
-    v.z = -1;
+    // Transform local -Z (0, 0, -1) by the camera quaternion
+    const q = this.quaternion;
+    const x = 0,
+      y = 0,
+      z = -1;
+    // Quaternion-vector multiplication: v' = q * v * q^-1
+    const qx = q.x,
+      qy = q.y,
+      qz = q.z,
+      qw = q.w;
+    const ix = qw * x + qy * z - qz * y;
+    const iy = qw * y + qz * x - qx * z;
+    const iz = qw * z + qx * y - qy * x;
+    const iw = -qx * x - qy * y - qz * z;
+    v.x = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+    v.y = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+    v.z = iz * qw + iw * -qz + ix * -qy - iy * -qx;
   }
 }
 
