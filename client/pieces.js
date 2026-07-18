@@ -12,6 +12,11 @@ import { pieceColor, pieceType } from './chess.mjs';
 // Materials — set from app.js
 let matWhite, matBlack;
 
+/**
+ * Set the Three.js materials for white and black pieces.
+ * @param {import('three').Material} white
+ * @param {import('three').Material} black
+ */
 export function setMaterials(white, black) {
   matWhite = white;
   matBlack = black;
@@ -28,6 +33,11 @@ export function setModelsLoaded(value) {
   modelsLoaded = value;
 }
 
+/**
+ * Load all piece STL models. Calls onReady when all are loaded.
+ * @param {import('three').Scene} scene
+ * @param {() => void} onReady
+ */
 export function loadPieceModels(scene, onReady) {
   const loader = new STLLoader();
   let loaded = 0;
@@ -72,6 +82,11 @@ function createPiece(type, color) {
   return group;
 }
 
+/**
+ * Rebuild piece meshes to match the server board state.
+ * @param {import('three').Scene} scene
+ * @param {boolean} [force] — If true, process animating pieces too (for promotions/restarts)
+ */
 export function rebuildPieces(scene, force = false) {
   if (!serverBoard || !modelsLoaded) return;
 
@@ -205,6 +220,12 @@ export function rebuildPieces(scene, force = false) {
   }
 }
 
+/**
+ * Update a piece mesh's position on the board.
+ * @param {PieceMesh} pieceObj
+ * @param {number} file
+ * @param {number} rank
+ */
 export function updatePiecePosition(pieceObj, file, rank) {
   pieceObj.mesh.position.set(file - 3.5, 0.01, 3.5 - rank);
   pieceObj.file = file;
@@ -255,6 +276,17 @@ function createSlideAnimation(
   });
 }
 
+/**
+ * Animate a piece move, including capture fade-out and castling rook slide.
+ * @param {import('three').Scene} scene
+ * @param {number} fromFile
+ * @param {number} fromRank
+ * @param {number} toFile
+ * @param {number} toRank
+ * @param {{from: number, to: number, rank: number}|null} castled
+ * @param {boolean} enPassant
+ * @param {boolean} captured
+ */
 export function animateMove(
   scene,
   fromFile,
@@ -373,6 +405,10 @@ export function animateMove(
 
 let _scene = null;
 
+/**
+ * Set the Three.js scene reference for state update handlers.
+ * @param {import('three').Scene} scene
+ */
 export function setScene(scene) {
   _scene = scene;
 }

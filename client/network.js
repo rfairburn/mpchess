@@ -39,7 +39,13 @@ export let debugEnabled = false; // set by server in state message
 import { EventEmitter } from './event_emitter.js';
 const emitter = new EventEmitter();
 
+/** @typedef {(msg: object) => void} NetworkCallback */
+
 // Backward-compatible on* registration functions
+/**
+ * Register a callback for state update messages.
+ * @param {NetworkCallback} fn
+ */
 export function onStateUpdate(fn) {
   emitter.on('stateUpdate', fn);
 }
@@ -441,12 +447,23 @@ function scheduleReconnect() {
   }, delay);
 }
 
+/**
+ * Send a move request to the server.
+ * @param {number} fromFile
+ * @param {number} fromRank
+ * @param {number} toFile
+ * @param {number} toRank
+ */
 export function sendMove(fromFile, fromRank, toFile, toRank) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'move', fromFile, fromRank, toFile, toRank }));
   }
 }
 
+/**
+ * Send a promotion piece selection.
+ * @param {'queen'|'rook'|'bishop'|'knight'} pieceType
+ */
 export function sendPromotion(pieceType) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'promotion', pieceType }));
@@ -471,6 +488,10 @@ export function sendDropPlayer(token) {
   }
 }
 
+/**
+ * Join a game as the given color (or reconnect with a stored token).
+ * @param {'white'|'black'|'spectator'} color
+ */
 export function sendJoin(color) {
   if (color !== 'white' && color !== 'black' && color !== 'spectator') return;
   if (!ws || ws.readyState !== 1) return;
@@ -501,12 +522,21 @@ export function sendExportPgn() {
   }
 }
 
+/**
+ * Import a position from FEN.
+ * @param {string} fen
+ */
 export function sendImportFen(fen) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'importFen', fen }));
   }
 }
 
+/**
+ * Activate the computer player.
+ * @param {'white'|'black'} color
+ * @param {number} skill — Skill level (0–20)
+ */
 export function sendActivateComputer(color, skill) {
   if (ws && ws.readyState === 1) {
     ws.send(JSON.stringify({ type: 'activateComputer', color, skill }));

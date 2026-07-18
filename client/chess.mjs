@@ -26,22 +26,51 @@ const B_PAWN = 7,
   B_QUEEN = 11,
   B_KING = 12;
 
+/**
+ * Get the color of a piece.
+ * @param {Piece} p — Piece integer
+ * @returns {'white'|'black'|null}
+ */
 function pieceColor(p) {
   if (p === 0) return null;
   return p >= 7 ? 'black' : 'white';
 }
+
+/**
+ * Get the type string of a piece.
+ * @param {Piece} p — Piece integer
+ * @returns {'pawn'|'knight'|'bishop'|'rook'|'queen'|'king'|null}
+ */
 function pieceType(p) {
   if (p === 0) return null;
   const t = p >= 7 ? p - 7 : p - 1;
   return ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'][t] || null;
 }
+
+/**
+ * Check if a piece belongs to the given color.
+ * @param {Piece} p — Piece integer
+ * @param {'white'|'black'} color
+ * @returns {boolean}
+ */
 function isOwn(p, color) {
   return pieceColor(p) === color;
 }
+
+/**
+ * Check if a piece belongs to the opponent of the given color.
+ * @param {Piece} p — Piece integer
+ * @param {'white'|'black'} color
+ * @returns {boolean}
+ */
 function isEnemy(p, color) {
   return p !== 0 && pieceColor(p) !== color;
 }
 
+/**
+ * Create a standard starting position board.
+ * @returns {Board}
+ */
 function startingBoard() {
   const b = Array.from({ length: 8 }, () => Array(8).fill(0));
   const back = [W_ROOK, W_KNIGHT, W_BISHOP, W_QUEEN, W_KING, W_BISHOP, W_KNIGHT, W_ROOK];
@@ -56,10 +85,21 @@ function startingBoard() {
   return b;
 }
 
+/**
+ * Deep-clone a board.
+ * @param {Board} b
+ * @returns {Board}
+ */
 function cloneBoard(b) {
   return b.map((r) => [...r]);
 }
 
+/**
+ * Find the king's position for a given color.
+ * @param {Board} board
+ * @param {'white'|'black'} color
+ * @returns {{file: number, rank: number}|null}
+ */
 function findKing(board, color) {
   const k = color === 'white' ? W_KING : B_KING;
   for (let r = 0; r < 8; r++)
@@ -67,6 +107,14 @@ function findKing(board, color) {
   return null;
 }
 
+/**
+ * Check if a square is attacked by the given color.
+ * @param {Board} board
+ * @param {number} file
+ * @param {number} rank
+ * @param {'white'|'black'} byColor
+ * @returns {boolean}
+ */
 function isAttacked(board, file, rank, byColor) {
   // White pawns sit at lower ranks and attack upward (toward higher ranks)
   // so a white pawn attacks (file,rank) from (file±1, rank-1)
@@ -142,12 +190,27 @@ function isAttacked(board, file, rank, byColor) {
   return false;
 }
 
+/**
+ * Check if the given color's king is in check.
+ * @param {Board} board
+ * @param {'white'|'black'} color
+ * @returns {boolean}
+ */
 function isInCheck(board, color) {
   const k = findKing(board, color);
   if (!k) return false;
   return isAttacked(board, k.file, k.rank, color === 'white' ? 'black' : 'white');
 }
 
+/**
+ * Generate all valid moves for a piece at the given square.
+ * @param {Board} board
+ * @param {number} file
+ * @param {number} rank
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @returns {Move[]}
+ */
 function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
   const piece = board[rank][file];
   if (piece === 0) return [];
@@ -303,6 +366,14 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
   return moves;
 }
 
+/**
+ * Check whether the given color has any legal moves.
+ * @param {Board} board
+ * @param {'white'|'black'} color
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @returns {boolean}
+ */
 function hasAnyMoves(board, color, castlingRights, enPassantTarget) {
   for (let r = 0; r < 8; r++)
     for (let f = 0; f < 8; f++) {
@@ -336,6 +407,11 @@ function collectPieces(board) {
 }
 
 // Check if the board has insufficient material to deliver checkmate
+/**
+ * Check if the board has insufficient material for checkmate.
+ * @param {Board} board
+ * @returns {boolean}
+ */
 function isInsufficientMaterial(board) {
   const pieces = collectPieces(board);
   const wp = pieces.white;
@@ -478,6 +554,9 @@ function buildNotation(
 //  GAME STATE
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Chess game manager. Tracks state, players, moves, and game-end conditions.
+ */
 class Game {
   constructor() {
     this.board = startingBoard();
@@ -502,6 +581,12 @@ class Game {
     this._recordPosition(null);
   }
 
+  /**
+   * Add a player (WebSocket) to the game. Assigns white, black, or spectator.
+   * @param {*} ws — WebSocket connection
+   * @param {string[]} [extraOccupied] — Colors to treat as occupied
+   * @returns {'white'|'black'|'spectator'}
+   */
   addPlayer(ws, extraOccupied) {
     const colors = ['white', 'black'];
     const occupied = new Set([...this.players.values()]);
@@ -518,6 +603,11 @@ class Game {
     return 'spectator';
   }
 
+  /**
+   * Remove a player from the game.
+   * @param {*} ws — WebSocket connection
+   * @returns {string|null} The color that was removed, or null
+   */
   removePlayer(ws) {
     if (this.players.has(ws)) {
       const color = this.players.get(ws);
@@ -693,6 +783,15 @@ class Game {
     }
   }
 
+  /**
+   * Attempt a move. Returns a MoveResult indicating success, failure, or promotion needed.
+   * @param {*} ws — WebSocket of the moving player
+   * @param {number} fromFile
+   * @param {number} fromRank
+   * @param {number} toFile
+   * @param {number} toRank
+   * @returns {MoveResult}
+   */
   tryMove(ws, fromFile, fromRank, toFile, toRank) {
     // Validate coordinates are integers in [0, 7]
     for (const v of [fromFile, fromRank, toFile, toRank]) {
@@ -878,6 +977,12 @@ class Game {
     };
   }
 
+  /**
+   * Complete a pending promotion by selecting the piece type.
+   * @param {*} ws — WebSocket of the promoting player
+   * @param {string} pieceType — 'queen', 'rook', 'bishop', or 'knight'
+   * @returns {boolean}
+   */
   completePromotion(ws, pieceType) {
     if (!this.promotingPiece || this.players.get(ws) !== this.promotingPiece.color) return false;
     if (this.gameOver) return false;
@@ -961,6 +1066,10 @@ class Game {
     }
   }
 
+  /**
+   * Concede the game for the given player.
+   * @param {*} ws — WebSocket of the conceding player
+   */
   concede(ws) {
     if (this.gameOver) return false;
     const color = this.players.get(ws);
@@ -972,6 +1081,11 @@ class Game {
   }
 
   // Claim a draw by the 50-move rule (manual claim, requires halfmoveClock >= 100)
+  /**
+   * Claim a draw (50-move rule or threefold repetition).
+   * @param {*} ws — WebSocket of the claiming player
+   * @returns {{ok: boolean, reason?: string}}
+   */
   claimDraw(ws) {
     if (this.gameOver) return { ok: false, reason: 'Game is already over' };
     const color = this.players.get(ws);
@@ -988,6 +1102,10 @@ class Game {
     return { ok: true };
   }
 
+  /**
+   * Get a full snapshot of the current game state.
+   * @returns {GameState}
+   */
   getState() {
     return {
       board: cloneBoard(this.board),
@@ -1019,6 +1137,9 @@ class Game {
     };
   }
 
+  /**
+   * Reset the game to the starting position, clearing all players and spectators.
+   */
   reset() {
     this.board = startingBoard();
     this.turn = 'white';
@@ -1140,6 +1261,16 @@ const FEN_CHAR_TO_PIECE = {
   k: B_KING,
 };
 
+/**
+ * Serialize the board to a FEN string.
+ * @param {Board} board
+ * @param {'white'|'black'} turn
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @param {number} halfmoveClock
+ * @param {number} fullmoveNumber
+ * @returns {string}
+ */
 function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, fullmoveNumber) {
   // Piece placement: rank 8 first, empty squares counted
   let placement = '';
@@ -1180,6 +1311,11 @@ function toFen(board, turn, castlingRights, enPassantTarget, halfmoveClock, full
   return `${placement} ${turnChar} ${castling} ${ep} ${halfmoveClock} ${fullmoveNumber}`;
 }
 
+/**
+ * Parse a FEN string into board state.
+ * @param {string} fen
+ * @returns {{board: Board, turn: string, castlingRights: CastlingRights, enPassantTarget: object|null, halfmoveClock: number, fullmoveNumber: number}|null}
+ */
 function fromFen(fen) {
   const parts = fen.trim().split(/\s+/);
   if (parts.length !== 6) throw new Error('Invalid FEN: must have exactly 6 parts');
@@ -1284,6 +1420,14 @@ function fromFen(fen) {
 //  may confuse a chess engine (Stockfish).
 // ═══════════════════════════════════════════════════════════
 
+/**
+ * Validate that a FEN-derived position is compatible with engine play.
+ * @param {Board} board
+ * @param {'white'|'black'} turn
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @returns {string[]} — Array of warning messages (empty if valid)
+ */
 function validateFenForEngine(board, turn, castlingRights, enPassantTarget) {
   const warnings = [];
   const enemy = turn === 'white' ? 'black' : 'white';
