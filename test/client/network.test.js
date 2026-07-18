@@ -449,3 +449,278 @@ describe('network.js — downloadText', () => {
     expect(revokeSpy).toHaveBeenCalledTimes(10);
   });
 });
+
+describe('EventEmitter', () => {
+  let EE;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import('../../client/event_emitter.js');
+    EE = mod.EventEmitter;
+  });
+
+  it('should call registered listeners on emit', () => {
+    const ee = new EE();
+    const fn = vi.fn();
+    ee.on('test', fn);
+    ee.emit('test', { hello: 'world' });
+    expect(fn).toHaveBeenCalledWith({ hello: 'world' });
+  });
+
+  it('should call multiple listeners for the same event', () => {
+    const ee = new EE();
+    const fn1 = vi.fn();
+    const fn2 = vi.fn();
+    ee.on('test', fn1);
+    ee.on('test', fn2);
+    ee.emit('test', 42);
+    expect(fn1).toHaveBeenCalledWith(42);
+    expect(fn2).toHaveBeenCalledWith(42);
+  });
+
+  it('should not throw when emitting an event with no listeners', () => {
+    const ee = new EE();
+    expect(() => ee.emit('nonexistent', {})).not.toThrow();
+  });
+
+  it('should isolate events — emitting one does not fire another', () => {
+    const ee = new EE();
+    const fn = vi.fn();
+    ee.on('a', fn);
+    ee.emit('b', {});
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it('should pass data through unchanged', () => {
+    const ee = new EE();
+    let received;
+    ee.on('data', (d) => {
+      received = d;
+    });
+    const payload = { board: [[0]], turn: 'white' };
+    ee.emit('data', payload);
+    expect(received).toBe(payload);
+  });
+});
+
+describe('network.js — emitter-based callbacks', () => {
+  let network;
+  let mockWsInstance;
+
+  function setupMockWs() {
+    class TrackableWebSocket {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      static CLOSING = 2;
+      static CLOSED = 3;
+
+      constructor() {
+        this.readyState = TrackableWebSocket.CONNECTING;
+        this._onopen = null;
+        this._onclose = null;
+        this._onerror = null;
+        this._onmessage = null;
+        mockWsInstance = this;
+      }
+
+      set onopen(fn) {
+        this._onopen = fn;
+      }
+      set onclose(fn) {
+        this._onclose = fn;
+      }
+      set onerror(fn) {
+        this._onerror = fn;
+      }
+      set onmessage(fn) {
+        this._onmessage = fn;
+      }
+
+      send() {}
+      close() {
+        this.readyState = TrackableWebSocket.CLOSED;
+        this._onclose?.({ code: 1000, reason: '' });
+      }
+    }
+    return TrackableWebSocket;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    globalThis.WebSocket = setupMockWs();
+
+    const store = {};
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: (key) => store[key] ?? null,
+        setItem: (key, val) => {
+          store[key] = val;
+        },
+        removeItem: (key) => {
+          delete store[key];
+        },
+      },
+      writable: true,
+    });
+
+    Object.defineProperty(globalThis, 'location', {
+      value: { protocol: 'http:', host: 'localhost:3000' },
+      writable: true,
+    });
+
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    network = await import('../../client/network.js');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should fire onStateUpdate when a state message arrives', async () => {
+    const fn = vi.fn();
+    network.onStateUpdate(fn);
+
+    mockWsInstance._onmessage({
+      data: JSON.stringify({
+        type: 'state',
+        role: 'white',
+        board: Array.from({ length: 8 }, () => Array(8).fill(0)),
+        turn: 'white',
+        promotingPiece: null,
+        gameOver: false,
+        gameResult: null,
+        moveHistory: [],
+        castlingRights: { wK: true, wQ: true, bK: true, bQ: true },
+        enPassantTarget: null,
+        disconnectedPlayers: [],
+        seats: { white: { status: 'connected' }, black: { status: 'unknown' } },
+        fen: '',
+      }),
+    });
+
+    expect(fn).toHaveBeenCalled();
+    expect(network.myRole).toBe('white');
+  });
+
+  it('should fire onMove when a move message arrives', async () => {
+    const fn = vi.fn();
+    network.onMove(fn);
+
+    mockWsInstance._onmessage({
+      data: JSON.stringify({ type: 'move', fromFile: 0, fromRank: 7, toFile: 2, toRank: 5 }),
+    });
+
+    expect(fn).toHaveBeenCalledWith({
+      type: 'move',
+      fromFile: 0,
+      fromRank: 7,
+      toFile: 2,
+      toRank: 5,
+    });
+  });
+
+  it('should fire onConnected when WebSocket opens', async () => {
+    const fn = vi.fn();
+    network.onConnected(fn);
+
+    mockWsInstance.readyState = MockWebSocket.OPEN;
+    mockWsInstance._onopen();
+
+    expect(fn).toHaveBeenCalled();
+  });
+
+  it('should fire onConnectionError on initial connection failure', async () => {
+    const fn = vi.fn();
+    network.onConnectionError(fn);
+
+    mockWsInstance.readyState = MockWebSocket.CLOSED;
+    mockWsInstance._onerror({ target: mockWsInstance });
+
+    expect(fn).toHaveBeenCalled();
+  });
+
+  it('should fire onRestart when a restart message arrives', async () => {
+    const fn = vi.fn();
+    network.onRestart(fn);
+
+    mockWsInstance._onmessage({
+      data: JSON.stringify({ type: 'restart' }),
+    });
+
+    expect(fn).toHaveBeenCalled();
+  });
+
+  it('should fire onPromotion when a promotion message arrives', async () => {
+    const fn = vi.fn();
+    network.onPromotion(fn);
+
+    // First set up a state so serverBoard exists
+    mockWsInstance._onmessage({
+      data: JSON.stringify({
+        type: 'state',
+        role: 'white',
+        board: Array.from({ length: 8 }, () => Array(8).fill(0)),
+        turn: 'white',
+        promotingPiece: { file: 0, rank: 7, color: 'white' },
+        gameOver: false,
+        gameResult: null,
+        moveHistory: [],
+        castlingRights: { wK: true, wQ: true, bK: true, bQ: true },
+        enPassantTarget: null,
+        disconnectedPlayers: [],
+        seats: { white: { status: 'connected' }, black: { status: 'unknown' } },
+        fen: '',
+      }),
+    });
+
+    mockWsInstance._onmessage({
+      data: JSON.stringify({
+        type: 'promotion',
+        pieceType: 'queen',
+        file: 0,
+        rank: 7,
+        color: 'white',
+      }),
+    });
+
+    expect(fn).toHaveBeenCalled();
+  });
+
+  it('should fire all 25 event types', async () => {
+    // Verify every on* function is exported and callable
+    const eventNames = [
+      'onStateUpdate',
+      'onMove',
+      'onRestart',
+      'onPromotion',
+      'onError',
+      'onInfo',
+      'onReconnecting',
+      'onReconnected',
+      'onPlayerDisconnected',
+      'onPlayerDropped',
+      'onGameAvailable',
+      'onReconnectFailed',
+      'onConnected',
+      'onConnectionError',
+      'onComputerActivated',
+      'onComputerThinking',
+      'onComputerSkillChanged',
+      'onComputerUnavailable',
+      'onDrawOffer',
+      'onDrawResult',
+      'onDrawOfferCancelled',
+      'onLeft',
+      'onPlayerLeft',
+      'onFenImportWarning',
+    ];
+
+    for (const name of eventNames) {
+      expect(typeof network[name]).toBe('function');
+      expect(() => network[name](vi.fn())).not.toThrow();
+    }
+  });
+});

@@ -35,110 +35,82 @@ export let canClaimDraw = false;
 export let currentFen = '';
 export let debugEnabled = false; // set by server in state message
 
-// Callbacks registered by other modules
-const onStateUpdateCallbacks = [];
-const onMoveCallbacks = [];
-const onRestartCallbacks = [];
-const onPromotionCallbacks = [];
-const onErrorCallbacks = [];
-const onInfoCallbacks = []; // info/success notifications (green toast)
-const onReconnectingCallbacks = [];
-const onReconnectedCallbacks = [];
-const onPlayerDisconnectedCallbacks = [];
-const onPlayerDroppedCallbacks = [];
-const onGameAvailableCallbacks = [];
-const onReconnectFailedCallbacks = [];
-const onConnectedCallbacks = []; // fires on raw WebSocket open (before any messages)
-const onConnectionErrorCallbacks = []; // fires when WebSocket connection fails entirely
-const onComputerActivatedCallbacks = [];
-const onComputerThinkingCallbacks = [];
-const onComputerSkillChangedCallbacks = [];
-const onComputerUnavailableCallbacks = [];
-const onDrawOfferCallbacks = [];
-const onDrawResultCallbacks = [];
-const onDrawOfferCancelledCallbacks = [];
-const onLeftCallbacks = [];
-const onPlayerLeftCallbacks = [];
-const onFenImportWarningCallbacks = [];
+// Event emitter — replaces 25 callback arrays
+import { EventEmitter } from './event_emitter.js';
+const emitter = new EventEmitter();
 
+// Backward-compatible on* registration functions
 export function onStateUpdate(fn) {
-  onStateUpdateCallbacks.push(fn);
+  emitter.on('stateUpdate', fn);
 }
 export function onMove(fn) {
-  onMoveCallbacks.push(fn);
+  emitter.on('move', fn);
 }
 export function onRestart(fn) {
-  onRestartCallbacks.push(fn);
+  emitter.on('restart', fn);
 }
 export function onPromotion(fn) {
-  onPromotionCallbacks.push(fn);
+  emitter.on('promotion', fn);
 }
 export function onError(fn) {
-  onErrorCallbacks.push(fn);
+  emitter.on('error', fn);
 }
 export function onInfo(fn) {
-  onInfoCallbacks.push(fn);
+  emitter.on('info', fn);
 }
 export function onReconnecting(fn) {
-  onReconnectingCallbacks.push(fn);
+  emitter.on('reconnecting', fn);
 }
 export function onReconnected(fn) {
-  onReconnectedCallbacks.push(fn);
+  emitter.on('reconnected', fn);
 }
 export function onPlayerDisconnected(fn) {
-  onPlayerDisconnectedCallbacks.push(fn);
+  emitter.on('playerDisconnected', fn);
 }
 export function onPlayerDropped(fn) {
-  onPlayerDroppedCallbacks.push(fn);
+  emitter.on('playerDropped', fn);
 }
 export function onGameAvailable(fn) {
-  onGameAvailableCallbacks.push(fn);
+  emitter.on('gameAvailable', fn);
 }
 export function onReconnectFailed(fn) {
-  onReconnectFailedCallbacks.push(fn);
+  emitter.on('reconnectFailed', fn);
 }
 export function onConnected(fn) {
-  onConnectedCallbacks.push(fn);
+  emitter.on('connected', fn);
 }
 export function onConnectionError(fn) {
-  onConnectionErrorCallbacks.push(fn);
+  emitter.on('connectionError', fn);
 }
 export function onComputerActivated(fn) {
-  onComputerActivatedCallbacks.push(fn);
+  emitter.on('computerActivated', fn);
 }
 export function onComputerThinking(fn) {
-  onComputerThinkingCallbacks.push(fn);
+  emitter.on('computerThinking', fn);
 }
 export function onComputerSkillChanged(fn) {
-  onComputerSkillChangedCallbacks.push(fn);
+  emitter.on('computerSkillChanged', fn);
 }
 export function onComputerUnavailable(fn) {
-  onComputerUnavailableCallbacks.push(fn);
+  emitter.on('computerUnavailable', fn);
 }
 export function onDrawOffer(fn) {
-  onDrawOfferCallbacks.push(fn);
+  emitter.on('drawOffer', fn);
 }
 export function onDrawResult(fn) {
-  onDrawResultCallbacks.push(fn);
+  emitter.on('drawResult', fn);
 }
 export function onDrawOfferCancelled(fn) {
-  onDrawOfferCancelledCallbacks.push(fn);
+  emitter.on('drawOfferCancelled', fn);
 }
-
 export function onLeft(fn) {
-  onLeftCallbacks.push(fn);
+  emitter.on('left', fn);
 }
-
 export function onPlayerLeft(fn) {
-  onPlayerLeftCallbacks.push(fn);
+  emitter.on('playerLeft', fn);
 }
-
 export function onFenImportWarning(fn) {
-  onFenImportWarningCallbacks.push(fn);
-}
-
-function fireCallbacks(arr, data) {
-  for (const fn of arr) fn(data);
+  emitter.on('fenImportWarning', fn);
 }
 
 function clearReconnectTimer() {
@@ -189,7 +161,7 @@ function connect() {
       }
     }
     // Fire onConnected so UI can show join overlay immediately
-    fireCallbacks(onConnectedCallbacks, {});
+    emitter.emit('connected', {});
     // Otherwise: wait for user to click a button on the join overlay
   };
 
@@ -197,7 +169,7 @@ function connect() {
     // Connection failed before it was established (e.g., origin rejected, server down)
     // Only fire this for initial connections, not during reconnection (reconnect has its own flow)
     if (!reconnecting && myRole === null) {
-      fireCallbacks(onConnectionErrorCallbacks, { event: _event });
+      emitter.emit('connectionError', { event: _event });
     }
   };
 
@@ -249,11 +221,11 @@ function connect() {
         canClaimDraw = msg.canClaimDraw ?? false;
         currentFen = msg.fen || '';
         if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
-        fireCallbacks(onStateUpdateCallbacks, msg);
+        emitter.emit('stateUpdate', msg);
         break;
       }
       case 'move': {
-        fireCallbacks(onMoveCallbacks, msg);
+        emitter.emit('move', msg);
         break;
       }
       case 'promotion': {
@@ -283,16 +255,16 @@ function connect() {
             }
           }
         }
-        fireCallbacks(onPromotionCallbacks, msg);
+        emitter.emit('promotion', msg);
         break;
       }
       case 'error': {
-        fireCallbacks(onErrorCallbacks, msg);
+        emitter.emit('error', msg);
         break;
       }
       case 'restart': {
         moveHistory = [];
-        fireCallbacks(onRestartCallbacks, msg);
+        emitter.emit('restart', msg);
         break;
       }
       case 'joined': {
@@ -303,7 +275,7 @@ function connect() {
         if (!pendingToken) pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
-        fireCallbacks(onReconnectedCallbacks, msg);
+        emitter.emit('reconnected', msg);
         break;
       }
       case 'reconnected': {
@@ -316,7 +288,7 @@ function connect() {
         pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
-        fireCallbacks(onReconnectedCallbacks, msg);
+        emitter.emit('reconnected', msg);
         break;
       }
       case 'reconnectFailed': {
@@ -335,24 +307,24 @@ function connect() {
         pendingToken = null;
         reconnectAttempts = 0;
         reconnecting = false;
-        fireCallbacks(onReconnectFailedCallbacks, msg);
+        emitter.emit('reconnectFailed', msg);
         break;
       }
       case 'playerDisconnected': {
-        fireCallbacks(onPlayerDisconnectedCallbacks, msg);
+        emitter.emit('playerDisconnected', msg);
         break;
       }
       case 'playerDropped': {
-        fireCallbacks(onPlayerDroppedCallbacks, msg);
+        emitter.emit('playerDropped', msg);
         break;
       }
       case 'gameAvailable': {
-        fireCallbacks(onGameAvailableCallbacks, msg);
+        emitter.emit('gameAvailable', msg);
         break;
       }
       case 'tokenValid': {
         validatedTokens[msg.color] = msg.valid;
-        fireCallbacks(onStateUpdateCallbacks, { seats: seatStatus });
+        emitter.emit('stateUpdate', { seats: seatStatus });
         break;
       }
       case 'fenExport': {
@@ -360,15 +332,15 @@ function connect() {
           navigator.clipboard
             .writeText(msg.fen)
             .then(() => {
-              fireCallbacks(onInfoCallbacks, { reason: 'FEN copied to clipboard' });
+              emitter.emit('info', { reason: 'FEN copied to clipboard' });
             })
             .catch(() => {
               downloadText(msg.fen, 'position.fen', 'text/plain');
-              fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
+              emitter.emit('info', { reason: 'FEN downloaded' });
             });
         } else {
           downloadText(msg.fen, 'position.fen', 'text/plain');
-          fireCallbacks(onInfoCallbacks, { reason: 'FEN downloaded' });
+          emitter.emit('info', { reason: 'FEN downloaded' });
         }
         break;
       }
@@ -377,57 +349,57 @@ function connect() {
           navigator.clipboard
             .writeText(msg.pgn)
             .then(() => {
-              fireCallbacks(onInfoCallbacks, { reason: 'PGN copied to clipboard' });
+              emitter.emit('info', { reason: 'PGN copied to clipboard' });
             })
             .catch(() => {
               downloadText(msg.pgn, 'game.pgn', 'text/plain');
-              fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
+              emitter.emit('info', { reason: 'PGN downloaded' });
             });
         } else {
           downloadText(msg.pgn, 'game.pgn', 'text/plain');
-          fireCallbacks(onInfoCallbacks, { reason: 'PGN downloaded' });
+          emitter.emit('info', { reason: 'PGN downloaded' });
         }
         break;
       }
       case 'computerActivated': {
-        fireCallbacks(onComputerActivatedCallbacks, msg);
+        emitter.emit('computerActivated', msg);
         break;
       }
       case 'computerThinking': {
-        fireCallbacks(onComputerThinkingCallbacks, msg);
+        emitter.emit('computerThinking', msg);
         break;
       }
       case 'computerSkillChanged': {
-        fireCallbacks(onComputerSkillChangedCallbacks, msg);
+        emitter.emit('computerSkillChanged', msg);
         break;
       }
       case 'computerUnavailable': {
-        fireCallbacks(onComputerUnavailableCallbacks, msg);
+        emitter.emit('computerUnavailable', msg);
         break;
       }
       case 'drawOffer': {
-        fireCallbacks(onDrawOfferCallbacks, msg);
+        emitter.emit('drawOffer', msg);
         break;
       }
       case 'drawResult': {
-        fireCallbacks(onDrawResultCallbacks, msg);
+        emitter.emit('drawResult', msg);
         break;
       }
       case 'drawOfferCancelled': {
-        fireCallbacks(onDrawOfferCancelledCallbacks, msg);
+        emitter.emit('drawOfferCancelled', msg);
         break;
       }
       case 'left': {
         myRole = null;
-        fireCallbacks(onLeftCallbacks, msg);
+        emitter.emit('left', msg);
         break;
       }
       case 'playerLeft': {
-        fireCallbacks(onPlayerLeftCallbacks, msg);
+        emitter.emit('playerLeft', msg);
         break;
       }
       case 'fenImportWarning': {
-        fireCallbacks(onFenImportWarningCallbacks, msg);
+        emitter.emit('fenImportWarning', msg);
         break;
       }
     }
@@ -453,13 +425,13 @@ function startReconnection() {
   reconnectColor = myRole; // remember our color for auto-reconnect
   reconnectAttempts = 0;
   scheduleReconnect();
-  fireCallbacks(onReconnectingCallbacks, {});
+  emitter.emit('reconnecting', {});
 }
 
 function scheduleReconnect() {
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     reconnecting = false;
-    fireCallbacks(onReconnectingCallbacks, { maxAttemptsReached: true });
+    emitter.emit('reconnecting', { maxAttemptsReached: true });
     return;
   }
   const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
