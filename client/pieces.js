@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from './network.js';
 import { clearHighlights, highlightCheck } from './board.js';
+import { diffBoardState } from './board_diff.js';
 import { pieceColor, pieceType } from './chess.mjs';
 
 // Materials — set from app.js
@@ -94,15 +95,6 @@ export function rebuildPieces(scene, force = false) {
     console.debug('[rebuildPieces] DESIRED board state:', desiredState);
   }
 
-  // Build a list of existing meshes by position (not a Map — multiple pieces
-  // can occupy the same square during animations, e.g. capture).
-  const existing = [];
-  for (const pm of pieceMeshes) {
-    existing.push(pm);
-  }
-
-  // Remove meshes no longer on the board, update changed ones, keep unchanged
-  const toKeep = new Set();
   // Track positions occupied by animating pieces so we don't create duplicates
   const skipPositions = new Set();
   for (const pm of pieceMeshes) {
@@ -111,89 +103,71 @@ export function rebuildPieces(scene, force = false) {
     }
   }
 
-  for (const pm of existing) {
-    const isAnimating = animatingPieces.has(pm);
-    const key = `${pm.file},${pm.rank}`;
+  // Compute the diff between desired state and existing meshes
+  const { toRemove, toUpdate, toAdd } = diffBoardState(
+    desired,
+    pieceMeshes,
+    skipPositions,
+    force,
+    animatingPieces
+  );
 
-    // Debug: Log each piece being processed
+  // Apply removals — remove from scene and from pieceMeshes
+  const toRemoveSet = new Set(toRemove);
+  for (const pm of toRemove) {
+    scene.remove(pm.mesh);
     if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-      console.debug('[rebuildPieces] Processing piece:', {
-        key,
-        type: pm.type,
-        color: pm.color,
-        isAnimating,
-        force,
-      });
+      console.debug('[rebuildPieces] REMOVED (no longer on board):', `${pm.file},${pm.rank}`);
     }
-
-    // When force=true (promotion / restart), update animating pieces too so
-    // the mesh type matches the authoritative serverBoard immediately.
-    // Otherwise skip animating pieces — let animations handle their own cleanup
-    // (capture fade-out, slide completion, etc.)
-    if (isAnimating && !force) {
-      toKeep.add(key);
-      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-        console.debug('[rebuildPieces] SKIPPED (animating, force=false):', key);
-      }
-      continue;
+  }
+  // Filter removed pieces out of pieceMeshes before dedup runs
+  for (let i = pieceMeshes.length - 1; i >= 0; i--) {
+    if (toRemoveSet.has(pieceMeshes[i])) {
+      pieceMeshes.splice(i, 1);
     }
+  }
 
-    const desiredPiece = desired.get(key);
-    if (!desiredPiece) {
-      // Piece no longer exists — remove
+  // Apply updates (type/color changed, e.g. promotion)
+  for (const entry of toUpdate) {
+    const pm = entry.piece;
+    {
       scene.remove(pm.mesh);
-      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-        console.debug('[rebuildPieces] REMOVED (no longer on board):', key);
-      }
-    } else if (desiredPiece.type !== pm.type || desiredPiece.color !== pm.color) {
-      // Piece changed type or color — recreate the mesh
-      scene.remove(pm.mesh);
-      const newMesh = createPiece(desiredPiece.type, desiredPiece.color);
+      const newMesh = createPiece(entry.newType, entry.newColor);
       newMesh.position.copy(pm.mesh.position);
       newMesh.rotation.y = pm.mesh.rotation.y;
       scene.add(newMesh);
       pm.mesh = newMesh;
-      pm.type = desiredPiece.type;
-      pm.color = desiredPiece.color;
-      toKeep.add(key);
+      pm.type = entry.newType;
+      pm.color = entry.newColor;
       if (debugEnabled && typeof console !== 'undefined' && console.debug) {
         console.debug('[rebuildPieces] REPLACED:', {
-          key,
-          old: { type: pm.type, color: pm.color },
-          new: { type: desiredPiece.type, color: desiredPiece.color },
+          key: `${entry.file},${entry.rank}`,
+          old: { type: entry.type, color: entry.color },
+          new: { type: entry.newType, color: entry.newColor },
         });
-      }
-    } else {
-      // Unchanged
-      toKeep.add(key);
-      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-        console.debug('[rebuildPieces] KEPT (unchanged):', key);
       }
     }
   }
 
-  // Add new pieces that don't have meshes yet (skip animating pieces)
-  for (const [key, desiredPiece] of desired) {
-    if (!toKeep.has(key) && !skipPositions.has(key)) {
-      const [f, r] = key.split(',').map(Number);
-      const mesh = createPiece(desiredPiece.type, desiredPiece.color);
-      mesh.position.set(f - 3.5, 0.01, 3.5 - r);
-      mesh.rotation.y = desiredPiece.color === 'black' ? 0 : Math.PI;
-      scene.add(mesh);
-      pieceMeshes.push({
-        mesh,
-        file: f,
-        rank: r,
-        type: desiredPiece.type,
-        color: desiredPiece.color,
+  // Apply additions
+  for (const entry of toAdd) {
+    const mesh = createPiece(entry.type, entry.color);
+    mesh.position.set(entry.file - 3.5, 0.01, 3.5 - entry.rank);
+    mesh.rotation.y = entry.color === 'black' ? 0 : Math.PI;
+    scene.add(mesh);
+    pieceMeshes.push({
+      mesh,
+      file: entry.file,
+      rank: entry.rank,
+      type: entry.type,
+      color: entry.color,
+    });
+    if (debugEnabled && typeof console !== 'undefined' && console.debug) {
+      console.debug('[rebuildPieces] CREATED NEW:', {
+        key: `${entry.file},${entry.rank}`,
+        type: entry.type,
+        color: entry.color,
       });
-      if (debugEnabled && typeof console !== 'undefined' && console.debug) {
-        console.debug('[rebuildPieces] CREATED NEW:', {
-          key,
-          type: desiredPiece.type,
-          color: desiredPiece.color,
-        });
-      }
     }
   }
 
@@ -245,6 +219,9 @@ export const animations = [];
 // This prevents rebuildPieces from removing/creating meshes mid-animation,
 // which would cause duplicate pieces or kill capture fade-out animations.
 const animatingPieces = new Set();
+
+// Test-only access to the animating pieces set.
+export { animatingPieces as _animatingPieces };
 
 // Create a slide animation for a piece from one square to another.
 // arcHeight adds a vertical arc (default 0 = flat slide).

@@ -191,4 +191,48 @@ describe('rebuildPieces — duplicate mesh de-duplication', () => {
     expect(pieces.pieceMeshes.length).toBe(2);
     expect(scene.children.length).toBe(2);
   });
+
+  it('updates the correct piece mesh when an animating duplicate of the same type exists', () => {
+    // Scenario: a white pawn at e7 is animating (mid-capture fade-out),
+    // and a second white pawn at e7 needs to be promoted to a queen.
+    // rebuildPieces must update the non-animating pawn mesh, not the animating one.
+    const board = makeBoard();
+    board[7][4] = 5; // white queen at e8 — W_QUEEN = 5
+    Object.defineProperty(network, 'serverBoard', {
+      value: board,
+      writable: true,
+      configurable: true,
+    });
+
+    const animatingPawn = makePieceMesh('pawn', 'white', 4, 7);
+    const stalePawn = makePieceMesh('pawn', 'white', 4, 7);
+    pieces.pieceMeshes.push(animatingPawn, stalePawn);
+    scene.add(animatingPawn.mesh);
+    scene.add(stalePawn.mesh);
+
+    // Mark the first pawn as animating
+    pieces._animatingPieces.add(animatingPawn);
+
+    const animatingMeshBefore = animatingPawn.mesh;
+
+    pieces.rebuildPieces(scene);
+
+    // The stale pawn should have been updated to a queen in place
+    const updatedEntry = pieces.pieceMeshes.find(
+      (p) => p.file === 4 && p.rank === 7 && p.type === 'queen'
+    );
+    expect(updatedEntry).toBe(stalePawn);
+    expect(updatedEntry.type).toBe('queen');
+    expect(updatedEntry.color).toBe('white');
+
+    // The animating pawn must NOT have been mutated — same mesh reference
+    expect(animatingPawn.mesh).toBe(animatingMeshBefore);
+    expect(animatingPawn.type).toBe('pawn');
+    expect(animatingPawn.color).toBe('white');
+
+    // Both remain: animating pawn (shielded) + updated queen
+    expect(pieces.pieceMeshes.length).toBe(2);
+    expect(pieces.pieceMeshes).toContain(animatingPawn);
+    expect(pieces.pieceMeshes).toContain(stalePawn);
+  });
 });
