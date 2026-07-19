@@ -37,6 +37,7 @@ import {
 } from './network.js';
 import { setCameraForRole } from './controls.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
+import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -51,49 +52,49 @@ import './ui/connection.js';
 // Re-export toast functions for use by other modules
 export { showError, showInfo, showWarning };
 
-// ── DOM refs ──────────────────────────────────────────────
+// ── DOM refs (validated via dom_ref.js) ───────────────────
 
-const roleBadge = document.getElementById('role-badge');
-const playerCountEl = document.getElementById('player-count');
-const turnIndicator = document.getElementById('turn-indicator');
-const mouseModeEl = document.getElementById('mouse-mode');
-const btnClaimDraw = document.getElementById('btn-claim-draw');
-const menuOverlay = document.getElementById('menu-overlay');
-const btnResume = document.getElementById('btn-resume');
-const btnGiveUpSpot = document.getElementById('btn-give-up-spot');
-const btnReconnectAsPlayer = document.getElementById('btn-reconnect-as-player');
-const btnRestart = document.getElementById('btn-restart');
-const btnConcede = document.getElementById('btn-concede');
-const btnOfferDraw = document.getElementById('btn-offer-draw');
-const promoOverlay = document.getElementById('promo-overlay');
+const roleBadge = domRef('role-badge');
+const playerCountEl = domRef('player-count');
+const turnIndicator = domRef('turn-indicator');
+const mouseModeEl = domRef('mouse-mode');
+const btnClaimDraw = domRefOptional('btn-claim-draw');
+const menuOverlay = domRef('menu-overlay');
+const btnResume = domRef('btn-resume');
+const btnGiveUpSpot = domRef('btn-give-up-spot');
+const btnReconnectAsPlayer = domRef('btn-reconnect-as-player');
+const btnRestart = domRef('btn-restart');
+const btnConcede = domRef('btn-concede');
+const btnOfferDraw = domRef('btn-offer-draw');
+const promoOverlay = domRef('promo-overlay');
 const promoButtons = document.querySelectorAll('#promo-choices button');
-const concedeOverlay = document.getElementById('concede-overlay');
-const btnConcedeConfirm = document.getElementById('btn-concede-confirm');
-const btnConcedeCancel = document.getElementById('btn-concede-cancel');
+const concedeOverlay = domRef('concede-overlay');
+const btnConcedeConfirm = domRef('btn-concede-confirm');
+const btnConcedeCancel = domRef('btn-concede-cancel');
 
 // Give up spot overlay
-const giveUpSpotOverlay = document.getElementById('give-up-spot-overlay');
-const btnGiveUpSpotConfirm = document.getElementById('btn-give-up-spot-confirm');
-const btnGiveUpSpotCancel = document.getElementById('btn-give-up-spot-cancel');
+const giveUpSpotOverlay = domRef('give-up-spot-overlay');
+const btnGiveUpSpotConfirm = domRef('btn-give-up-spot-confirm');
+const btnGiveUpSpotCancel = domRef('btn-give-up-spot-cancel');
 
-const capturedWhitePieces = document.querySelector('#captured-white .cap-pieces');
-const capturedBlackPieces = document.querySelector('#captured-black .cap-pieces');
+const capturedWhitePieces = domRefQuery('#captured-white .cap-pieces');
+const capturedBlackPieces = domRefQuery('#captured-black .cap-pieces');
 
 // Import FEN overlay
-const importFenOverlay = document.getElementById('import-fen-overlay');
-const fenInput = document.getElementById('fen-input');
-const btnImportFen = document.getElementById('btn-import-fen');
-const btnImportFenConfirm = document.getElementById('btn-import-fen-confirm');
-const btnImportFenCancel = document.getElementById('btn-import-fen-cancel');
+const importFenOverlay = domRef('import-fen-overlay');
+const fenInput = domRef('fen-input');
+const btnImportFen = domRef('btn-import-fen');
+const btnImportFenConfirm = domRef('btn-import-fen-confirm');
+const btnImportFenCancel = domRef('btn-import-fen-cancel');
 
 // Game available banner button
-const btnJoinGame = document.getElementById('btn-join-game');
+const btnJoinGame = domRef('btn-join-game');
 
 // Draw offer overlay
-const drawOfferOverlay = document.getElementById('draw-offer-overlay');
-const drawOfferText = document.getElementById('draw-offer-text');
-const btnDrawAccept = document.getElementById('btn-draw-accept');
-const btnDrawDecline = document.getElementById('btn-draw-decline');
+const drawOfferOverlay = domRef('draw-offer-overlay');
+const drawOfferText = domRef('draw-offer-text');
+const btnDrawAccept = domRef('btn-draw-accept');
+const btnDrawDecline = domRef('btn-draw-decline');
 
 export let menuOpen = false;
 
@@ -107,8 +108,8 @@ let prevRole = null;
 // and caps the top at a comfortable speed.
 // Constants are defined in CONTROLS_CONFIG (controls.js).
 
-const sensitivitySlider = document.getElementById('sensitivity-slider');
-const sensitivityValue = document.getElementById('sensitivity-value');
+const sensitivitySlider = domRef('sensitivity-slider');
+const sensitivityValue = domRef('sensitivity-value');
 export let mouseSensitivity = parseFloat(
   localStorage.getItem('mouseSensitivity') || String(CONTROLS_CONFIG.defaultMouseSensitivity)
 );
@@ -148,7 +149,7 @@ sensitivitySlider.addEventListener('input', () => {
 // ── Display helpers ──────────────────────────────────────
 
 export function updateMouseModeDisplay(mouseLookOn) {
-  const hud = document.getElementById('hud');
+  const hud = domRef('hud');
   if (mouseLookOn) {
     mouseModeEl.textContent = '🖱 Camera Mode';
     mouseModeEl.style.borderColor = 'rgba(181, 136, 99, 0.3)';
@@ -182,7 +183,7 @@ function updateTurnIndicator() {
 }
 
 export function updateMoveLog() {
-  const el = document.getElementById('move-log');
+  const el = domRef('move-log');
   el.innerHTML = '';
   for (let i = 0; i < moveHistory.length; i += 2) {
     const num = Math.floor(i / 2) + 1;
@@ -200,7 +201,7 @@ export function updateMoveLog() {
 }
 
 function updateDrawInfo() {
-  const el = document.getElementById('draw-info');
+  const el = domRefOptional('draw-info');
   if (!el) return;
 
   const repLabel = threefoldCount > 0 ? `Repetition: ${threefoldCount}/3` : '';
@@ -337,8 +338,8 @@ if (btnClaimDraw) {
 }
 
 // Export buttons
-const btnExportFen = document.getElementById('btn-export-fen');
-const btnExportPgn = document.getElementById('btn-export-pgn');
+const btnExportFen = domRef('btn-export-fen');
+const btnExportPgn = domRef('btn-export-pgn');
 
 btnExportFen.addEventListener('click', () => {
   sendExportFen();
@@ -348,11 +349,14 @@ btnExportPgn.addEventListener('click', () => {
   sendExportPgn();
 });
 
-const btnNewGame = document.getElementById('btn-new-game');
+const btnNewGame = domRef('btn-new-game');
+const gameOverOverlay = domRef('game-over-overlay');
+const gameOverText = domRef('game-over-text');
+
 btnNewGame.addEventListener('click', () => {
   if (myRole === 'spectator') return;
   sendRestart();
-  document.getElementById('game-over-overlay').classList.remove('visible');
+  gameOverOverlay.classList.remove('visible');
 });
 
 // ── Promotion picker ────────────────────────────────────
@@ -495,12 +499,12 @@ onStateUpdate((msg) => {
 
   // Game over
   if (serverGameOver && serverGameResult) {
-    document.getElementById('game-over-text').textContent = serverGameResult;
+    gameOverText.textContent = serverGameResult;
     btnNewGame.disabled = myRole === 'spectator';
-    document.getElementById('game-over-overlay').classList.add('visible');
+    gameOverOverlay.classList.add('visible');
   } else {
     btnNewGame.disabled = false;
-    document.getElementById('game-over-overlay').classList.remove('visible');
+    gameOverOverlay.classList.remove('visible');
   }
 
   // Promotion picker
@@ -533,7 +537,7 @@ onRestart(() => {
   hideConcedeConfirm();
   hideGiveUpSpotConfirm();
   hideDrawOffer();
-  document.getElementById('game-over-overlay').classList.remove('visible');
+  gameOverOverlay.classList.remove('visible');
 });
 
 onError((msg) => {
