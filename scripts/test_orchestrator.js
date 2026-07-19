@@ -23,6 +23,7 @@ const SERVER_TESTS = [
   'test/server/engine_serialization.test.js',
   'test/server/computer_player.test.js',
   'test/server/security.test.js',
+  'test/server/error_handling.test.js',
 ];
 
 const RED = '\033[0;31m';

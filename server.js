@@ -121,6 +121,43 @@ function buildWssOptions(server, allowedOrigins = []) {
   return opts;
 }
 
+/**
+ * Create a graceful shutdown handler for an HTTP server.
+ * Quits the Stockfish engine (catching any errors), closes the server,
+ * and exits the process. Force-exits after 5s if the server does not close.
+ * The force-exit timer starts immediately so a hung engine cannot block
+ * shutdown, but server.close() is deferred until the quit promise settles
+ * so the child process is not orphaned.
+ * @param {http.Server} server - The HTTP/HTTPS server to close
+ * @returns {function(string): void} Signal handler
+ */
+function createGracefulShutdown(server) {
+  return function gracefulShutdown(signal) {
+    console.log(`\n${signal} received. Shutting down...`);
+    const { getStockfishEngine: getEngine } = require('./shared/stockfish_engine');
+    const eng = getEngine();
+
+    // Start force-exit timer immediately so a hung engine cannot block shutdown.
+    const forceExitTimer = setTimeout(() => process.exit(1), 5000);
+
+    // Use Promise.resolve().then() so that a synchronous throw from eng.quit()
+    // is caught (Promise.resolve(eng.quit()) would not catch a sync throw because
+    // the call is evaluated before Promise.resolve runs).
+    Promise.resolve()
+      .then(() => eng.quit())
+      .catch((err) => {
+        console.error(`[Shutdown] Engine quit error: ${err.message}`);
+      })
+      .finally(() => {
+        server.close(() => {
+          clearTimeout(forceExitTimer);
+          console.log('Server closed.');
+          process.exit(0);
+        });
+      });
+  };
+}
+
 if (require.main === module) {
   // CLI help (check before loading config)
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
@@ -260,21 +297,9 @@ Examples:
   });
 
   // Graceful shutdown: quit Stockfish engine
-  const { getStockfishEngine: getEngine } = require('./shared/stockfish_engine');
-  function gracefulShutdown(signal) {
-    console.log(`\n${signal} received. Shutting down...`);
-    const eng = getEngine();
-    eng.quit().finally(() => {
-      server.close(() => {
-        console.log('Server closed.');
-        process.exit(0);
-      });
-      // Force exit after 5s
-      setTimeout(() => process.exit(1), 5000);
-    });
-  }
-  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  const shutdownHandler = createGracefulShutdown(server);
+  process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
+  process.on('SIGINT', () => shutdownHandler('SIGINT'));
 
   const HOST = config.host || DEFAULT_HOST;
 
@@ -294,4 +319,11 @@ Examples:
 }
 
 // Exported for testing
-module.exports = { setupWebSocketHandlers, requestHandler, MIME, CLIENT_ROOT, buildWssOptions };
+module.exports = {
+  setupWebSocketHandlers,
+  requestHandler,
+  MIME,
+  CLIENT_ROOT,
+  buildWssOptions,
+  createGracefulShutdown,
+};

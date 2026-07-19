@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "npm run ci",
-    "test:server": "node test/server/chess.test.js && node test/server/reconnect.test.js && node test/server/config.test.js && node test/server/stockfish.test.js && node test/server/leave.test.js && node test/server/engine_serialization.test.js && node test/server/computer_player.test.js && node test/server/security.test.js",
+    "test:server": "node test/server/chess.test.js && node test/server/reconnect.test.js && node test/server/config.test.js && node test/server/stockfish.test.js && node test/server/leave.test.js && node test/server/engine_serialization.test.js && node test/server/computer_player.test.js && node test/server/security.test.js && node test/server/error_handling.test.js",
     "test:client": "vitest run",
     "test:all": "npm run ci",
     "test:report": "node scripts/test_orchestrator.js",
