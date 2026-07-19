@@ -51,6 +51,11 @@ const browserGlobals = {
   HTMLDivElement: 'readonly',
   HTMLSelectElement: 'readonly',
   HTMLImageElement: 'readonly',
+  HTMLMediaElement: 'readonly',
+  HTMLUListElement: 'readonly',
+  HTMLOListElement: 'readonly',
+  HTMLAnchorElement: 'readonly',
+  HTMLTableElement: 'readonly',
   MouseEvent: 'readonly',
   KeyboardEvent: 'readonly',
   Event: 'readonly',
@@ -67,6 +72,7 @@ const browserGlobals = {
   AbortController: 'readonly',
   THREE: 'readonly',
   queueMicrotask: 'readonly',
+  getComputedStyle: 'readonly',
 };
 
 const testGlobals = {
