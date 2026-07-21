@@ -8,13 +8,16 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 - **Draw rules**: insufficient material (incl. K+N vs K+N), threefold repetition (Zobrist hashing), 50-move rule (manual claim), 75-move rule (forced)
 - **Real-time multiplayer** over WebSockets with server-authority move validation
 - **3D rendered board** with low-poly piece models (Three.js)
+- **Spectator mode**: watch a game in progress; take a seat if a player disconnects
 - **Session management**: token-based reconnection, seat holding with countdowns, drop player
 - **FEN import/export**: load custom positions via menu dialog or `--fen=` CLI; export FEN/PGN to clipboard
 - **PGN export**: full game notation with tags and result
+- **Computer player**: Stockfish engine with skill levels (beginner through grandmaster)
 - **TLS/HTTPS support**: `--cert=` / `--key=` / `--chain=` for secure deployments
 - **Config system**: CLI > env vars (`MPCHESS_*`) > config file > defaults
 - **Origin checking**: `--allowed-origins=` restricts WebSocket connections
-- **Rate limiting**: per-connection sliding window (60 msg/10s default)
+- **Rate limiting**: per-IP sliding window (60 msg/10s default)
+- **WebSocket payload limit**: 64 KB per message
 - **300+ passing tests**: chess engine, reconnection, config, UCI transport, client controls (run with `npm test`)
 
 ## Usage
@@ -71,6 +74,7 @@ npm start -- --port=8443 --cert=server.crt --key=server.key
 | `--slow-client-threshold=<bytes>`  | Slow-client buffered-amount threshold (default: 1048576)                |
 | `--min-move-delay=<ms>`            | Minimum delay between moves for animation (default: 500)                |
 | `--host=<address>`                 | Listen address (default: 0.0.0.0)                                       |
+| `--init-halfmove-clock=<n>`        | Initial halfmove clock value (testing; default: 0)                       |
 
 All options can also be set via environment variables (`MPCHESS_PORT`, `MPCHESS_FEN`, `MPCHESS_COMPUTER_ENABLED`, `MPCHESS_SEAT_TIMEOUT`, etc.) or a `config.jsonc` file (JSON with comments; plain `config.json` is also accepted for backwards compatibility). See [config.example.jsonc](config.example.jsonc) for reference. Config priority: CLI > env vars > config file > defaults.
 
@@ -84,9 +88,10 @@ If `--cert` is given without `--key` (or vice versa), the server logs a warning 
 
 ```bash
 npm test             # full CI check (build + lint + format + test + helm)
-npm run test:server  # server tests (chess, reconnect, config, stockfish)
+npm run test:server  # server tests (chess, reconnect, config, stockfish, etc.)
 npm run test:client  # client tests (controls, network)
 npm run test:all     # same as npm test (full CI check)
+npm run test:report  # run tests with consolidated JSON report
 npm run lint         # ESLint
 npm run lint:fix     # auto-fix ESLint issues
 npm run format       # Prettier format all files
@@ -104,10 +109,15 @@ test/
 │   ├── mocks/three.js        — Three.js mock classes for unit tests
 │   └── setup.js              — jsdom polyfills (requestPointerLock, etc.)
 └── server/
-    ├── chess.test.js         — Chess engine, moves, castling, promotion, FEN, security
-    ├── reconnect.test.js     — WebSocket sessions, reconnection, rate limiting
-    ├── config.test.js        — Config loading, CLI/env/file parsing, merge priority
-    └── stockfish.test.js     — UCI transport against live Stockfish binary (skipped if unavailable)
+    ├── chess.test.js             — Chess engine, moves, castling, promotion, FEN
+    ├── computer_player.test.js   — Stockfish integration, skill levels, move selection
+    ├── config.test.js            — Config loading, CLI/env/file parsing, merge priority
+    ├── engine_serialization.test.js — FEN serialization, position hashing
+    ├── error_handling.test.js    — Graceful error handling, edge cases
+    ├── leave.test.js             — Player leave, disconnect, seat management
+    ├── reconnect.test.js         — WebSocket sessions, reconnection, rate limiting
+    ├── security.test.js          — Input validation, move security, anti-cheat
+    └── stockfish.test.js         — UCI transport against live Stockfish binary (skipped if unavailable)
 ```
 
 Server tests use a minimal custom `describe`/`test` runner with Node's built-in `assert`. Client tests use Vitest with jsdom and a Three.js mock.
