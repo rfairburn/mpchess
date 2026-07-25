@@ -57,6 +57,56 @@ spec:
             - name: MPCHESS_DEBUG
               value: {{ .Values.server.debug | toString | quote }}
             {{- end }}
+            {{- if hasKey .Values.server "host" }}
+            - name: MPCHESS_HOST
+              value: {{ .Values.server.host | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "seatTimeout" }}
+            - name: MPCHESS_SEAT_TIMEOUT
+              value: {{ .Values.server.seatTimeout | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "joinTimeout" }}
+            - name: MPCHESS_JOIN_TIMEOUT
+              value: {{ .Values.server.joinTimeout | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "rateLimitMax" }}
+            - name: MPCHESS_RATE_LIMIT_MAX
+              value: {{ .Values.server.rateLimitMax | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "rateLimitWindow" }}
+            - name: MPCHESS_RATE_LIMIT_WINDOW
+              value: {{ .Values.server.rateLimitWindow | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "slowClientThreshold" }}
+            - name: MPCHESS_SLOW_CLIENT_THRESHOLD
+              value: {{ printf "%d" (int64 .Values.server.slowClientThreshold) | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "minMoveDelay" }}
+            - name: MPCHESS_MIN_MOVE_DELAY
+              value: {{ .Values.server.minMoveDelay | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "computerPlayer" }}
+            {{- if hasKey .Values.server.computerPlayer "enabled" }}
+            - name: MPCHESS_COMPUTER_ENABLED
+              value: {{ .Values.server.computerPlayer.enabled | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server.computerPlayer "stockfishPath" }}
+            - name: MPCHESS_COMPUTER_STOCKFISH_PATH
+              value: {{ .Values.server.computerPlayer.stockfishPath | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server.computerPlayer "spawnTimeout" }}
+            - name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+              value: {{ .Values.server.computerPlayer.spawnTimeout | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server.computerPlayer "moveTimeout" }}
+            - name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+              value: {{ .Values.server.computerPlayer.moveTimeout | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server.computerPlayer "skills" }}
+            - name: MPCHESS_COMPUTER_SKILLS
+              value: {{ .Values.server.computerPlayer.skills | toJson | quote }}
+            {{- end }}
+            {{- end }}
             {{- if .Values.tls.enabled }}
             - name: MPCHESS_CERT
               value: "/etc/tls/tls.crt"

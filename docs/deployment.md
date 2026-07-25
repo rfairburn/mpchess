@@ -261,49 +261,61 @@ microk8s helm uninstall mpchess --namespace mpchess
 
 ## Helm Values Reference
 
-| Parameter                                       | Description                                                        | Default                     |
-| ----------------------------------------------- | ------------------------------------------------------------------ | --------------------------- |
-| `image.repository`                              | Image name                                                         | `mpchess`                   |
-| `image.tag`                                     | Image tag                                                          | `latest`                    |
-| `image.pullPolicy`                              | Pull policy                                                        | `IfNotPresent`              |
-| `image.pullSecrets`                             | Registry pull secrets (list of `{name}`)                           | _(none)_                    |
-| `service.type`                                  | Kubernetes service type                                            | `ClusterIP`                 |
-| `service.port`                                  | Service port                                                       | `3000`                      |
-| `gateway.type`                                  | Gateway type: `httproute`, `ingress`, or `none`                    | `httproute`                 |
-| `gateway.name`                                  | Gateway resource name                                              | `mpchess`                   |
-| `gateway.className`                             | Gateway class name                                                 | `traefik`                   |
-| `gateway.host`                                  | Hostname for the route                                             | `chess.example.com`         |
-| `gateway.tlsSecretName`                         | TLS secret name                                                    | `mpchess-tls`               |
-| `gateway.issuer`                                | cert-manager ClusterIssuer name                                    | `letsencrypt-prod`          |
-| `gateway.ingressClassName`                      | Ingress class name (when `type=ingress`)                           | `nginx`                     |
-| `gateway.ingressController`                     | Controller type for rewrite annotations (`traefik`/`nginx`)        | _(none)_                    |
-| `gateway.ingressAnnotations`                    | Additional Ingress annotations                                     | _(none)_                    |
-| `gateway.backendTls.enabled`                    | Backend TLS to pod: `auto`/`true`/`false`                          | `auto`                      |
-| `gateway.backendTls.insecureSkipVerify`         | Skip backend cert verification (testing only)                      | `false`                     |
-| `server.port`                                   | Server listen port                                                 | `3000`                      |
-| `server.fen`                                    | Custom starting FEN                                                | _(none)_                    |
-| `server.initHalfmoveClock`                      | Initial halfmove clock (testing)                                   | `0`                         |
-| `server.allowedOrigins`                         | Allowed WebSocket origins                                          | _(none)_                    |
-| `server.prefix`                                 | URL prefix for subpath deployments                                 | _(none)_                    |
-| `config.enabled`                                | Mount config.jsonc from ConfigMap                                  | `false`                     |
-| `config.content`                                | JSON config content                                                | _(none)_                    |
-| `tls.enabled`                                   | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars)        | `false`                     |
-| `tls.secretName`                                | TLS secret for pod certificate                                     | `mpchess-tls`               |
-| `tls.caConfigMap`                               | CA ConfigMap for backend TLS verification (Gateway API)            | _(<tls.secretName>-ca)_     |
-| `tls.caSecretName`                              | CA Secret for backend TLS verification (Ingress)                   | _(<tls.secretName>-ca)_     |
-| `resources`                                     | Kubernetes resource limits/requests                                | see values.yaml             |
-| `nodeSelector`                                  | Node selector map                                                  | `{}`                        |
-| `tolerations`                                   | Tolerations list                                                   | `[]`                        |
-| `affinity`                                      | Affinity rules                                                     | `{}`                        |
-| `securityContext.enabled`                       | Enable pod/container security contexts                             | `true`                      |
-| `securityContext.pod.runAsNonRoot`              | Force non-root user                                                | `true`                      |
-| `securityContext.pod.runAsUser`                 | User ID                                                            | `100`                       |
-| `securityContext.pod.runAsGroup`                | Group ID                                                           | `101`                       |
-| `securityContext.pod.fsGroup`                   | Filesystem group ID                                                | `101`                       |
-| `securityContext.pod.seccompProfile.type`       | Seccomp profile                                                    | `RuntimeDefault`            |
-| `securityContext.container.allowPrivilegeEscalation` | Allow privilege escalation                                  | `false`                     |
-| `securityContext.container.readOnlyRootFilesystem` | Read-only root filesystem                                    | `true`                      |
-| `securityContext.container.capabilities.drop`   | Dropped Linux capabilities                                         | `ALL`                       |
+| Parameter                                            | Description                                                 | Default                 |
+| ---------------------------------------------------- | ----------------------------------------------------------- | ----------------------- |
+| `image.repository`                                   | Image name                                                  | `mpchess`               |
+| `image.tag`                                          | Image tag                                                   | `latest`                |
+| `image.pullPolicy`                                   | Pull policy                                                 | `IfNotPresent`          |
+| `image.pullSecrets`                                  | Registry pull secrets (list of `{name}`)                    | _(none)_                |
+| `service.type`                                       | Kubernetes service type                                     | `ClusterIP`             |
+| `service.port`                                       | Service port                                                | `3000`                  |
+| `gateway.type`                                       | Gateway type: `httproute`, `ingress`, or `none`             | `httproute`             |
+| `gateway.name`                                       | Gateway resource name                                       | `mpchess`               |
+| `gateway.className`                                  | Gateway class name                                          | `traefik`               |
+| `gateway.host`                                       | Hostname for the route                                      | `chess.example.com`     |
+| `gateway.tlsSecretName`                              | TLS secret name                                             | `mpchess-tls`           |
+| `gateway.issuer`                                     | cert-manager ClusterIssuer name                             | `letsencrypt-prod`      |
+| `gateway.ingressClassName`                           | Ingress class name (when `type=ingress`)                    | `nginx`                 |
+| `gateway.ingressController`                          | Controller type for rewrite annotations (`traefik`/`nginx`) | _(none)_                |
+| `gateway.ingressAnnotations`                         | Additional Ingress annotations                              | _(none)_                |
+| `gateway.backendTls.enabled`                         | Backend TLS to pod: `auto`/`true`/`false`                   | `auto`                  |
+| `gateway.backendTls.insecureSkipVerify`              | Skip backend cert verification (testing only)               | `false`                 |
+| `server.port`                                        | Server listen port                                          | `3000`                  |
+| `server.host`                                        | Listen address                                              | `0.0.0.0`               |
+| `server.fen`                                         | Custom starting FEN                                         | _(none)_                |
+| `server.initHalfmoveClock`                           | Initial halfmove clock (testing)                            | `0`                     |
+| `server.allowedOrigins`                              | Allowed WebSocket origins                                   | _(none)_                |
+| `server.prefix`                                      | URL prefix for subpath deployments                          | _(none)_                |
+| `server.seatTimeout`                                 | Reconnect seat reservation timeout (ms)                     | `60000`                 |
+| `server.joinTimeout`                                 | Join handshake timeout (ms)                                 | `5000`                  |
+| `server.rateLimitMax`                                | Max messages per rate-limit window                          | `60`                    |
+| `server.rateLimitWindow`                             | Rate-limit window duration (ms)                             | `10000`                 |
+| `server.slowClientThreshold`                         | Slow-client buffered-amount threshold (bytes)               | `1048576`               |
+| `server.minMoveDelay`                                | Minimum delay between moves (ms)                            | `500`                   |
+| `server.computerPlayer.enabled`                      | Enable computer player (Stockfish)                          | `true`                  |
+| `server.computerPlayer.stockfishPath`                | Path to Stockfish binary (empty = auto-resolve)             | _(auto)_                |
+| `server.computerPlayer.spawnTimeout`                 | Engine startup timeout (ms)                                 | `10000`                 |
+| `server.computerPlayer.moveTimeout`                  | Engine move timeout (ms)                                    | `30000`                 |
+| `server.computerPlayer.skills`                       | JSON skill-level overrides (merged with built-in presets)   | _(built-in)_            |
+| `config.enabled`                                     | Mount config.jsonc from ConfigMap                           | `false`                 |
+| `config.content`                                     | JSON config content                                         | _(none)_                |
+| `tls.enabled`                                        | Pod-level TLS (sets `MPCHESS_CERT`/`MPCHESS_KEY` env vars)  | `false`                 |
+| `tls.secretName`                                     | TLS secret for pod certificate                              | `mpchess-tls`           |
+| `tls.caConfigMap`                                    | CA ConfigMap for backend TLS verification (Gateway API)     | _(<tls.secretName>-ca)_ |
+| `tls.caSecretName`                                   | CA Secret for backend TLS verification (Ingress)            | _(<tls.secretName>-ca)_ |
+| `resources`                                          | Kubernetes resource limits/requests                         | see values.yaml         |
+| `nodeSelector`                                       | Node selector map                                           | `{}`                    |
+| `tolerations`                                        | Tolerations list                                            | `[]`                    |
+| `affinity`                                           | Affinity rules                                              | `{}`                    |
+| `securityContext.enabled`                            | Enable pod/container security contexts                      | `true`                  |
+| `securityContext.pod.runAsNonRoot`                   | Force non-root user                                         | `true`                  |
+| `securityContext.pod.runAsUser`                      | User ID                                                     | `100`                   |
+| `securityContext.pod.runAsGroup`                     | Group ID                                                    | `101`                   |
+| `securityContext.pod.fsGroup`                        | Filesystem group ID                                         | `101`                   |
+| `securityContext.pod.seccompProfile.type`            | Seccomp profile                                             | `RuntimeDefault`        |
+| `securityContext.container.allowPrivilegeEscalation` | Allow privilege escalation                                  | `false`                 |
+| `securityContext.container.readOnlyRootFilesystem`   | Read-only root filesystem                                   | `true`                  |
+| `securityContext.container.capabilities.drop`        | Dropped Linux capabilities                                  | `ALL`                   |
 
 ### Using a config file
 
@@ -419,49 +431,29 @@ All server settings can be configured via environment variables (prefixed `MPCHE
 The Helm chart exposes a subset as `server.*` values; the rest can be set via the
 `config` ConfigMap or by adding env entries directly to the deployment.
 
-| Env Var                           | Helm Value                 | Description                          | Default        |
-| --------------------------------- | -------------------------- | ------------------------------------ | -------------- |
-| `MPCHESS_PORT`                    | `server.port`              | HTTP/WebSocket listen port           | `3000`         |
-| `MPCHESS_FEN`                     | `server.fen`               | Custom starting FEN position         | standard setup |
-| `MPCHESS_INIT_HALFMOVE_CLOCK`     | `server.initHalfmoveClock` | Initial halfmove clock (testing)     | `0`            |
-| `MPCHESS_ALLOWED_ORIGINS`         | `server.allowedOrigins`    | Comma-separated WebSocket origins    | _(accept all)_ |
-| `MPCHESS_PREFIX`                  | `server.prefix`            | URL prefix for subpath deployments   | _(none)_       |
-| `MPCHESS_DEBUG`                   | `server.debug`             | Enable debug logging                 | `false`        |
-| `MPCHESS_HOST`                    | _(not exposed)_            | Listen address                       | `0.0.0.0`      |
-| `MPCHESS_SEAT_TIMEOUT`            | _(not exposed)_            | Reconnect seat reservation (ms)      | `60000`        |
-| `MPCHESS_JOIN_TIMEOUT`            | _(not exposed)_            | Join handshake timeout (ms)          | `5000`         |
-| `MPCHESS_RATE_LIMIT_MAX`          | _(not exposed)_            | Max messages per window              | `60`           |
-| `MPCHESS_RATE_LIMIT_WINDOW`       | _(not exposed)_            | Rate-limit window duration (ms)      | `10000`        |
-| `MPCHESS_SLOW_CLIENT_THRESHOLD`   | _(not exposed)_            | Slow-client buffer threshold (bytes) | `1048576`      |
-| `MPCHESS_MIN_MOVE_DELAY`          | _(not exposed)_            | Min delay between moves (ms)         | `500`          |
-| `MPCHESS_COMPUTER_ENABLED`        | _(not exposed)_            | Enable computer player               | `true`         |
-| `MPCHESS_COMPUTER_STOCKFISH_PATH` | _(not exposed)_            | Path to Stockfish binary             | _(auto)_       |
-| `MPCHESS_COMPUTER_SPAWN_TIMEOUT`  | _(not exposed)_            | Engine startup timeout (ms)          | `10000`        |
-| `MPCHESS_COMPUTER_MOVE_TIMEOUT`   | _(not exposed)_            | Engine move timeout (ms)             | `30000`        |
-| `MPCHESS_COMPUTER_SKILLS`         | _(not exposed)_            | JSON skill-level overrides           | _(built-in)_   |
-| `MPCHESS_CERT`                    | _(auto, via `tls`)_        | TLS certificate file path            | _(none)_       |
-| `MPCHESS_KEY`                     | _(auto, via `tls`)_        | TLS private key file path            | _(none)_       |
-| `MPCHESS_CHAIN`                   | _(not exposed)_            | TLS certificate chain file path      | _(none)_       |
-
-### Setting non-exposed values
-
-For settings not exposed as Helm values, use the `config` ConfigMap:
-
-```yaml
-config:
-  enabled: true
-  content: |
-    {
-      "rateLimitMax": 100,
-      "rateLimitWindow": 5000,
-      "seatTimeout": 120000,
-      "computerPlayer": {
-        "moveTimeout": 60000
-      }
-    }
-```
-
-Or add env vars directly to the deployment via `kubectl set env` or by patching the Deployment manifest. A Helm values overlay can set the documented `config.content` value, which is mounted as a config file read by the server.
+| Env Var                           | Helm Value                            | Description                          | Default        |
+| --------------------------------- | ------------------------------------- | ------------------------------------ | -------------- |
+| `MPCHESS_PORT`                    | `server.port`                         | HTTP/WebSocket listen port           | `3000`         |
+| `MPCHESS_FEN`                     | `server.fen`                          | Custom starting FEN position         | standard setup |
+| `MPCHESS_INIT_HALFMOVE_CLOCK`     | `server.initHalfmoveClock`            | Initial halfmove clock (testing)     | `0`            |
+| `MPCHESS_ALLOWED_ORIGINS`         | `server.allowedOrigins`               | Comma-separated WebSocket origins    | _(accept all)_ |
+| `MPCHESS_PREFIX`                  | `server.prefix`                       | URL prefix for subpath deployments   | _(none)_       |
+| `MPCHESS_DEBUG`                   | `server.debug`                        | Enable debug logging                 | `false`        |
+| `MPCHESS_HOST`                    | `server.host`                         | Listen address                       | `0.0.0.0`      |
+| `MPCHESS_SEAT_TIMEOUT`            | `server.seatTimeout`                  | Reconnect seat reservation (ms)      | `60000`        |
+| `MPCHESS_JOIN_TIMEOUT`            | `server.joinTimeout`                  | Join handshake timeout (ms)          | `5000`         |
+| `MPCHESS_RATE_LIMIT_MAX`          | `server.rateLimitMax`                 | Max messages per window              | `60`           |
+| `MPCHESS_RATE_LIMIT_WINDOW`       | `server.rateLimitWindow`              | Rate-limit window duration (ms)      | `10000`        |
+| `MPCHESS_SLOW_CLIENT_THRESHOLD`   | `server.slowClientThreshold`          | Slow-client buffer threshold (bytes) | `1048576`      |
+| `MPCHESS_MIN_MOVE_DELAY`          | `server.minMoveDelay`                 | Min delay between moves (ms)         | `500`          |
+| `MPCHESS_COMPUTER_ENABLED`        | `server.computerPlayer.enabled`       | Enable computer player               | `true`         |
+| `MPCHESS_COMPUTER_STOCKFISH_PATH` | `server.computerPlayer.stockfishPath` | Path to Stockfish binary             | _(auto)_       |
+| `MPCHESS_COMPUTER_SPAWN_TIMEOUT`  | `server.computerPlayer.spawnTimeout`  | Engine startup timeout (ms)          | `10000`        |
+| `MPCHESS_COMPUTER_MOVE_TIMEOUT`   | `server.computerPlayer.moveTimeout`   | Engine move timeout (ms)             | `30000`        |
+| `MPCHESS_COMPUTER_SKILLS`         | `server.computerPlayer.skills`        | JSON skill-level overrides           | _(built-in)_   |
+| `MPCHESS_CERT`                    | _(auto, via `tls`)_                   | TLS certificate file path            | _(none)_       |
+| `MPCHESS_KEY`                     | _(auto, via `tls`)_                   | TLS private key file path            | _(none)_       |
+| `MPCHESS_CHAIN`                   | _(not exposed)_                       | TLS certificate chain file path      | _(none)_       |
 
 ---
 

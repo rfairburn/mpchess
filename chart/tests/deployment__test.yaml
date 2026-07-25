@@ -82,18 +82,16 @@ tests:
         enabled: true
         secretName: my-tls-secret
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: MPCHESS_CERT
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: /etc/tls/tls.crt
-      - equal:
-          path: spec.template.spec.containers[0].env[2].name
-          value: MPCHESS_KEY
-      - equal:
-          path: spec.template.spec.containers[0].env[2].value
-          value: /etc/tls/tls.key
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_CERT
+            value: /etc/tls/tls.crt
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_KEY
+            value: /etc/tls/tls.key
       - equal:
           path: spec.template.spec.containers[0].volumeMounts[0].name
           value: tmp
@@ -198,36 +196,33 @@ tests:
       server:
         fen: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: MPCHESS_FEN
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_FEN
+            value: "4k3/8/8/8/8/8/8/4K2R w K - 0 1"
 
   - it: allowedOrigins adds MPCHESS_ALLOWED_ORIGINS env var
     set:
       server:
         allowedOrigins: "chess.example.com,localhost"
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: MPCHESS_ALLOWED_ORIGINS
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: "chess.example.com,localhost"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_ALLOWED_ORIGINS
+            value: "chess.example.com,localhost"
 
   - it: debug adds MPCHESS_DEBUG env var
     set:
       server:
         debug: true
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: MPCHESS_DEBUG
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_DEBUG
+            value: "true"
 
   - it: has liveness and readiness probes with HTTP scheme by default
     asserts:
@@ -333,12 +328,11 @@ tests:
       server:
         initHalfmoveClock: 98
     asserts:
-      - equal:
-          path: spec.template.spec.containers[0].env[1].name
-          value: MPCHESS_INIT_HALFMOVE_CLOCK
-      - equal:
-          path: spec.template.spec.containers[0].env[1].value
-          value: "98"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_INIT_HALFMOVE_CLOCK
+            value: "98"
 
   - it: initHalfmoveClock env var is absent when unset
     asserts:
@@ -346,3 +340,423 @@ tests:
           path: spec.template.spec.containers[0].env
           content:
             name: MPCHESS_INIT_HALFMOVE_CLOCK
+
+  # ── New server settings (Feature #6 / D4) ──
+
+  - it: default host env var is rendered
+    set:
+      server:
+        host: "0.0.0.0"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_HOST
+            value: "0.0.0.0"
+
+  - it: custom host overrides default
+    set:
+      server:
+        host: "127.0.0.1"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_HOST
+            value: "127.0.0.1"
+
+  - it: seatTimeout adds MPCHESS_SEAT_TIMEOUT env var
+    set:
+      server:
+        seatTimeout: 120000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SEAT_TIMEOUT
+            value: "120000"
+
+  - it: joinTimeout adds MPCHESS_JOIN_TIMEOUT env var
+    set:
+      server:
+        joinTimeout: 10000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_JOIN_TIMEOUT
+            value: "10000"
+
+  - it: rateLimitMax adds MPCHESS_RATE_LIMIT_MAX env var
+    set:
+      server:
+        rateLimitMax: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_RATE_LIMIT_MAX
+            value: "100"
+
+  - it: rateLimitWindow adds MPCHESS_RATE_LIMIT_WINDOW env var
+    set:
+      server:
+        rateLimitWindow: 5000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_RATE_LIMIT_WINDOW
+            value: "5000"
+
+  - it: slowClientThreshold adds MPCHESS_SLOW_CLIENT_THRESHOLD env var
+    set:
+      server:
+        slowClientThreshold: 2097152
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SLOW_CLIENT_THRESHOLD
+            value: "2097152"
+
+  - it: minMoveDelay adds MPCHESS_MIN_MOVE_DELAY env var
+    set:
+      server:
+        minMoveDelay: 1000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_MIN_MOVE_DELAY
+            value: "1000"
+
+  - it: computerPlayer.enabled adds MPCHESS_COMPUTER_ENABLED env var
+    set:
+      server:
+        computerPlayer:
+          enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+            value: "true"
+
+  - it: computerPlayer.enabled=false adds MPCHESS_COMPUTER_ENABLED env var
+    set:
+      server:
+        computerPlayer:
+          enabled: false
+          stockfishPath: ""
+          spawnTimeout: 10000
+          moveTimeout: 30000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+            value: "false"
+
+  - it: computerPlayer.stockfishPath adds MPCHESS_COMPUTER_STOCKFISH_PATH env var
+    set:
+      server:
+        computerPlayer:
+          stockfishPath: "/usr/bin/stockfish"
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_STOCKFISH_PATH
+            value: "/usr/bin/stockfish"
+
+  - it: computerPlayer.spawnTimeout adds MPCHESS_COMPUTER_SPAWN_TIMEOUT env var
+    set:
+      server:
+        computerPlayer:
+          spawnTimeout: 15000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+            value: "15000"
+
+  - it: computerPlayer.moveTimeout adds MPCHESS_COMPUTER_MOVE_TIMEOUT env var
+    set:
+      server:
+        computerPlayer:
+          moveTimeout: 60000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+            value: "60000"
+
+  - it: computerPlayer.skills adds MPCHESS_COMPUTER_SKILLS env var as JSON
+    set:
+      server:
+        computerPlayer:
+          skills:
+            beginner:
+              movetime: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SKILLS
+            value: "{\"beginner\":{\"movetime\":100}}"
+
+  - it: all new server settings rendered together
+    set:
+      server:
+        host: "127.0.0.1"
+        seatTimeout: 120000
+        joinTimeout: 10000
+        rateLimitMax: 100
+        rateLimitWindow: 5000
+        slowClientThreshold: 2097152
+        minMoveDelay: 1000
+        computerPlayer:
+          enabled: true
+          stockfishPath: "/usr/bin/stockfish"
+          spawnTimeout: 15000
+          moveTimeout: 60000
+          skills:
+            beginner:
+              movetime: 100
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_HOST
+            value: "127.0.0.1"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SEAT_TIMEOUT
+            value: "120000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_JOIN_TIMEOUT
+            value: "10000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_RATE_LIMIT_MAX
+            value: "100"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_RATE_LIMIT_WINDOW
+            value: "5000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SLOW_CLIENT_THRESHOLD
+            value: "2097152"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_MIN_MOVE_DELAY
+            value: "1000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+            value: "true"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_STOCKFISH_PATH
+            value: "/usr/bin/stockfish"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+            value: "15000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+            value: "60000"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SKILLS
+            value: '{"beginner":{"movetime":100}}'
+
+  # ── Zero-value tests (truthiness → key-presence fix) ──
+
+  - it: minMoveDelay zero renders as "0"
+    set:
+      server:
+        minMoveDelay: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_MIN_MOVE_DELAY
+            value: "0"
+
+  - it: rateLimitMax zero renders as "0"
+    set:
+      server:
+        rateLimitMax: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_RATE_LIMIT_MAX
+            value: "0"
+
+  - it: seatTimeout zero renders as "0"
+    set:
+      server:
+        seatTimeout: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SEAT_TIMEOUT
+            value: "0"
+
+  - it: slowClientThreshold zero renders as "0"
+    set:
+      server:
+        slowClientThreshold: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_SLOW_CLIENT_THRESHOLD
+            value: "0"
+
+  - it: computerPlayer.spawnTimeout zero renders as "0"
+    set:
+      server:
+        computerPlayer:
+          enabled: true
+          stockfishPath: ""
+          spawnTimeout: 0
+          moveTimeout: 30000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+            value: "0"
+
+  - it: computerPlayer.moveTimeout zero renders as "0"
+    set:
+      server:
+        computerPlayer:
+          enabled: true
+          stockfishPath: ""
+          spawnTimeout: 10000
+          moveTimeout: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+            value: "0"
+
+  # ── Partial computerPlayer tests (hasKey guards) ──
+
+  - it: partial computerPlayer with only moveTimeout renders only that env var
+    set:
+      server:
+        computerPlayer:
+          moveTimeout: 60000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+            value: "60000"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_STOCKFISH_PATH
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SKILLS
+
+  - it: partial computerPlayer with only spawnTimeout renders only that env var
+    set:
+      server:
+        computerPlayer:
+          spawnTimeout: 15000
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SPAWN_TIMEOUT
+            value: "15000"
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_MOVE_TIMEOUT
+
+  - it: computerPlayer.enabled=false renders enabled as "false"
+    set:
+      server:
+        computerPlayer:
+          enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_ENABLED
+            value: "false"
+
+  - it: computerPlayer.stockfishPath empty string renders as empty
+    set:
+      server:
+        computerPlayer:
+          stockfishPath: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_STOCKFISH_PATH
+            value: ""
+
+  - it: computerPlayer.skills empty object renders as empty JSON
+    set:
+      server:
+        computerPlayer:
+          skills: {}
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_COMPUTER_SKILLS
+            value: "{}"
+
+  - it: host empty string renders as empty
+    set:
+      server:
+        host: ""
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: MPCHESS_HOST
+            value: ""

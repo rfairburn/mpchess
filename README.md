@@ -74,7 +74,7 @@ npm start -- --port=8443 --cert=server.crt --key=server.key
 | `--slow-client-threshold=<bytes>`  | Slow-client buffered-amount threshold (default: 1048576)                |
 | `--min-move-delay=<ms>`            | Minimum delay between moves for animation (default: 500)                |
 | `--host=<address>`                 | Listen address (default: 0.0.0.0)                                       |
-| `--init-halfmove-clock=<n>`        | Initial halfmove clock value (testing; default: 0)                       |
+| `--init-halfmove-clock=<n>`        | Initial halfmove clock value (testing; default: 0)                      |
 
 All options can also be set via environment variables (`MPCHESS_PORT`, `MPCHESS_FEN`, `MPCHESS_COMPUTER_ENABLED`, `MPCHESS_SEAT_TIMEOUT`, etc.) or a `config.jsonc` file (JSON with comments; plain `config.json` is also accepted for backwards compatibility). See [config.example.jsonc](config.example.jsonc) for reference. Config priority: CLI > env vars > config file > defaults.
 
