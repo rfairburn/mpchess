@@ -31,6 +31,7 @@ const DOM_HTML = `
 <div id="turn-indicator"></div>
 <div id="computer-thinking"></div>
 <div id="mouse-mode"></div>
+<button id="btn-menu-toggle"></button>
 <div id="role-badge"></div>
 <div id="player-count"></div>
 <div id="captured-white"><span class="cap-pieces"></span></div>

@@ -52,6 +52,17 @@ export let yaw = 0,
 const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 export let mouseLookOn = false;
+
+export function toggleMouseMode() {
+  mouseLookOn = !mouseLookOn;
+  updateMouseModeDisplay(mouseLookOn);
+  if (mouseLookOn) {
+    _renderer?.domElement?.requestPointerLock();
+  } else {
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+}
+
 let _renderer = null;
 let _camera = null;
 let _hud = null;
@@ -122,13 +133,7 @@ document.addEventListener('keydown', (e) => {
   }
   if (e.code === 'Tab') {
     e.preventDefault();
-    mouseLookOn = !mouseLookOn;
-    updateMouseModeDisplay(mouseLookOn);
-    if (mouseLookOn) {
-      _renderer?.domElement?.requestPointerLock();
-    } else {
-      if (document.pointerLockElement) document.exitPointerLock();
-    }
+    toggleMouseMode();
     return;
   }
   // Camera warp keys: 1-6
@@ -148,6 +153,9 @@ document.addEventListener('pointerlockchange', () => {
   const locked = document.pointerLockElement === _renderer.domElement;
   if (!locked && mouseLookOn) {
     mouseLookOn = false;
+    updateMouseModeDisplay(mouseLookOn);
+  } else if (locked && !mouseLookOn) {
+    mouseLookOn = true;
     updateMouseModeDisplay(mouseLookOn);
   }
 });

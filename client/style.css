@@ -104,6 +104,7 @@ body {
 }
 canvas {
   display: block;
+  touch-action: none;
 }
 #hud {
   position: fixed;
@@ -161,7 +162,8 @@ canvas {
 #mouse-mode {
   position: fixed;
   top: 20px;
-  right: 20px;
+  right: 60px;
+  height: 36px;
   color: #f0d9b5;
   font:
     13px/1.4 'Segoe UI',
@@ -170,11 +172,73 @@ canvas {
     Verdana,
     sans-serif;
   background: rgba(20, 14, 8, 0.85);
-  padding: 8px 16px;
+  padding: 0 16px;
   border-radius: 8px;
   border: 1px solid rgba(181, 136, 99, 0.3);
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  transition: background 0.2s;
+}
+#mouse-mode:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+#btn-menu-toggle {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 36px;
+  height: 36px;
+  color: #f0d9b5;
+  font:
+    bold 18px 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 0;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+#btn-menu-toggle::before {
+  content: '☰';
+  display: inline-block;
+  transform: translateY(-1px);
+}
+#btn-menu-toggle:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+#role-badge {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  color: #f0d9b5;
+  font:
+    bold 16px/1.4 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(20, 14, 8, 0.9);
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: 2px solid rgba(181, 136, 99, 0.5);
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s;
+}
+#role-badge:hover {
+  background: rgba(40, 30, 20, 0.95);
 }
 #btn-claim-draw {
   position: fixed;

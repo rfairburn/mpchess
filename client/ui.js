@@ -35,7 +35,7 @@ import {
   onPlayerLeft,
   onFenImportWarning,
 } from './network.js';
-import { setCameraForRole } from './controls.js';
+import { setCameraForRole, toggleMouseMode } from './controls.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 
@@ -58,6 +58,7 @@ const roleBadge = domRef('role-badge');
 const playerCountEl = domRef('player-count');
 const turnIndicator = domRef('turn-indicator');
 const mouseModeEl = domRef('mouse-mode');
+const btnMenuToggle = domRef('btn-menu-toggle');
 const btnClaimDraw = domRefOptional('btn-claim-draw');
 const menuOverlay = domRef('menu-overlay');
 const btnResume = domRef('btn-resume');
@@ -95,6 +96,33 @@ const drawOfferOverlay = domRef('draw-offer-overlay');
 const drawOfferText = domRef('draw-offer-text');
 const btnDrawAccept = domRef('btn-draw-accept');
 const btnDrawDecline = domRef('btn-draw-decline');
+
+// ── Mobile tap targets ───────────────────────────────────
+
+mouseModeEl.addEventListener('click', () => {
+  if (menuOpen) return;
+  toggleMouseMode();
+});
+
+btnMenuToggle.addEventListener('click', () => {
+  if (menuOpen) {
+    hideMenu();
+  } else {
+    showMenu();
+  }
+});
+
+roleBadge.addEventListener('click', () => {
+  if (menuOpen) return;
+  showMenu();
+});
+
+// Close menu when clicking outside the menu box (mobile-native)
+menuOverlay.addEventListener('click', (e) => {
+  if (e.target === menuOverlay && menuOpen) {
+    hideMenu();
+  }
+});
 
 export let menuOpen = false;
 

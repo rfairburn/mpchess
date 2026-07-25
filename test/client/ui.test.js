@@ -35,6 +35,7 @@ vi.mock('../../client/network.js', () => ({
 
 vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
+  toggleMouseMode: vi.fn(),
   CONTROLS_CONFIG: {
     defaultMouseSensitivity: 0.002,
     sensitivityMin: 0.0002,
@@ -71,12 +72,15 @@ vi.mock('../../client/ui/connection.js', () => ({}));
 // ── Helper: create minimal DOM elements ui.js needs at load time ──
 
 function createMinimalDOM() {
+  document.body.innerHTML = '';
   const ids = [
     'role-badge',
     'player-count',
     'turn-indicator',
     'mouse-mode',
+    'btn-menu-toggle',
     'menu-overlay',
+    'menu-box',
     'btn-resume',
     'btn-give-up-spot',
     'btn-reconnect-as-player',
@@ -115,6 +119,11 @@ function createMinimalDOM() {
     el.id = id;
     document.body.appendChild(el);
   }
+
+  // Nest menu-box inside menu-overlay (matches real DOM structure)
+  const menuOverlay = document.getElementById('menu-overlay');
+  const menuBox = document.getElementById('menu-box');
+  menuOverlay.appendChild(menuBox);
 
   // sensitivity-slider is an <input type="range">
   const slider = document.createElement('input');
@@ -219,5 +228,70 @@ describe('ui.js — updateMoveLog', () => {
     network.moveHistory = [];
     updateMoveLog();
     expect(document.getElementById('move-log').children.length).toBe(0);
+  });
+});
+
+describe('ui.js — mobile tap targets', () => {
+  let controls;
+  let ui;
+
+  beforeEach(async () => {
+    vi.resetModules();
+
+    createMinimalDOM();
+
+    controls = await import('../../client/controls.js');
+    ui = await import('../../client/ui.js');
+    controls.toggleMouseMode.mockReset();
+  });
+
+  it('clicking #mouse-mode calls toggleMouseMode', () => {
+    document.getElementById('mouse-mode').click();
+    expect(controls.toggleMouseMode).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking #mouse-mode does nothing when menu is open', () => {
+    ui.showMenu();
+    document.getElementById('mouse-mode').click();
+    expect(controls.toggleMouseMode).not.toHaveBeenCalled();
+  });
+
+  it('clicking hamburger opens menu when closed', () => {
+    expect(ui.menuOpen).toBe(false);
+    document.getElementById('btn-menu-toggle').click();
+    expect(document.getElementById('menu-overlay').classList.contains('visible')).toBe(true);
+  });
+
+  it('clicking hamburger closes menu when open', () => {
+    ui.showMenu();
+    expect(ui.menuOpen).toBe(true);
+    document.getElementById('btn-menu-toggle').click();
+    expect(ui.menuOpen).toBe(false);
+    expect(document.getElementById('menu-overlay').classList.contains('visible')).toBe(false);
+  });
+
+  it('clicking #role-badge opens menu', () => {
+    document.getElementById('role-badge').click();
+    expect(document.getElementById('menu-overlay').classList.contains('visible')).toBe(true);
+  });
+
+  it('clicking #role-badge does nothing when menu is open', () => {
+    ui.showMenu();
+    vi.clearAllMocks();
+    document.getElementById('role-badge').click();
+    expect(ui.menuOpen).toBe(true);
+  });
+
+  it('clicking overlay background closes menu', () => {
+    ui.showMenu();
+    document.getElementById('menu-overlay').click();
+    expect(ui.menuOpen).toBe(false);
+    expect(document.getElementById('menu-overlay').classList.contains('visible')).toBe(false);
+  });
+
+  it('clicking inside menu box does not close menu', () => {
+    ui.showMenu();
+    document.getElementById('menu-box')?.click();
+    expect(ui.menuOpen).toBe(true);
   });
 });
