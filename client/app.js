@@ -23,6 +23,8 @@ import {
   yaw,
   pitch,
   mouseLookOn,
+  getJoystickVector,
+  getVJoyValue,
 } from './controls.js';
 
 // ── Materials ────────────────────────────────────────────
@@ -170,12 +172,30 @@ const _camUp = new THREE.Vector3(0, 1, 0);
     _camFwdH.copy(_camFwd).setY(0).normalize();
     _camRight.crossVectors(_camFwdH, _camUp).normalize();
     const speed = 8 * dt;
+
+    // Keyboard WASD
     if (keys.KeyW) camera.position.addScaledVector(_camFwdH, speed);
     if (keys.KeyS) camera.position.addScaledVector(_camFwdH, -speed);
     if (keys.KeyA) camera.position.addScaledVector(_camRight, -speed);
     if (keys.KeyD) camera.position.addScaledVector(_camRight, speed);
     if (keys.KeyQ) camera.position.y += speed;
     if (keys.KeyE) camera.position.y -= speed;
+
+    // M4.1 — Virtual joystick movement
+    const jv = getJoystickVector();
+    if (jv.x !== 0 || jv.y !== 0) {
+      const jSpeed = 8 * dt;
+      // joystick y: negative = forward (W), positive = backward (S)
+      camera.position.addScaledVector(_camFwdH, -jv.y * jSpeed);
+      // joystick x: negative = left (A), positive = right (D)
+      camera.position.addScaledVector(_camRight, jv.x * jSpeed);
+    }
+
+    // M4.1 — Vertical joystick (Q/E equivalent: up/down camera movement)
+    const vj = getVJoyValue();
+    if (vj !== 0) {
+      camera.position.y -= vj * 8 * dt; // negative = up, positive = down
+    }
   }
 
   // Update piece animations

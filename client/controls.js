@@ -53,6 +53,70 @@ const euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 export let mouseLookOn = false;
 
+// ── Joystick state (M4.0) ────────────────────────────────
+
+let joystickEnabled = false;
+
+export function setJoystickEnabled(state) {
+  joystickEnabled = state;
+  updateJoystickVisibility();
+}
+
+export function isJoystickEnabled() {
+  return joystickEnabled;
+}
+
+function updateJoystickVisibility() {
+  const joystickEl = document.getElementById('virtual-joystick');
+  const lookAreaEl = document.getElementById('virtual-look-area');
+  const vJoyEl = document.getElementById('vertical-joystick');
+  const show = mouseLookOn && joystickEnabled && !menuOpen;
+
+  if (joystickEl) joystickEl.classList.toggle('visible', show);
+  if (lookAreaEl) lookAreaEl.classList.toggle('visible', show);
+  if (vJoyEl) vJoyEl.classList.toggle('visible', show);
+
+  // When controls become inactive, clear all touch state to prevent
+  // stale input after pointer-lock loss, fullscreen exit, or orientation change.
+  if (!show) {
+    joystickTouchId = null;
+    vJoyTouchId = null;
+    lookTouchId = null;
+    joystickVector.x = 0;
+    joystickVector.y = 0;
+    vJoyValue = 0;
+    if (joystickStick) {
+      joystickStick.style.transform = 'translate(-50%, -50%)';
+    }
+    if (vJoyThumb) {
+      vJoyThumb.style.top = '50%';
+      vJoyThumb.style.transform = 'translate(-50%, -50%)';
+    }
+  }
+
+  // Camera buttons: visible when in camera mode (always on desktop, landscape on mobile)
+  updateCameraButtonsVisibility();
+}
+
+function updateCameraButtonsVisibility() {
+  const camPosEl = document.getElementById('camera-positions');
+  if (!camPosEl) return;
+
+  // On mobile, show only in landscape
+  const hasTouch =
+    navigator.maxTouchPoints > 0 ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  const isMobile = hasTouch && Math.min(window.innerWidth, window.innerHeight) <= 768;
+
+  if (isMobile && window.innerWidth < window.innerHeight) {
+    // Mobile portrait — hide
+    camPosEl.classList.remove('visible');
+  } else {
+    // Desktop or mobile landscape — always show
+    camPosEl.classList.add('visible');
+  }
+}
+
 export function toggleMouseMode() {
   mouseLookOn = !mouseLookOn;
   updateMouseModeDisplay(mouseLookOn);
@@ -61,6 +125,7 @@ export function toggleMouseMode() {
   } else {
     if (document.pointerLockElement) document.exitPointerLock();
   }
+  updateJoystickVisibility();
 }
 
 let _renderer = null;
@@ -154,9 +219,11 @@ document.addEventListener('pointerlockchange', () => {
   if (!locked && mouseLookOn) {
     mouseLookOn = false;
     updateMouseModeDisplay(mouseLookOn);
+    updateJoystickVisibility();
   } else if (locked && !mouseLookOn) {
     mouseLookOn = true;
     updateMouseModeDisplay(mouseLookOn);
+    updateJoystickVisibility();
   }
 });
 
@@ -553,3 +620,209 @@ onRestart(() => {
   dragStartPos = null;
   dragCompleted = false;
 });
+
+// ── M4.1 — Virtual joystick touch handlers ───────────────
+
+const joystickBase = document.getElementById('joystick-base');
+const joystickStick = document.getElementById('joystick-stick');
+const lookArea = document.getElementById('virtual-look-area');
+const vJoyTrack = document.getElementById('vjoy-track');
+const vJoyThumb = document.getElementById('vjoy-thumb');
+
+let joystickTouchId = null;
+let lookTouchId = null;
+let vJoyTouchId = null;
+let joystickCenterX = 0;
+let joystickCenterY = 0;
+let joystickVector = { x: 0, y: 0 }; // normalized -1..1
+const JOYSTICK_RADIUS = 50; // half of 100px base
+let lookPrevX = 0;
+let lookPrevY = 0;
+let vJoyValue = 0; // normalized -1..1 (up=+1, down=-1)
+
+function handleJoystickStart(e) {
+  if (!mouseLookOn || !joystickEnabled) return;
+  const t = e.changedTouches?.[0] || e.touches?.[0];
+  if (!t) return;
+  joystickTouchId = t.identifier;
+  const rect = joystickBase.getBoundingClientRect();
+  joystickCenterX = rect.left + rect.width / 2;
+  joystickCenterY = rect.top + rect.height / 2;
+  handleJoystickMove(e);
+}
+
+function handleJoystickMove(e) {
+  if (joystickTouchId === null) return;
+  for (const t of e.touches) {
+    if (t.identifier === joystickTouchId) {
+      let dx = t.clientX - joystickCenterX;
+      let dy = t.clientY - joystickCenterY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > JOYSTICK_RADIUS) {
+        dx = (dx / dist) * JOYSTICK_RADIUS;
+        dy = (dy / dist) * JOYSTICK_RADIUS;
+      }
+      joystickStick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      joystickVector.x = dx / JOYSTICK_RADIUS;
+      joystickVector.y = dy / JOYSTICK_RADIUS;
+      break;
+    }
+  }
+}
+
+function handleJoystickEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === joystickTouchId) {
+      joystickTouchId = null;
+      joystickStick.style.transform = 'translate(-50%, -50%)';
+      joystickVector.x = 0;
+      joystickVector.y = 0;
+      break;
+    }
+  }
+}
+
+function handleVJoyStart(e) {
+  if (!mouseLookOn || !joystickEnabled) return;
+  const t = e.changedTouches?.[0] || e.touches?.[0];
+  if (!t) return;
+  vJoyTouchId = t.identifier;
+  handleVJoyMove(e);
+}
+
+function handleVJoyMove(e) {
+  if (vJoyTouchId === null) return;
+  const trackRect = vJoyTrack.getBoundingClientRect();
+  const trackHeight = trackRect.height;
+  for (const t of e.touches) {
+    if (t.identifier === vJoyTouchId) {
+      // Normalize touch Y within the track: -1 (top) to +1 (bottom)
+      let val = ((t.clientY - trackRect.top) / trackHeight) * 2 - 1;
+      val = Math.max(-1, Math.min(1, val));
+      vJoyValue = val;
+      // Position thumb
+      const pct = (val + 1) / 2; // 0..1
+      vJoyThumb.style.top = `${pct * 100}%`;
+      vJoyThumb.style.transform = 'translate(-50%, -50%)';
+      break;
+    }
+  }
+}
+
+function handleVJoyEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === vJoyTouchId) {
+      vJoyTouchId = null;
+      vJoyValue = 0;
+      vJoyThumb.style.top = '50%';
+      vJoyThumb.style.transform = 'translate(-50%, -50%)';
+      break;
+    }
+  }
+}
+
+if (joystickBase) {
+  joystickBase.addEventListener('touchstart', handleJoystickStart, { passive: false });
+  document.addEventListener('touchmove', handleJoystickMove, { passive: false });
+  document.addEventListener('touchend', handleJoystickEnd, { passive: false });
+  document.addEventListener('touchcancel', handleJoystickEnd);
+}
+
+if (vJoyTrack) {
+  vJoyTrack.addEventListener('touchstart', handleVJoyStart, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    function (e) {
+      if (vJoyTouchId !== null) {
+        e.preventDefault();
+        handleVJoyMove(e);
+      }
+    },
+    { passive: false }
+  );
+  document.addEventListener('touchend', handleVJoyEnd, { passive: false });
+  document.addEventListener('touchcancel', handleVJoyEnd);
+}
+
+// ── Look area: touch-drag for yaw/pitch (mouse look) ────
+
+function handleLookStart(e) {
+  if (!mouseLookOn || !joystickEnabled) return;
+  // Only handle touches that started directly on the look area,
+  // not on child elements like the vertical joystick.
+  if (e.target !== lookArea) return;
+  const t = e.changedTouches?.[0] || e.touches?.[0];
+  if (!t) return;
+  lookTouchId = t.identifier;
+  lookPrevX = t.clientX;
+  lookPrevY = t.clientY;
+}
+
+function handleLookMove(e) {
+  if (lookTouchId === null) return;
+  for (const t of e.changedTouches) {
+    if (t.identifier === lookTouchId) {
+      const dx = t.clientX - lookPrevX;
+      const dy = t.clientY - lookPrevY;
+      lookPrevX = t.clientX;
+      lookPrevY = t.clientY;
+      yaw -= dx * mouseSensitivity * 3;
+      pitch -= dy * mouseSensitivity * 3;
+      pitch = Math.max(CONTROLS_CONFIG.pitchMin, Math.min(CONTROLS_CONFIG.pitchMax, pitch));
+      break;
+    }
+  }
+}
+
+function handleLookEnd(e) {
+  for (const t of e.changedTouches) {
+    if (t.identifier === lookTouchId) {
+      lookTouchId = null;
+      break;
+    }
+  }
+}
+
+if (lookArea) {
+  lookArea.addEventListener('touchstart', handleLookStart, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    function (e) {
+      if (lookTouchId !== null) {
+        e.preventDefault();
+        handleLookMove(e);
+      }
+    },
+    { passive: false }
+  );
+  document.addEventListener('touchend', handleLookEnd, { passive: false });
+  document.addEventListener('touchcancel', handleLookEnd);
+}
+
+// ── M4.1 — Apply joystick WASD movement in animation loop ─
+
+export function getJoystickVector() {
+  return { ...joystickVector };
+}
+
+export function getVJoyValue() {
+  return vJoyValue;
+}
+
+// ── M4.2 — Camera position buttons ──────────────────────
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('#camera-positions button');
+  if (btn) {
+    const pos = parseInt(btn.dataset.pos, 10);
+    if (pos >= 1 && pos <= 6) {
+      warpCamera(pos);
+    }
+  }
+});
+
+// Update camera buttons visibility on resize
+window.addEventListener('resize', updateCameraButtonsVisibility);
+
+// Initial visibility check on load
+updateCameraButtonsVisibility();

@@ -37,7 +37,7 @@ import {
   onPlayerLeft,
   onFenImportWarning,
 } from './network.js';
-import { setCameraForRole, toggleMouseMode } from './controls.js';
+import { setCameraForRole, toggleMouseMode, setJoystickEnabled } from './controls.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 
@@ -247,6 +247,23 @@ window.addEventListener('orientationchange', () => {
   }
 });
 
+// ── M3.5.1 — Portrait HUD hiding ────────────────────────
+
+function updatePortraitMobileClass() {
+  if (!isMobilePhone()) {
+    document.body.classList.remove('portrait-mobile');
+    return;
+  }
+  if (window.innerWidth < window.innerHeight) {
+    document.body.classList.add('portrait-mobile');
+  } else {
+    document.body.classList.remove('portrait-mobile');
+  }
+}
+
+window.addEventListener('resize', updatePortraitMobileClass);
+updatePortraitMobileClass();
+
 // ── Mouse sensitivity ────────────────────────────────────
 // Logarithmic scale: slider 1–100 maps to ~0.0002–~0.004.
 // Linear mapping (v * 0.0001) gave 0.0001–0.01, where the upper end was
@@ -291,6 +308,22 @@ sensitivitySlider.addEventListener('input', () => {
   sensitivityValue.textContent = v;
   localStorage.setItem('mouseSensitivity', String(mouseSensitivity));
 });
+
+// ── M4.0 — Virtual joystick toggle ──────────────────────
+
+const joystickToggle = document.getElementById('joystick-toggle');
+if (joystickToggle) {
+  const saved = localStorage.getItem('virtualJoystick');
+  const enabled = saved ? saved === 'true' : false;
+  joystickToggle.checked = enabled;
+  setJoystickEnabled(enabled);
+
+  joystickToggle.addEventListener('change', () => {
+    const state = joystickToggle.checked;
+    localStorage.setItem('virtualJoystick', String(state));
+    setJoystickEnabled(state);
+  });
+}
 
 // ── Display helpers ──────────────────────────────────────
 

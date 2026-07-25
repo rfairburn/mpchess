@@ -71,6 +71,13 @@
           <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
           <span id="sensitivity-value">20</span>
         </div>
+        <div id="joystick-toggle-row">
+          <label for="joystick-toggle">Virtual Joystick</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="joystick-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
         <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
       </div>
     </div>
@@ -206,6 +213,29 @@
     <div id="game-available-banner">
       <span>Game available — both players disconnected</span>
       <button id="btn-join-game">Join Game</button>
+    </div>
+
+    <!-- Virtual joystick for camera control (M4.1) -->
+    <div id="virtual-joystick" class="hidden">
+      <div id="joystick-base">
+        <div id="joystick-stick"></div>
+      </div>
+    </div>
+    <div id="virtual-look-area" class="hidden"></div>
+    <div id="vertical-joystick" class="hidden">
+      <div id="vjoy-track">
+        <div id="vjoy-thumb"></div>
+      </div>
+    </div>
+
+    <!-- Camera position buttons (M4.2) -->
+    <div id="camera-positions" class="hidden">
+      <button data-pos="1">1</button>
+      <button data-pos="2">2</button>
+      <button data-pos="3">3</button>
+      <button data-pos="4">4</button>
+      <button data-pos="5">5</button>
+      <button data-pos="6">6</button>
     </div>
 
     <script>

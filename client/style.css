@@ -177,7 +177,7 @@ canvas {
   border: 1px solid rgba(181, 136, 99, 0.3);
   pointer-events: auto;
   cursor: pointer;
-  z-index: 10;
+  z-index: 60;
   display: flex;
   align-items: center;
   transition: background 0.2s;
@@ -203,7 +203,7 @@ canvas {
   border: 1px solid rgba(181, 136, 99, 0.3);
   border-radius: 8px;
   cursor: pointer;
-  z-index: 10;
+  z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -233,7 +233,7 @@ canvas {
   border: 1px solid rgba(181, 136, 99, 0.3);
   border-radius: 8px;
   cursor: pointer;
-  z-index: 10;
+  z-index: 60;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1316,6 +1316,174 @@ canvas {
 #btn-menu-change-skill:hover {
   background: rgba(80, 56, 38, 0.95);
   border-color: #f0d9b5;
+}
+
+/* ═══ M3.5.1 — Hide nonessential HUD in portrait on mobile ═══ */
+body.portrait-mobile #role-badge,
+body.portrait-mobile #turn-indicator,
+body.portrait-mobile #player-count,
+body.portrait-mobile #captured-white,
+body.portrait-mobile #captured-black,
+body.portrait-mobile #move-log,
+body.portrait-mobile #draw-info,
+body.portrait-mobile #btn-claim-draw,
+body.portrait-mobile #hud,
+body.portrait-mobile #computer-thinking {
+  visibility: hidden;
+}
+
+/* ═══ M4.0 — Joystick toggle in menu ═══ */
+#joystick-toggle-row {
+  margin: 10px 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+#joystick-toggle-row label:first-child {
+  font-size: 14px;
+  color: #c4a882;
+}
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: rgba(80, 60, 40, 0.8);
+  border-radius: 24px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #f0d9b5;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+.toggle-switch input:checked + .toggle-slider {
+  background: rgba(181, 136, 99, 0.8);
+}
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+}
+
+/* ═══ M4.1 — Virtual joystick ═══ */
+#virtual-joystick {
+  position: fixed;
+  bottom: 56px;
+  left: 20px;
+  z-index: 50;
+  display: none;
+}
+#virtual-joystick.visible {
+  display: block;
+}
+#joystick-base {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: rgba(20, 14, 8, 0.5);
+  border: 2px solid rgba(181, 136, 99, 0.3);
+  position: relative;
+}
+#joystick-stick {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(240, 217, 181, 0.6);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+#virtual-look-area {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 50%;
+  height: 100%;
+  z-index: 49;
+  display: none;
+}
+#virtual-look-area.visible {
+  display: block;
+}
+
+#vertical-joystick {
+  position: fixed;
+  top: 50%;
+  right: 70px;
+  transform: translateY(-50%);
+  z-index: 51;
+  display: none;
+}
+#vertical-joystick.visible {
+  display: block;
+}
+#vjoy-track {
+  width: 36px;
+  height: 160px;
+  border-radius: 18px;
+  background: rgba(20, 14, 8, 0.5);
+  border: 2px solid rgba(181, 136, 99, 0.3);
+  position: relative;
+}
+#vjoy-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(240, 217, 181, 0.6);
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* ═══ M4.2 — Camera position buttons ═══ */
+#camera-positions {
+  position: fixed;
+  bottom: 8px;
+  left: 20px;
+  z-index: 50;
+  display: none;
+  gap: 5px;
+}
+#camera-positions.visible {
+  display: flex;
+}
+#camera-positions button {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(20, 14, 8, 0.85);
+  border: 1px solid rgba(181, 136, 99, 0.4);
+  color: #f0d9b5;
+  font: bold 13px sans-serif;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  touch-action: manipulation;
+}
+#camera-positions button:hover {
+  background: rgba(60, 45, 30, 0.95);
 }
 
 /* ═══ Draw offer overlay ═══ */
