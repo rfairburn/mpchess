@@ -161,8 +161,8 @@ canvas {
 }
 #mouse-mode {
   position: fixed;
-  top: 20px;
-  right: 60px;
+  top: 64px;
+  right: 20px;
   height: 36px;
   color: #f0d9b5;
   font:
@@ -217,6 +217,39 @@ canvas {
 #btn-menu-toggle:hover {
   background: rgba(40, 30, 20, 0.95);
 }
+
+/* ── Fullscreen button ── */
+
+#btn-fullscreen {
+  position: fixed;
+  top: 20px;
+  right: 64px;
+  width: 36px;
+  height: 36px;
+  color: #f0d9b5;
+  font: bold 16px sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 0;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  touch-action: manipulation;
+}
+#btn-fullscreen:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+
+#menu-box {
+  max-height: 90vh;
+  max-width: 95vw;
+  overflow-y: auto;
+}
+
 #role-badge {
   position: fixed;
   top: 20px;
@@ -404,6 +437,13 @@ canvas {
   color: #f0d9b5;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
+
+@media (max-width: 480px) {
+  #menu-box {
+    padding: 24px 20px;
+  }
+}
+
 #menu-box h2 {
   margin-bottom: 24px;
   font-size: 28px;

@@ -3,6 +3,8 @@
 //  Sub-modules: ui/join.js, ui/disconnected.js, ui/computer.js, ui/connection.js
 // ═══════════════════════════════════════════════════════════
 
+/* global screen */
+
 import {
   myRole,
   serverTurn,
@@ -129,6 +131,122 @@ export let menuOpen = false;
 // Track previous role so we can reposition the camera on join/reconnect
 let prevRole = null;
 
+// ── Mobile orientation helpers ───────────────────────────
+
+function isMobilePhone() {
+  const hasTouch =
+    navigator.maxTouchPoints > 0 ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  return hasTouch && Math.min(window.innerWidth, window.innerHeight) <= 768;
+}
+
+let menuPriorOrientation = null;
+let menuPortraitLocked = false;
+let menuFullscreenEntered = false;
+let gameLandscapeLocked = false;
+
+// Generation counter to invalidate stale async orientation requests
+let landscapeLockGen = 0;
+
+async function lockOrientation(orientation) {
+  if (!screen.orientation?.lock) return false;
+  try {
+    await screen.orientation.lock(orientation);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Centralized generation-guarded landscape request.
+// All async landscape locks go through this to prevent stale state.
+function requestGameLandscape() {
+  const gen = ++landscapeLockGen;
+  lockOrientation('landscape').then((ok) => {
+    if (
+      ok &&
+      gen === landscapeLockGen &&
+      document.fullscreenElement &&
+      !menuOpen &&
+      isMobilePhone()
+    ) {
+      gameLandscapeLocked = true;
+    } else if (ok) {
+      // Stale: state changed while awaiting — reconcile orientation
+      if (menuOpen && isMobilePhone()) {
+        lockOrientation('portrait').catch(() => {});
+      } else if (!document.fullscreenElement || !isMobilePhone()) {
+        lockOrientation(menuPriorOrientation || 'any').catch(() => {});
+      }
+    }
+  });
+}
+
+async function tryEnterFullscreen() {
+  if (!document.documentElement.requestFullscreen) return false;
+  try {
+    await document.documentElement.requestFullscreen();
+    return document.fullscreenElement !== null;
+  } catch {
+    return false;
+  }
+}
+
+// ── Fullscreen button (M3.0) ─────────────────────────────
+
+const btnFullscreen = document.getElementById('btn-fullscreen');
+
+// Hide button if Fullscreen API unavailable
+if (btnFullscreen && !document.documentElement.requestFullscreen) {
+  btnFullscreen.style.display = 'none';
+}
+
+// Use event delegation so the handler works even when the DOM is recreated
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (target instanceof HTMLElement && target.id === 'btn-fullscreen') {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }
+});
+
+// Update fullscreen button icon based on actual state
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btn-fullscreen');
+  if (document.fullscreenElement) {
+    if (btn) {
+      btn.textContent = '✕';
+      btn.setAttribute('aria-label', 'Exit fullscreen');
+    }
+    // Lock landscape if not in menu (M3.1 extension)
+    if (!menuOpen && isMobilePhone()) {
+      requestGameLandscape();
+    }
+  } else {
+    if (btn) {
+      btn.textContent = '⛶';
+      btn.setAttribute('aria-label', 'Toggle fullscreen');
+    }
+    // Increment generation to invalidate any pending landscape lock
+    ++landscapeLockGen;
+    // Release landscape lock when exiting fullscreen
+    if (gameLandscapeLocked) {
+      lockOrientation(menuPriorOrientation || 'any').catch(() => {});
+      gameLandscapeLocked = false;
+    }
+  }
+});
+
+// Re-lock portrait if user rotates while menu is open
+window.addEventListener('orientationchange', () => {
+  if (menuOpen && menuPortraitLocked) {
+    lockOrientation('portrait').catch(() => {});
+  }
+});
+
 // ── Mouse sensitivity ────────────────────────────────────
 // Logarithmic scale: slider 1–100 maps to ~0.0002–~0.004.
 // Linear mapping (v * 0.0001) gave 0.0001–0.01, where the upper end was
@@ -213,10 +331,26 @@ function updateTurnIndicator() {
 export function updateMoveLog() {
   const el = domRef('move-log');
   el.innerHTML = '';
-  for (let i = 0; i < moveHistory.length; i += 2) {
-    const num = Math.floor(i / 2) + 1;
-    const w = moveHistory[i];
-    const b = moveHistory[i + 1] || '';
+
+  // M3.5 — cap at last 6 move-pairs (rows) on mobile.
+  // Always start on a white move (even index) so row alignment is correct.
+  let moves;
+  let offset;
+  if (isMobilePhone()) {
+    const totalRows = Math.ceil(moveHistory.length / 2);
+    const firstRow = Math.max(1, totalRows - 5);
+    const start = (firstRow - 1) * 2;
+    moves = moveHistory.slice(start);
+    offset = start;
+  } else {
+    moves = moveHistory;
+    offset = 0;
+  }
+
+  for (let i = 0; i < moves.length; i += 2) {
+    const num = Math.floor((offset + i) / 2) + 1;
+    const w = moves[i];
+    const b = moves[i + 1] || '';
     const row = document.createElement('div');
     const numEl = document.createElement('b');
     numEl.textContent = `${num}.`;
@@ -289,10 +423,43 @@ function updateCapturedPieces(captured) {
 
 // ── Menu ─────────────────────────────────────────────────
 
-export function showMenu() {
+export async function showMenu() {
   menuOpen = true;
   menuOverlay.classList.add('visible');
   if (document.pointerLockElement) document.exitPointerLock();
+
+  // Invalidate any pending landscape lock from fullscreenchange handler
+  ++landscapeLockGen;
+
+  // Release landscape lock if active
+  if (gameLandscapeLocked) {
+    lockOrientation('any').catch(() => {});
+    gameLandscapeLocked = false;
+  }
+
+  // M3.1 — force portrait on mobile
+  if (isMobilePhone()) {
+    menuFullscreenEntered = false;
+    menuPortraitLocked = false;
+
+    // Enter fullscreen if not already (required for orientation lock on many browsers)
+    if (!document.fullscreenElement) {
+      const entered = await tryEnterFullscreen();
+      if (entered) menuFullscreenEntered = true;
+      else return finishShowMenu(); // fallback: skip orientation lock
+    }
+
+    if (document.fullscreenElement) {
+      menuPriorOrientation = screen.orientation?.type || null;
+      const locked = await lockOrientation('portrait');
+      if (locked) menuPortraitLocked = true;
+    }
+  }
+
+  finishShowMenu();
+}
+
+function finishShowMenu() {
   const isSpectator = myRole === 'spectator';
   const isPlayer = myRole === 'white' || myRole === 'black';
 
@@ -322,9 +489,35 @@ export function showMenu() {
   updateMenuComputerSections();
 }
 
-export function hideMenu() {
+export async function hideMenu() {
   menuOverlay.classList.remove('visible');
   menuOpen = false;
+
+  // Invalidate any pending landscape lock from fullscreenchange handler
+  ++landscapeLockGen;
+
+  // M3.1 — restore orientation
+  if (menuPortraitLocked) {
+    // Lock back to prior orientation (not unlock — that returns to device control)
+    await lockOrientation(menuPriorOrientation || 'landscape').catch(() => {});
+  }
+
+  const enteredFullscreenForMenu = menuFullscreenEntered;
+
+  if (menuFullscreenEntered) {
+    // Await exit so we don't race with the fullscreenchange event
+    await document.exitFullscreen().catch(() => {});
+  }
+
+  menuPortraitLocked = false;
+  menuFullscreenEntered = false;
+  menuPriorOrientation = null;
+
+  // Lock landscape only if the user entered fullscreen independently
+  // (not via the menu). Skip if we just exited menu-owned fullscreen.
+  if (!enteredFullscreenForMenu && document.fullscreenElement && isMobilePhone()) {
+    requestGameLandscape();
+  }
 }
 
 // Wire computer menu buttons so they can close the menu (avoids circular import)
