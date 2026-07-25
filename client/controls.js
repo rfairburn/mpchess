@@ -411,6 +411,84 @@ function onDragEnd(event) {
   dragStartPos = null;
 }
 
+// ── Touch helpers for drag-to-move ──────────────────────
+// Do NOT call preventDefault() on touchstart — that would suppress the
+// compatibility click generated after a tap, breaking tap-to-select and
+// tap-to-move.  Instead, rely on touch-action: none on the canvas to
+// prevent scroll/zoom, and only call preventDefault() in touchmove once
+// the drag threshold is crossed.
+
+function touchStartHandler(event) {
+  if (menuOpen || serverPromotingPiece || serverGameOver || mouseLookOn) return;
+  if (!serverBoard) return;
+
+  const t = event.touches[0];
+  dragStartX = t.clientX;
+  dragStartY = t.clientY;
+
+  const sq = getBoardSquareFromRay(t);
+  if (!sq) return;
+  const { file, rank } = sq;
+  const piece = serverBoard[rank][file];
+
+  if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+
+  dragCandidate = { file, rank };
+  dragging = false;
+  dragPiece = null;
+  dragStartPos = null;
+}
+
+function touchMoveHandler(event) {
+  if (!dragCandidate && !dragging) return;
+
+  const t = event.touches[0];
+
+  // Only preventDefault once the drag threshold is crossed — before that,
+  // let the browser generate a compatibility click for a simple tap.
+  if (!dragging) {
+    const dx = t.clientX - dragStartX;
+    const dy = t.clientY - dragStartY;
+    if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
+  }
+  event.preventDefault();
+  onDragMove(t);
+}
+
+function touchEndHandler(event) {
+  if (!dragging && !dragCandidate) return;
+  const t = event.changedTouches[0];
+  const wasCommittedDrag = dragging;
+  onDragEnd(t);
+
+  // If this was a committed drag, suppress the compatibility click by
+  // calling preventDefault() on touchend, and clear dragCompleted so
+  // the next tap's click is not discarded.
+  if (wasCommittedDrag) {
+    event.preventDefault();
+    dragCompleted = false;
+  }
+  // For below-threshold taps (candidate only), do NOT call preventDefault()
+  // so the browser fires a compatibility click for normal tap-to-select.
+}
+
+function touchCancelHandler() {
+  dragCandidate = null;
+  if (dragging && dragPiece) {
+    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
+    if (pm && dragStartPos) {
+      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
+    }
+    dragging = false;
+    dragPiece = null;
+    dragStartPos = null;
+  }
+  selectedSquare = null;
+  validMoves = [];
+  clearHighlights();
+  highlightCheck();
+}
+
 export function setDragHandlers(renderer) {
   _renderer = renderer;
 
@@ -435,6 +513,12 @@ export function setDragHandlers(renderer) {
     dragPiece = null;
     dragStartPos = null;
   });
+
+  // ── Touch handlers for drag-to-move ──
+  renderer.domElement.addEventListener('touchstart', touchStartHandler, { passive: false });
+  document.addEventListener('touchmove', touchMoveHandler, { passive: false });
+  document.addEventListener('touchend', touchEndHandler, { passive: false });
+  document.addEventListener('touchcancel', touchCancelHandler);
 
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragEnd);
