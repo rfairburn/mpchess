@@ -18,7 +18,8 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 - **Origin checking**: `--allowed-origins=` restricts WebSocket connections
 - **Rate limiting**: per-IP sliding window (60 msg/10s default)
 - **WebSocket payload limit**: 64 KB per message
-- **300+ passing tests**: chess engine, reconnection, config, UCI transport, client controls (run with `npm test`)
+- **300+ passing tests**: chess engine, reconnection, config, UCI transport, client controls, Playwright browser tests (run with `npm test`)
+- **Mobile support**: compact top bar, collapsible status drawer, responsive landscape layout, safe-area insets, Camera Mode camera buttons
 
 ## Usage
 
@@ -103,6 +104,8 @@ npm run ci           # full CI check (build + lint + format + test + helm)
 
 ```
 test/
+├── browser/
+│   └── camera-buttons.spec.js — Playwright; camera buttons visible in compact landscape Camera Mode
 ├── client/
 │   ├── controls.test.js      — Vitest + jsdom; camera, clicks, keyboard, pointer lock
 │   ├── network.test.js       — Vitest + jsdom; WebSocket client, reconnection, callbacks

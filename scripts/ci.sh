@@ -44,6 +44,12 @@ echo "  mpchess CI"
 echo "========================================"
 echo ""
 
+# Ensure dependencies are installed (idempotent)
+if [ ! -d node_modules ]; then
+  echo -e "${YELLOW}→ Installing dependencies…${NC}"
+  npm install
+fi
+
 # Check Node version
 NODE_VERSION=$(node --version | cut -d'v' -f2)
 NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1)

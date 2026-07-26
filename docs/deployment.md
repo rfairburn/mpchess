@@ -104,6 +104,8 @@ npm test
 # 2. npm run format:check  (Prettier)
 # 3. npm run test:server   (chess, reconnect, config, stockfish)
 # 4. npm run test:client   (Vitest + jsdom)
+# 5. npx playwright install chromium  (browser installation — idempotent)
+# 6. npx playwright test   (browser integration)
 ```
 
 Standalone commands are also available:
@@ -117,6 +119,8 @@ npm run ci           # full CI check: build + lint + format + tests + helm
 ```
 
 Run these locally before committing or building a Docker image. CI runs the same checks via `bash scripts/ci.sh`.
+
+The CI script ensures dependencies are installed (`npm install` if `node_modules` is missing) before running any checks. It also installs Playwright Chromium unconditionally (`npx playwright install chromium`) before running browser tests. The installation is idempotent — it verifies the package-matched browser version and skips if already installed. In CI environments, use `npx playwright install --with-deps chromium` to install system dependencies as well.
 
 ---
 
