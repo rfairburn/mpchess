@@ -436,11 +436,18 @@ canvas {
   text-align: center;
   color: #f0d9b5;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  /* Always constrain to viewport so the menu scrolls on short viewports
+     (landscape phones, small windows) rather than clipping controls. */
+  max-height: 90dvh;
+  overflow-y: auto;
 }
 
 @media (max-width: 480px) {
   #menu-box {
+    width: 92vw;
+    max-width: 400px;
     padding: 24px 20px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
   }
 }
 
