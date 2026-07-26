@@ -300,24 +300,6 @@ canvas {
   background: rgba(160, 64, 64, 0.95);
   border-color: rgba(255, 160, 100, 0.7);
 }
-#role-badge {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  color: #f0d9b5;
-  font:
-    bold 16px/1.4 'Segoe UI',
-    Tahoma,
-    Geneva,
-    Verdana,
-    sans-serif;
-  background: rgba(20, 14, 8, 0.9);
-  padding: 10px 20px;
-  border-radius: 8px;
-  border: 2px solid rgba(181, 136, 99, 0.5);
-  pointer-events: none;
-  z-index: 10;
-}
 #role-badge.white {
   border-color: #f0e6d0;
   color: #f0e6d0;
