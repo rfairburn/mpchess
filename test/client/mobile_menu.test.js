@@ -409,12 +409,12 @@ describe('fullscreen button and gameplay orientation', () => {
     expect(btn.style.display).toBe('none');
   });
 
-  it('should lock landscape on gameplay fullscreen entry (mobile)', () => {
+  it('should NOT lock orientation on gameplay fullscreen entry (mobile)', () => {
     // Simulate user-entered fullscreen
     globalThis.__mockFullscreenElement = document.documentElement;
     document.dispatchEvent(new Event('fullscreenchange'));
 
-    expect(mockOrientationLock).toHaveBeenCalledWith('landscape');
+    expect(mockOrientationLock).not.toHaveBeenCalled();
   });
 
   it('should NOT lock landscape on desktop (non-mobile)', async () => {

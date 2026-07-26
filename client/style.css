@@ -398,8 +398,10 @@ canvas {
   position: fixed;
   top: 20px;
   right: 20px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   color: #f0d9b5;
   font:
     bold 18px 'Segoe UI',
@@ -433,8 +435,10 @@ canvas {
   position: fixed;
   top: 20px;
   right: 64px;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   color: #f0d9b5;
   font: bold 16px sans-serif;
   background: rgba(20, 14, 8, 0.85);
@@ -1770,8 +1774,10 @@ body.portrait-mobile #status-drawer {
   gap: 5px;
 }
 #camera-positions button {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   background: rgba(20, 14, 8, 0.85);
   border: 1px solid rgba(181, 136, 99, 0.4);
@@ -1844,4 +1850,24 @@ body.portrait-mobile #status-drawer {
 }
 #draw-offer-actions button.cancel:hover {
   background: #666;
+}
+
+/* ═══ Accessibility — focus-visible indicators ═══ */
+
+/* Keyboard focus ring for all buttons (keyboard only, not pointer) */
+button:focus-visible {
+  outline: 2px solid #f0d9b5;
+  outline-offset: 2px;
+}
+
+/* Focus ring for the joystick toggle slider when its hidden input receives focus */
+.toggle-switch input:focus-visible + .toggle-slider {
+  outline: 2px solid #f0d9b5;
+  outline-offset: 2px;
+}
+
+/* Focus ring for select dropdowns */
+select:focus-visible {
+  outline: 2px solid #f0d9b5;
+  outline-offset: 2px;
 }

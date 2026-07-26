@@ -3,8 +3,6 @@
 //  Sub-modules: ui/join.js, ui/disconnected.js, ui/computer.js, ui/connection.js
 // ═══════════════════════════════════════════════════════════
 
-/* global screen */
-
 import {
   myRole,
   serverTurn,
@@ -234,10 +232,6 @@ document.addEventListener('fullscreenchange', () => {
     if (btnDesktop) {
       btnDesktop.textContent = '✕';
       btnDesktop.setAttribute('aria-label', 'Exit fullscreen');
-    }
-    // Best-effort landscape lock for gameplay fullscreen
-    if (isMobilePhone() && screen.orientation?.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
     }
   } else {
     if (btn) {
