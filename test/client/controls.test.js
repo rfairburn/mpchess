@@ -422,17 +422,30 @@ describe('controls.js', () => {
 
   describe('pointer lock', () => {
     it('should disable mouseLookOn when pointer lock is lost', async () => {
+      const canvas = document.createElement('canvas');
       const camera = new THREE.PerspectiveCamera();
-      const renderer = { domElement: document.createElement('canvas') };
+      const renderer = { domElement: canvas };
 
       controls.setRenderer(renderer, camera);
 
-      // Toggle mouseLookOn on via Tab key (since the import binding is read-only)
+      // Toggle mouseLookOn on via Tab key
       document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab' }));
-      // mouseLookOn should now be true
       expect(controls.mouseLookOn).toBe(true);
 
-      // Simulate pointer lock being lost
+      // Simulate pointer lock being acquired
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: canvas,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      // Simulate pointer lock being lost (e.g. ESC pressed)
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
       document.dispatchEvent(new Event('pointerlockchange'));
 
       expect(controls.mouseLookOn).toBe(false);

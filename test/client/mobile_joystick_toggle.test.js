@@ -145,7 +145,9 @@ describe('M4.0 — joystick toggle', () => {
     });
 
     Object.defineProperty(globalThis, 'screen', {
-      value: { orientation: { type: 'landscape-primary', lock: vi.fn().mockResolvedValue(undefined) } },
+      value: {
+        orientation: { type: 'landscape-primary', lock: vi.fn().mockResolvedValue(undefined) },
+      },
       writable: true,
       configurable: true,
     });

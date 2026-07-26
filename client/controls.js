@@ -117,11 +117,21 @@ function updateCameraButtonsVisibility() {
   }
 }
 
+// Tracks whether pointer lock was actually acquired. Used by the
+// pointerlockchange handler to distinguish "lock was lost (ESC)" from
+// "lock was never available (iPadOS)".
+let pointerLockAcquired = false;
+
 export function toggleMouseMode() {
   mouseLookOn = !mouseLookOn;
   updateMouseModeDisplay(mouseLookOn);
   if (mouseLookOn) {
-    _renderer?.domElement?.requestPointerLock();
+    // Try to acquire pointer lock whenever the API is available.
+    // On iPadOS (Safari/Chrome) requestPointerLock does not exist, so
+    // this is a no-op and the virtual joystick provides camera control.
+    if (_renderer?.domElement?.requestPointerLock) {
+      _renderer.domElement.requestPointerLock();
+    }
   } else {
     if (document.pointerLockElement) document.exitPointerLock();
   }
@@ -216,14 +226,27 @@ document.addEventListener('keyup', (e) => {
 document.addEventListener('pointerlockchange', () => {
   if (!_renderer) return;
   const locked = document.pointerLockElement === _renderer.domElement;
-  if (!locked && mouseLookOn) {
-    mouseLookOn = false;
-    updateMouseModeDisplay(mouseLookOn);
-    updateJoystickVisibility();
-  } else if (locked && !mouseLookOn) {
-    mouseLookOn = true;
-    updateMouseModeDisplay(mouseLookOn);
-    updateJoystickVisibility();
+  if (locked) {
+    // Pointer lock was acquired — track it so we can detect loss.
+    pointerLockAcquired = true;
+    if (!mouseLookOn) {
+      mouseLookOn = true;
+      updateMouseModeDisplay(mouseLookOn);
+      updateJoystickVisibility();
+    }
+  } else {
+    // Always clear the acquired flag when unlocked, regardless of
+    // mouseLookOn state.  If Camera Mode was manually toggled off
+    // before this event fires, we must still clear the stale flag
+    // so a subsequent unlock event does not re-trigger mode exit.
+    const wasAcquired = pointerLockAcquired;
+    pointerLockAcquired = false;
+    if (mouseLookOn && wasAcquired) {
+      // Pointer lock was lost while in Camera Mode (e.g. ESC) — exit.
+      mouseLookOn = false;
+      updateMouseModeDisplay(mouseLookOn);
+      updateJoystickVisibility();
+    }
   }
 });
 
@@ -284,7 +307,11 @@ export function setClickHandler(renderer) {
       return;
     }
     if (mouseLookOn) {
-      renderer.domElement.requestPointerLock();
+      // Re-acquire pointer lock if available (e.g. after clicking away).
+      // On iPadOS this is a no-op — virtual joystick handles camera control.
+      if (renderer.domElement.requestPointerLock) {
+        renderer.domElement.requestPointerLock();
+      }
       return;
     }
     if (!serverBoard) return;

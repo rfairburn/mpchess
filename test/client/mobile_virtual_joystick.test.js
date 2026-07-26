@@ -462,13 +462,15 @@ describe('M4.1 — virtual joystick behavior', () => {
     });
 
     // Set up a mock renderer so the pointerlockchange handler fires
-    controls.setRenderer(
-      { domElement: document.createElement('canvas') },
-      { quaternion: { toArray: () => [0, 0, 0, 1] } }
-    );
+    const canvas = document.createElement('canvas');
+    controls.setRenderer({ domElement: canvas }, { quaternion: { toArray: () => [0, 0, 0, 1] } });
 
     controls.setJoystickEnabled(true);
     controls.toggleMouseMode();
+
+    // Simulate pointer lock being acquired
+    globalThis.document.pointerLockElement = canvas;
+    document.dispatchEvent(new Event('pointerlockchange'));
 
     // Start movement joystick
     base.dispatchEvent(
