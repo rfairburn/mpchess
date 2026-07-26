@@ -791,7 +791,16 @@ function handleVJoyEnd(e) {
 
 if (joystickBase) {
   joystickBase.addEventListener('touchstart', handleJoystickStart, { passive: false });
-  document.addEventListener('touchmove', handleJoystickMove, { passive: false });
+  document.addEventListener(
+    'touchmove',
+    function (e) {
+      if (joystickTouchId !== null) {
+        e.preventDefault();
+        handleJoystickMove(e);
+      }
+    },
+    { passive: false }
+  );
   document.addEventListener('touchend', handleJoystickEnd, { passive: false });
   document.addEventListener('touchcancel', handleJoystickEnd);
 }
