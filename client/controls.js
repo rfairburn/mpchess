@@ -254,6 +254,7 @@ let dragStartPos = null; // { x, y, z } — original 3D position of committed pi
 let dragStartX = 0; // clientX at mousedown
 let dragStartY = 0; // clientY at mousedown
 let dragCompleted = false; // true after a committed drag mouseup (suppresses click)
+let dragTouchId = null; // touch identifier that owns the board drag gesture
 
 function getBoardSquareFromRay(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -494,10 +495,20 @@ function touchStartHandler(event) {
   if (menuOpen || serverPromotingPiece || serverGameOver || mouseLookOn) return;
   if (!serverBoard) return;
 
-  const t = event.touches[0];
-  dragStartX = t.clientX;
-  dragStartY = t.clientY;
+  // Ignore secondary touchstart while a gesture is already active.
+  // A second finger landing can reorder TouchList entries, so we must
+  // not overwrite dragTouchId or gesture state from touches[0].
+  if (dragTouchId !== null || dragCandidate !== null || dragging) return;
 
+  // Use changedTouches to get the newly started touch — TouchList
+  // ordering in event.touches is not guaranteed to put the new touch
+  // at index 0.
+  const t = event.changedTouches[0];
+
+  // Validate the board square and piece BEFORE claiming ownership.
+  // If the touch is on an invalid square we must not set dragTouchId,
+  // otherwise the active-gesture guard would reject every subsequent
+  // touchstart.
   const sq = getBoardSquareFromRay(t);
   if (!sq) return;
   const { file, rank } = sq;
@@ -505,6 +516,10 @@ function touchStartHandler(event) {
 
   if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
 
+  // Only assign ownership when creating a valid drag candidate.
+  dragTouchId = t.identifier;
+  dragStartX = t.clientX;
+  dragStartY = t.clientY;
   dragCandidate = { file, rank };
   dragging = false;
   dragPiece = null;
@@ -514,7 +529,18 @@ function touchStartHandler(event) {
 function touchMoveHandler(event) {
   if (!dragCandidate && !dragging) return;
 
-  const t = event.touches[0];
+  // Find the touch that owns this drag gesture by identifier.
+  // TouchList is array-like but lacks .find() — iterate by index.
+  // Ignore additional touches so a second finger cannot hijack the drag.
+  const touches = event.touches;
+  let t = null;
+  for (let i = 0; i < touches.length; i++) {
+    if (touches[i].identifier === dragTouchId) {
+      t = touches[i];
+      break;
+    }
+  }
+  if (!t) return; // owning touch disappeared — drag will be cancelled on touchcancel
 
   // Only preventDefault once the drag threshold is crossed — before that,
   // let the browser generate a compatibility click for a simple tap.
@@ -529,7 +555,23 @@ function touchMoveHandler(event) {
 
 function touchEndHandler(event) {
   if (!dragging && !dragCandidate) return;
-  const t = event.changedTouches[0];
+
+  // Find the owning touch in changedTouches.
+  // TouchList is array-like but lacks .find() — iterate by index.
+  const changed = event.changedTouches;
+  let t = null;
+  for (let i = 0; i < changed.length; i++) {
+    if (changed[i].identifier === dragTouchId) {
+      t = changed[i];
+      break;
+    }
+  }
+  if (!t) {
+    // A different finger lifted — ignore it. The drag gesture is still
+    // owned by the original touch and will complete when that finger lifts.
+    return;
+  }
+
   const wasCommittedDrag = dragging;
   onDragEnd(t);
 
@@ -542,9 +584,27 @@ function touchEndHandler(event) {
   }
   // For below-threshold taps (candidate only), do NOT call preventDefault()
   // so the browser fires a compatibility click for normal tap-to-select.
+
+  dragTouchId = null;
 }
 
-function touchCancelHandler() {
+function touchCancelHandler(event) {
+  // Only cancel the board gesture if the owning touch is the one being
+  // cancelled. A touchcancel for a secondary finger must not interrupt
+  // the owner's drag.
+  if (dragTouchId !== null && event && event.changedTouches) {
+    const changed = event.changedTouches;
+    let owningTouchCancelled = false;
+    for (let i = 0; i < changed.length; i++) {
+      if (changed[i].identifier === dragTouchId) {
+        owningTouchCancelled = true;
+        break;
+      }
+    }
+    if (!owningTouchCancelled) return;
+  }
+
+  dragTouchId = null;
   dragCandidate = null;
   if (dragging && dragPiece) {
     const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
@@ -608,6 +668,7 @@ onStateUpdate(() => {
     dragPiece = null;
     dragStartPos = null;
   }
+  dragTouchId = null;
   dragCandidate = null;
 });
 
@@ -624,6 +685,7 @@ onRestart(() => {
   dragPiece = null;
   dragStartPos = null;
   dragCompleted = false;
+  dragTouchId = null;
 });
 
 // ── M4.1 — Virtual joystick touch handlers ───────────────

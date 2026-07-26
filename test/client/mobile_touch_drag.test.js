@@ -126,12 +126,23 @@ describe('mobile touch drag-to-move', () => {
     return renderer;
   }
 
+  // Build a TouchList-shaped object: array-like (numeric indices + length)
+  // but WITHOUT Array.prototype methods (.find, .forEach, etc.).
+  // This matches real browser TouchList behavior.
+  function makeTouchList(touches) {
+    const list = { length: touches.length };
+    for (let i = 0; i < touches.length; i++) {
+      list[i] = touches[i];
+    }
+    return list;
+  }
+
   function createTouchStart(clientX, clientY) {
     const touch = { identifier: 1, clientX, clientY, pageX: clientX, pageY: clientY };
     const event = new Event('touchstart');
-    event.touches = [touch];
-    event.changedTouches = [touch];
-    event.targetTouches = [touch];
+    event.touches = makeTouchList([touch]);
+    event.changedTouches = makeTouchList([touch]);
+    event.targetTouches = makeTouchList([touch]);
     event.preventDefault = vi.fn();
     return event;
   }
@@ -139,9 +150,9 @@ describe('mobile touch drag-to-move', () => {
   function createTouchMove(clientX, clientY) {
     const touch = { identifier: 1, clientX, clientY, pageX: clientX, pageY: clientY };
     const event = new Event('touchmove');
-    event.touches = [touch];
-    event.changedTouches = [touch];
-    event.targetTouches = [touch];
+    event.touches = makeTouchList([touch]);
+    event.changedTouches = makeTouchList([touch]);
+    event.targetTouches = makeTouchList([touch]);
     event.preventDefault = vi.fn();
     return event;
   }
@@ -149,9 +160,9 @@ describe('mobile touch drag-to-move', () => {
   function createTouchEnd(clientX, clientY) {
     const touch = { identifier: 1, clientX, clientY, pageX: clientX, pageY: clientY };
     const event = new Event('touchend');
-    event.touches = [];
-    event.changedTouches = [touch];
-    event.targetTouches = [];
+    event.touches = makeTouchList([]);
+    event.changedTouches = makeTouchList([touch]);
+    event.targetTouches = makeTouchList([]);
     event.preventDefault = vi.fn();
     return event;
   }
@@ -469,5 +480,274 @@ describe('mobile touch drag-to-move', () => {
     expect(controls.selectedSquare).not.toBeNull();
     expect(controls.selectedSquare.file).toBe(0);
     expect(controls.selectedSquare.rank).toBe(1);
+  });
+
+  // ── Multi-touch (touch-identifier ownership) ──────────────
+
+  it('should ignore a second finger during an active drag', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn at a2
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 1 moves beyond threshold — commits drag
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm1 = createTouchMove(200, 200);
+    document.dispatchEvent(tm1);
+
+    // Finger 2 (id=2) appears — touchmove now has two touches
+    const tm2 = new Event('touchmove');
+    tm2.touches = makeTouchList([
+      { identifier: 1, clientX: 200, clientY: 200 },
+      { identifier: 2, clientX: 500, clientY: 600 },
+    ]);
+    tm2.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    tm2.preventDefault = vi.fn();
+    document.dispatchEvent(tm2);
+
+    // Drag should still be committed (finger 1 owns it), but the second
+    // finger's coordinates must NOT drive the piece position.
+    expect(controls.selectedSquare).not.toBeNull();
+    // The handler should have found touch id=1 and used its coordinates
+    // (200, 200), not id=2's (500, 600).
+  });
+
+  it('should complete drag only when the owning finger lifts', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 1 moves beyond threshold
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm1 = createTouchMove(200, 200);
+    document.dispatchEvent(tm1);
+
+    // Finger 2 (id=2) lifts — should NOT complete the drag
+    const te2 = new Event('touchend');
+    te2.touches = makeTouchList([{ identifier: 1, clientX: 200, clientY: 200 }]);
+    te2.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    te2.preventDefault = vi.fn();
+    document.dispatchEvent(te2);
+
+    // Drag should still be active (finger 1 still owns it)
+    expect(controls.selectedSquare).not.toBeNull();
+    expect(network.sendMove).not.toHaveBeenCalled();
+
+    // Finger 1 (id=1) lifts on valid destination — should complete the drag
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 0.5 } }];
+    const te1 = createTouchEnd(300, 300);
+    document.dispatchEvent(te1);
+
+    expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
+  });
+
+  it('should cancel drag when the owning finger disappears (touchcancel)', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 1 moves beyond threshold
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm1 = createTouchMove(200, 200);
+    document.dispatchEvent(tm1);
+
+    // touchcancel with owning finger
+    const tc = new Event('touchcancel');
+    tc.changedTouches = makeTouchList([{ identifier: 1, clientX: 200, clientY: 200 }]);
+    document.dispatchEvent(tc);
+
+    // Drag state should be fully cleaned up
+    expect(controls.selectedSquare).toBeNull();
+    expect(mockPieceMeshes[0].mesh.position.y).toBe(0.01);
+  });
+
+  it('should skip touchmove when owning touch is not in event.touches', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // touchmove where only finger 2 is in touches (finger 1 already gone)
+    const tm = new Event('touchmove');
+    tm.touches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    tm.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    tm.preventDefault = vi.fn();
+    document.dispatchEvent(tm);
+
+    // Handler should skip — owning touch (id=1) not found
+    // preventDefault should NOT be called
+    expect(tm.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('should ignore touchend from a non-owning finger (candidate phase)', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn — creates candidate
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 2 (id=2) lifts — should be ignored, candidate stays
+    const te = new Event('touchend');
+    te.touches = makeTouchList([]);
+    te.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    te.preventDefault = vi.fn();
+    document.dispatchEvent(te);
+
+    // Candidate should still exist (finger 1 owns the gesture)
+    expect(controls.selectedSquare).toBeNull(); // not committed yet, but candidate exists internally
+    // preventDefault should NOT be called for a non-owning touch
+    expect(te.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('should ignore secondary touchstart during an active gesture', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn at a2 — creates candidate
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 2 (id=2) touches elsewhere — should be ignored entirely
+    // TouchList ordering is not guaranteed, so touches[0] might be finger 2
+    const ts2 = new Event('touchstart');
+    ts2.touches = makeTouchList([
+      { identifier: 2, clientX: 500, clientY: 600 },
+      { identifier: 1, clientX: 100, clientY: 100 },
+    ]);
+    ts2.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    ts2.preventDefault = vi.fn();
+    renderer.domElement.dispatchEvent(ts2);
+
+    // Gesture state must be unchanged — finger 1 still owns the candidate
+    expect(controls.selectedSquare).toBeNull(); // candidate, not committed
+    // preventDefault should NOT be called
+    expect(ts2.preventDefault).not.toHaveBeenCalled();
+
+    // Finger 1 moves beyond threshold — drag commits normally
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm = new Event('touchmove');
+    tm.touches = makeTouchList([
+      { identifier: 1, clientX: 200, clientY: 200 },
+      { identifier: 2, clientX: 500, clientY: 600 },
+    ]);
+    tm.changedTouches = makeTouchList([{ identifier: 1, clientX: 200, clientY: 200 }]);
+    tm.preventDefault = vi.fn();
+    document.dispatchEvent(tm);
+
+    expect(controls.selectedSquare).not.toBeNull();
+  });
+
+  it('should ignore touchcancel for a non-owning secondary touch', async () => {
+    const renderer = setupGame();
+
+    // Finger 1 (id=1) touches pawn
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts1 = createTouchStart(100, 100);
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Finger 1 moves beyond threshold — commits drag
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm1 = createTouchMove(200, 200);
+    document.dispatchEvent(tm1);
+
+    // Finger 2 (id=2) is cancelled — should NOT cancel the owner's drag
+    const tc = new Event('touchcancel');
+    tc.changedTouches = makeTouchList([{ identifier: 2, clientX: 500, clientY: 600 }]);
+    document.dispatchEvent(tc);
+
+    // Drag should still be active
+    expect(controls.selectedSquare).not.toBeNull();
+    expect(mockPieceMeshes[0].mesh.position.y).toBe(0.6);
+
+    // Finger 1 (id=1) lifts on valid destination — completes the drag
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 0.5 } }];
+    const te1 = createTouchEnd(300, 300);
+    document.dispatchEvent(te1);
+
+    expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
+  });
+
+  it('should use changedTouches for initial touchstart (not touches[0])', async () => {
+    // Regression: TouchList ordering can put an older unrelated touch at
+    // touches[0]. The handler must read the initiating touch from
+    // changedTouches, not touches[0].
+    const renderer = setupGame();
+
+    // Simulate a touchstart where touches[0] is an unrelated older touch
+    // (id=99) and the new touch (id=1) is at touches[1].
+    const ts = new Event('touchstart');
+    ts.touches = makeTouchList([
+      { identifier: 99, clientX: 0, clientY: 0 },
+      { identifier: 1, clientX: 100, clientY: 100 },
+    ]);
+    ts.changedTouches = makeTouchList([{ identifier: 1, clientX: 100, clientY: 100 }]);
+    ts.preventDefault = vi.fn();
+
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    renderer.domElement.dispatchEvent(ts);
+
+    // Move identifier 1 beyond threshold — drag should commit.
+    // If ownership was incorrectly taken from touches[0] (id=99), the
+    // touchmove handler would not find id=1 and the drag would NOT commit.
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm = new Event('touchmove');
+    tm.touches = makeTouchList([
+      { identifier: 99, clientX: 0, clientY: 0 },
+      { identifier: 1, clientX: 200, clientY: 200 },
+    ]);
+    tm.changedTouches = makeTouchList([{ identifier: 1, clientX: 200, clientY: 200 }]);
+    tm.preventDefault = vi.fn();
+    document.dispatchEvent(tm);
+
+    // Drag must be committed — proves ownership was taken from changedTouches (id=1)
+    expect(controls.selectedSquare).not.toBeNull();
+    expect(mockPieceMeshes[0].mesh.position.y).toBe(0.6);
+  });
+
+  it('should allow valid drag after an invalid-square touchstart', async () => {
+    // Regression: touching an empty square must not set dragTouchId,
+    // otherwise the active-gesture guard rejects every subsequent touchstart.
+    const renderer = setupGame();
+
+    // Step 1: Touch empty square (b2) — should not claim ownership
+    globalThis.__mockRaycasterResult = [{ point: { x: -2.5, y: 0.041, z: 2.5 } }];
+    const ts1 = new Event('touchstart');
+    ts1.touches = makeTouchList([{ identifier: 1, clientX: 100, clientY: 100 }]);
+    ts1.changedTouches = makeTouchList([{ identifier: 1, clientX: 100, clientY: 100 }]);
+    ts1.preventDefault = vi.fn();
+    renderer.domElement.dispatchEvent(ts1);
+
+    // Lift finger from empty square
+    const te1 = new Event('touchend');
+    te1.touches = makeTouchList([]);
+    te1.changedTouches = makeTouchList([{ identifier: 1, clientX: 100, clientY: 100 }]);
+    te1.preventDefault = vi.fn();
+    document.dispatchEvent(te1);
+
+    // Step 2: Touch valid pawn at a2 — must work
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const ts2 = createTouchStart(150, 150);
+    renderer.domElement.dispatchEvent(ts2);
+
+    // Candidate should be created
+    expect(controls.selectedSquare).toBeNull(); // candidate, not committed
+
+    // Move beyond threshold — drag commits
+    globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+    const tm = createTouchMove(250, 250);
+    document.dispatchEvent(tm);
+
+    expect(controls.selectedSquare).not.toBeNull();
   });
 });
