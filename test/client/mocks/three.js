@@ -103,11 +103,16 @@ export class Raycaster {
 }
 
 export class PerspectiveCamera {
-  constructor() {
+  constructor(fov = 50, aspect = 1, near = 0.1, far = 1000) {
+    this.fov = fov;
+    this.aspect = aspect;
+    this.near = near;
+    this.far = far;
     this.position = new Vector3();
     this.quaternion = new Quaternion();
   }
   lookAt() {}
+  updateProjectionMatrix() {}
   getWorldDirection(v) {
     // Transform local -Z (0, 0, -1) by the camera quaternion
     const q = this.quaternion;
@@ -157,7 +162,10 @@ export class WebGLRenderer {
   constructor() {
     this.domElement = document.createElement('canvas');
     this.domElement.requestPointerLock = () => {};
+    this.shadowMap = { enabled: false, type: null };
   }
+  setSize() {}
+  setPixelRatio() {}
   render() {}
 }
 
@@ -231,7 +239,7 @@ export class DirectionalLight {
     this.position = new Vector3();
     this.castShadow = false;
     this.shadow = {
-      mapSize: {},
+      mapSize: { set() {} },
       camera: { left: 0, right: 0, top: 0, bottom: 0, near: 0, far: 0 },
       bias: 0,
     };
@@ -241,5 +249,14 @@ export class FogExp2 {
   constructor(color, density) {
     this.color = color;
     this.density = density;
+  }
+}
+
+export class Clock {
+  constructor() {
+    this._start = performance.now();
+  }
+  getDelta() {
+    return 0.016;
   }
 }

@@ -8,6 +8,10 @@ export default defineConfig({
         __dirname,
         'test/client/mocks/stl_loader.js'
       ),
+      'three/addons/loaders/FontLoader.js': path.resolve(
+        __dirname,
+        'test/client/mocks/font_loader.js'
+      ),
       'three/addons/geometries/TextGeometry.js': path.resolve(
         __dirname,
         'test/client/mocks/text_geometry.js'
