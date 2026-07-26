@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setupControlsDOM } from './mobile-test-helpers.js';
 
 // Mock dependencies so controls.js can load
 vi.mock('../../client/network.js', () => ({
@@ -62,29 +63,7 @@ describe('M4.1 — virtual joystick behavior', () => {
     vi.clearAllMocks();
     vi.resetModules();
 
-    // Set up DOM before importing controls.js
-    document.body.innerHTML = `
-      <div id="hud" class="hidden"></div>
-      <div id="virtual-joystick" class="hidden">
-        <div id="joystick-base">
-          <div id="joystick-stick"></div>
-        </div>
-      </div>
-      <div id="virtual-look-area" class="hidden"></div>
-      <div id="vertical-joystick" class="hidden">
-        <div id="vjoy-track">
-          <div id="vjoy-thumb"></div>
-        </div>
-      </div>
-      <div id="camera-positions" class="hidden">
-        <button data-pos="1">1</button>
-        <button data-pos="2">2</button>
-        <button data-pos="3">3</button>
-        <button data-pos="4">4</button>
-        <button data-pos="5">5</button>
-        <button data-pos="6">6</button>
-      </div>
-    `;
+    setupControlsDOM();
 
     // Mock pointer lock so toggleMouseMode works in tests
     globalThis.document.pointerLockElement = null;

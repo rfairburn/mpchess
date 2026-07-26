@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as THREE from 'three';
+import { setupControlsDOM } from './mobile-test-helpers.js';
 
 // ── Module mocks ──────────────────────────────────────────
 
@@ -60,17 +61,7 @@ vi.mock('../../client/pieces.js', () => ({
 
 async function loadControls(withPointerLock) {
   vi.resetModules();
-  document.body.innerHTML = `
-    <div id="hud" class="hidden"></div>
-    <div id="virtual-joystick" class="hidden">
-      <div id="joystick-base"><div id="joystick-stick"></div></div>
-    </div>
-    <div id="virtual-look-area" class="hidden"></div>
-    <div id="vertical-joystick" class="hidden">
-      <div id="vjoy-track"><div id="vjoy-thumb"></div></div>
-    </div>
-    <div id="camera-positions" class="hidden"></div>
-  `;
+  setupControlsDOM();
 
   const spy = vi.fn();
   Object.defineProperty(HTMLCanvasElement.prototype, 'requestPointerLock', {

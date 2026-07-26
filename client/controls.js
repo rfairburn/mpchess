@@ -40,6 +40,7 @@ import { pieceMeshes } from './pieces.js';
 import { CONTROLS_CONFIG as _CONTROLS_CONFIG } from './controls_config.js';
 export { _CONTROLS_CONFIG as CONTROLS_CONFIG };
 const CONTROLS_CONFIG = _CONTROLS_CONFIG;
+import { hasPointerLock } from './capabilities.js';
 
 // Backward-compatible export
 export const CAMERA_POSITIONS = CONTROLS_CONFIG.cameraPositions;
@@ -107,7 +108,7 @@ export function toggleMouseMode() {
     // Try to acquire pointer lock whenever the API is available.
     // On iPadOS (Safari/Chrome) requestPointerLock does not exist, so
     // this is a no-op and the virtual joystick provides camera control.
-    if (_renderer?.domElement?.requestPointerLock) {
+    if (hasPointerLock(_renderer?.domElement)) {
       _renderer.domElement.requestPointerLock();
     }
   } else {
@@ -288,7 +289,7 @@ export function setClickHandler(renderer) {
     if (mouseLookOn) {
       // Re-acquire pointer lock if available (e.g. after clicking away).
       // On iPadOS this is a no-op — virtual joystick handles camera control.
-      if (renderer.domElement.requestPointerLock) {
+      if (hasPointerLock(renderer.domElement)) {
         renderer.domElement.requestPointerLock();
       }
       return;

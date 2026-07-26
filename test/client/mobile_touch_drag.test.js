@@ -78,6 +78,9 @@ describe('mobile touch drag-to-move', () => {
     mockPieceMeshes.length = 0;
 
     document.body.innerHTML = '<div id="hud" class="hidden"></div>';
+    // Do NOT include joystick/look-area elements here — the touch drag tests
+    // dispatch synthetic touch events without proper changedTouches, which would
+    // crash the document-level joystick/look handlers if those elements existed.
 
     network = await import('../../client/network.js');
     ui = await import('../../client/ui.js');

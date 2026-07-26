@@ -38,6 +38,7 @@ import {
 import { setCameraForRole, toggleMouseMode, setJoystickEnabled } from './controls.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
+import { isTouchDevice, isMobilePhone, hasFullscreen } from './capabilities.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -76,10 +77,6 @@ const drawerDrawInfo = document.getElementById('drawer-draw-info');
 
 let statusDrawerOpen = false;
 
-function openStatusDrawer() {
-  statusDrawerOpen = true;
-  if (statusDrawer) statusDrawer.classList.add('open');
-}
 function closeStatusDrawer() {
   statusDrawerOpen = false;
   if (statusDrawer) statusDrawer.classList.remove('open');
@@ -87,9 +84,9 @@ function closeStatusDrawer() {
 function toggleStatusDrawer() {
   statusDrawerOpen = !statusDrawerOpen;
   if (statusDrawerOpen) {
-    openStatusDrawer();
+    if (statusDrawer) statusDrawer.classList.add('open');
   } else {
-    closeStatusDrawer();
+    if (statusDrawer) statusDrawer.classList.remove('open');
   }
 }
 
@@ -187,21 +184,14 @@ export let menuOpen = false;
 // Track previous role so we can reposition the camera on join/reconnect
 let prevRole = null;
 
-// ── Mobile detection ─────────────────────────────────────
-
-function isMobilePhone() {
-  const hasTouch =
-    navigator.maxTouchPoints > 0 ||
-    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  return hasTouch && Math.min(window.innerWidth, window.innerHeight) <= 768;
-}
+// ── Mobile detection (from capabilities.js) ──────────────
 
 // ── Fullscreen button (M3.0) ─────────────────────────────
 
 const btnFullscreen = document.getElementById('btn-fullscreen');
 
 // Hide button if Fullscreen API unavailable
-if (btnFullscreen && !document.documentElement.requestFullscreen) {
+if (btnFullscreen && !hasFullscreen()) {
   btnFullscreen.style.display = 'none';
 }
 
@@ -252,10 +242,7 @@ document.addEventListener('fullscreenchange', () => {
 //   @media (pointer: coarse) and (max-height: 480px)
 //   @media (pointer: coarse) and (orientation: landscape) and (max-width: 900px)
 function isCompactLandscapeActive() {
-  const hasCoarsePointer =
-    navigator.maxTouchPoints > 0 ||
-    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  if (!hasCoarsePointer) return false;
+  if (!isTouchDevice()) return false;
   // Short-height (any orientation)
   if (window.innerHeight <= 480) return true;
   // Landscape phone (max-width 900px)

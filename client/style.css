@@ -457,12 +457,6 @@ canvas {
   background: rgba(40, 30, 20, 0.95);
 }
 
-#menu-box {
-  max-height: 90vh;
-  max-width: 95vw;
-  overflow-y: auto;
-}
-
 #role-badge {
   position: fixed;
   top: 20px;
@@ -634,6 +628,7 @@ canvas {
   /* Always constrain to viewport so the menu scrolls on short viewports
      (landscape phones, small windows) rather than clipping controls. */
   max-height: 90dvh;
+  max-width: 95vw;
   overflow-y: auto;
 }
 

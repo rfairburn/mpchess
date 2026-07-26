@@ -15,64 +15,15 @@ function loadCSS() {
   document.head.appendChild(style);
 }
 
-function buildProductionDOM() {
-  document.body.innerHTML = `
-    <div id="hud" class="hidden"></div>
-    <div id="desktop-hud">
-      <div id="computer-thinking"></div>
-      <div id="move-log"></div>
-      <div id="role-badge"></div>
-      <div id="player-count"></div>
-      <div id="turn-indicator"></div>
-      <div id="mouse-mode"></div>
-      <div id="draw-info"></div>
-      <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
-      <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
-      <div id="btn-claim-draw" class="hidden"></div>
-      <div id="captured-white"><span class="cap-pieces"></span></div>
-      <div id="captured-black"><span class="cap-pieces"></span></div>
-    </div>
-    <div id="top-bar">
-      <button id="btn-menu-toggle" aria-label="Menu"></button>
-      <div id="top-bar-status">
-        <span id="top-bar-role">Connecting...</span>
-        <span id="top-bar-turn">⬤ White's Turn</span>
-      </div>
-      <div id="top-bar-controls">
-        <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
-        <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
-        <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
-      </div>
-    </div>
-    <div id="status-drawer"><div id="status-drawer-content"></div></div>
-    <div id="menu-overlay"><div id="menu-box"></div></div>
-    <div id="promo-overlay"><div id="promo-choices"><button data-type="queen"></button><button data-type="rook"></button><button data-type="bishop"></button><button data-type="knight"></button></div></div>
-    <div id="concede-overlay"><div id="concede-box"><button id="btn-concede-confirm"></button><button id="btn-concede-cancel"></button></div></div>
-    <div id="give-up-spot-overlay"><div id="give-up-spot-box"><button id="btn-give-up-spot-confirm"></button><button id="btn-give-up-spot-cancel"></button></div></div>
-    <div id="draw-offer-overlay"><div id="draw-offer-box"><p id="draw-offer-text"></p><button id="btn-draw-accept"></button><button id="btn-draw-decline"></button></div></div>
-    <div id="import-fen-overlay"><div id="import-fen-box"><textarea id="fen-input"></textarea><button id="btn-import-fen-confirm"></button><button id="btn-import-fen-cancel"></button></div></div>
-    <div id="game-over-overlay"><div id="game-over-box"><p id="game-over-text"></p><button id="btn-new-game"></button></div></div>
-    <div id="error-toast"></div>
-    <div id="join-overlay"><div id="join-box"><button id="btn-join-white"></button><button id="btn-join-black"></button><button id="btn-join-spectator"></button></div></div>
-    <div id="reconnecting-overlay"><div id="reconnecting-box"><button id="btn-give-up"></button></div></div>
-    <div id="connection-error-overlay"><div id="connection-error-box"><button id="btn-retry-connection"></button></div></div>
-    <div id="opponent-disconnected-banner"><button id="btn-drop-player"></button></div>
-    <div id="second-disconnected-banner"></div>
-    <div id="game-available-banner"><button id="btn-join-game"></button></div>
-    <button id="btn-resume"></button>
-    <button id="btn-give-up-spot"></button>
-    <button id="btn-reconnect-as-player"></button>
-    <button id="btn-restart"></button>
-    <button id="btn-offer-draw"></button>
-    <button id="btn-concede"></button>
-    <button id="btn-export-fen"></button>
-    <button id="btn-export-pgn"></button>
-    <button id="btn-import-fen"></button>
-    <div id="menu-computer-section" class="hidden"><select id="menu-computer-skill-dropdown"></select><button id="btn-menu-activate-computer"></button></div>
-    <div id="menu-skill-change-section" class="hidden"><select id="menu-skill-change-dropdown"></select><button id="btn-menu-change-skill"></button></div>
-    <div id="sensitivity-row"><input type="range" id="sensitivity-slider" /><span id="sensitivity-value"></span></div>
-  `;
-}
+import './mobile-mocks.js';
+import {
+  setupProductionDOM,
+  setupFullscreenMocks,
+  setupMobileViewport,
+  setupDesktopViewport,
+  cleanupMobileMocks,
+  assertProductionDOMFixture,
+} from './mobile-test-helpers.js';
 
 // ── CSS contract tests ──────────────────────────────────
 
@@ -80,7 +31,7 @@ describe('portrait HUD CSS contract', () => {
   beforeEach(() => {
     document.head.innerHTML = '';
     document.body.className = '';
-    buildProductionDOM();
+    setupProductionDOM();
     loadCSS();
   });
 
@@ -171,90 +122,16 @@ describe('portrait HUD JS behavior', () => {
     vi.clearAllMocks();
     vi.resetModules();
     document.head.innerHTML = '';
-    buildProductionDOM();
+    setupProductionDOM();
+    setupFullscreenMocks();
   });
 
   afterEach(() => {
-    delete globalThis.screen;
+    cleanupMobileMocks();
   });
 
-  function commonMocks() {
-    vi.mock('../../client/network.js', () => ({
-      myRole: null,
-      serverBoard: null,
-      serverTurn: 'white',
-      serverPromotingPiece: null,
-      serverGameOver: false,
-      serverGameResult: null,
-      moveHistory: [],
-      seatStatus: {},
-      tokenKey: () => '',
-      halfmoveClock: 0,
-      threefoldCount: 0,
-      canClaimDraw: false,
-      sendPromotion: vi.fn(),
-      sendRestart: vi.fn(),
-      sendConcede: vi.fn(),
-      sendLeave: vi.fn(),
-      sendExportFen: vi.fn(),
-      sendExportPgn: vi.fn(),
-      sendImportFen: vi.fn(),
-      sendOfferDraw: vi.fn(),
-      sendDrawResponse: vi.fn(),
-      sendClaimDraw: vi.fn(),
-      onStateUpdate: vi.fn(),
-      onRestart: vi.fn(),
-      onError: vi.fn(),
-      onInfo: vi.fn(),
-      onDrawOffer: vi.fn(),
-      onDrawResult: vi.fn(),
-      onDrawOfferCancelled: vi.fn(),
-      onPlayerLeft: vi.fn(),
-      onFenImportWarning: vi.fn(),
-    }));
-
-    vi.mock('../../client/controls.js', () => ({
-      setCameraForRole: vi.fn(),
-      toggleMouseMode: vi.fn(),
-    }));
-
-    vi.mock('../../client/dom_ref.js', () => ({
-      domRef: vi.fn((id) => document.getElementById(id)),
-      domRefOptional: vi.fn((id) => document.getElementById(id)),
-      domRefQuery: vi.fn((sel) => document.querySelector(sel)),
-    }));
-
-    vi.mock('../../client/ui/toast.js', () => ({
-      showError: vi.fn(),
-      showInfo: vi.fn(),
-      showWarning: vi.fn(),
-    }));
-
-    vi.mock('../../client/ui/disconnected.js', () => ({
-      syncDisconnectedBanners: vi.fn(),
-    }));
-
-    vi.mock('../../client/ui/join.js', () => ({
-      showJoinOverlay: vi.fn(),
-      hideJoinOverlay: vi.fn(),
-      updateJoinButtons: vi.fn(),
-    }));
-
-    vi.mock('../../client/ui/computer.js', () => ({
-      updateMenuComputerSections: vi.fn(),
-      initComputerMenu: vi.fn(() => {}),
-    }));
-
-    vi.mock('../../client/ui/connection.js', () => ({}));
-  }
-
   it('adds portrait-mobile class on mobile in portrait orientation', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 390, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 844, configurable: true });
+    setupMobileViewport(390, 844);
 
     await import('../../client/ui.js');
 
@@ -262,12 +139,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('does not add portrait-mobile class on mobile in landscape orientation', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+    setupMobileViewport(844, 390);
 
     await import('../../client/ui.js');
 
@@ -275,12 +147,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('does not add portrait-mobile class on desktop regardless of orientation', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 0, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 1080, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 1920, configurable: true });
+    setupDesktopViewport(1080, 1920);
 
     await import('../../client/ui.js');
 
@@ -288,12 +155,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('removes portrait-mobile class when rotating from portrait to landscape', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 390, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 844, configurable: true });
+    setupMobileViewport(390, 844);
 
     await import('../../client/ui.js');
 
@@ -308,12 +170,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('adds portrait-mobile class when rotating from landscape to portrait', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+    setupMobileViewport(844, 390);
 
     await import('../../client/ui.js');
 
@@ -328,12 +185,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('does not affect tablet-sized devices (short edge > 768px)', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 1024, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 1366, configurable: true });
+    setupMobileViewport(1024, 1366);
 
     await import('../../client/ui.js');
 
@@ -352,12 +204,7 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('closes status drawer class when entering portrait via resize', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+    setupMobileViewport(844, 390);
 
     await import('../../client/ui.js');
 
@@ -372,32 +219,19 @@ describe('portrait HUD JS behavior', () => {
   });
 
   it('closes status drawer class when leaving compact landscape to desktop', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+    setupMobileViewport(844, 390);
 
     await import('../../client/ui.js');
 
     // Resize to desktop viewport
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 0, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 1920, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 1080, configurable: true });
+    setupDesktopViewport(1920, 1080);
     window.dispatchEvent(new Event('resize'));
 
     expect(document.body.classList.contains('portrait-mobile')).toBe(false);
   });
 
   it('closes status drawer class when leaving compact landscape to non-compact landscape', async () => {
-    commonMocks();
-
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
-    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+    setupMobileViewport(844, 390);
 
     await import('../../client/ui.js');
 
@@ -414,5 +248,14 @@ describe('portrait HUD JS behavior', () => {
     // Still mobile but no longer compact landscape; drawer should close
     expect(document.body.classList.contains('portrait-mobile')).toBe(false);
     expect(drawer.classList.contains('open')).toBe(false);
+  });
+});
+
+// ── Fixture contract ─────────────────────────────────────
+
+describe('setupProductionDOM fixture contract', () => {
+  it('contains all required elements', () => {
+    setupProductionDOM();
+    assertProductionDOMFixture();
   });
 });
