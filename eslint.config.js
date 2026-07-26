@@ -149,6 +149,24 @@ module.exports = [
       globals: { ...browserGlobals, ...testGlobals },
     },
   },
+  // Playwright config — ESM
+  {
+    files: ['playwright.config.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: nodeGlobals,
+    },
+  },
+  // Playwright browser tests — ESM + browser globals
+  {
+    files: ['test/browser/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...browserGlobals, ...testGlobals },
+    },
+  },
   // Ignore auto-generated files and config files
   {
     ignores: [

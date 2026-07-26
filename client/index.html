@@ -2,29 +2,62 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>3D Chess – Multiplayer</title>
     <base href="/client/" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
     <div id="hud">Click to move pieces · TAB toggle mouse-look · ESC menu</div>
-    <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
-    <div id="computer-thinking"></div>
-    <div id="mouse-mode">♟ Piece Mode</div>
-    <button id="btn-menu-toggle" aria-label="Menu"></button>
-    <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
-    <button id="btn-claim-draw" class="hidden">Claim Draw (50-move)</button>
-    <div id="role-badge">Connecting...</div>
-    <div id="player-count"></div>
-    <div id="captured-white">
-      <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
+
+    <!-- Compact top bar (mobile landscape / short-height) -->
+    <div id="top-bar">
+      <button id="btn-menu-toggle" aria-label="Menu"></button>
+      <div id="top-bar-status">
+        <span id="top-bar-role">Connecting...</span>
+        <span id="top-bar-turn">⬤ White's Turn</span>
+      </div>
+      <div id="top-bar-controls">
+        <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
+        <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
+        <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
+      </div>
     </div>
-    <div id="captured-black">
-      <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+
+    <!-- Desktop HUD elements (hidden on mobile landscape) -->
+    <div id="desktop-hud">
+      <div id="computer-thinking"></div>
+      <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
+      <div id="mouse-mode">♟ Piece Mode</div>
+      <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
+      <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
+      <button id="btn-claim-draw" class="hidden">Claim Draw (50-move)</button>
+      <div id="role-badge">Connecting...</div>
+      <div id="player-count"></div>
+      <div id="captured-white">
+        <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
+      </div>
+      <div id="captured-black">
+        <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+      </div>
+      <div id="move-log"></div>
+      <div id="draw-info"></div>
     </div>
-    <div id="move-log"></div>
-    <div id="draw-info"></div>
+
+    <!-- Status drawer (mobile landscape / short-height) -->
+    <div id="status-drawer">
+      <div id="status-drawer-content">
+        <div id="drawer-player-count"></div>
+        <div id="drawer-captured-white">
+          <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
+        </div>
+        <div id="drawer-captured-black">
+          <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+        </div>
+        <div id="drawer-move-log"></div>
+        <div id="drawer-draw-info"></div>
+      </div>
+    </div>
 
     <div id="menu-overlay">
       <div id="menu-box">

@@ -139,6 +139,21 @@ fi
 # 6. All tests (consolidated — runs server + client suites, writes results JSON)
 run_check "All tests" node scripts/test_orchestrator.js --no-summary
 
+# 7. Playwright browser tests (optional — requires Playwright + browser)
+if command -v npx &>/dev/null && [ -f playwright.config.js ]; then
+  # Install Chromium unconditionally — idempotent, verifies package-matched version
+  echo -e "${YELLOW}→ Ensuring Playwright Chromium is installed…${NC}"
+  if ! npx playwright install chromium 2>&1; then
+    echo -e "${RED}✗ Playwright Chromium installation failed${NC}"
+    FAIL=$((FAIL + 1))
+    FAILURES="$FAILURES\n  - Playwright Chromium install"
+  else
+    run_check "Playwright browser tests" npx playwright test
+  fi
+else
+  echo -e "${YELLOW}→ Playwright browser tests skipped (not configured)${NC}"
+fi
+
 # ---- CI check summary (before consolidated test summary so grand total is last) ----
 echo ""
 echo "========================================"

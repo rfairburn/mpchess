@@ -100,7 +100,7 @@ describe('M4.2 — camera position buttons behavior', () => {
     controls.warpCamera(3);
   });
 
-  it('should show camera buttons on desktop by default', () => {
+  it('should show camera buttons on desktop in Camera Mode', () => {
     // Desktop: no touch, large viewport
     Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
       value: 0,
@@ -118,6 +118,10 @@ describe('M4.2 — camera position buttons behavior', () => {
       writable: true,
       configurable: true,
     });
+
+    // Camera buttons only show in Camera Mode — toggle to Camera Mode
+    controls.toggleMouseMode();
+    window.dispatchEvent(new Event('resize'));
 
     const el = document.getElementById('camera-positions');
     expect(el.classList.contains('visible')).toBe(true);
@@ -147,7 +151,7 @@ describe('M4.2 — camera position buttons behavior', () => {
     expect(el.classList.contains('visible')).toBe(false);
   });
 
-  it('should show camera buttons on mobile landscape', () => {
+  it('should show camera buttons on mobile landscape in Camera Mode', () => {
     Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
       value: 5,
       writable: true,
@@ -165,10 +169,99 @@ describe('M4.2 — camera position buttons behavior', () => {
       configurable: true,
     });
 
+    // Camera buttons only show in Camera Mode — toggle to Camera Mode
+    controls.toggleMouseMode();
     window.dispatchEvent(new Event('resize'));
 
     const el = document.getElementById('camera-positions');
     expect(el.classList.contains('visible')).toBe(true);
+  });
+
+  it('should hide camera buttons in Piece Mode', () => {
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+    Object.defineProperty(globalThis.window, 'innerWidth', {
+      value: 1920,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(globalThis.window, 'innerHeight', {
+      value: 1080,
+      writable: true,
+      configurable: true,
+    });
+
+    // Piece Mode (default) — camera buttons should be hidden
+    window.dispatchEvent(new Event('resize'));
+
+    const el = document.getElementById('camera-positions');
+    expect(el.classList.contains('visible')).toBe(false);
+  });
+});
+
+describe('M4.2 — camera buttons with production stylesheet', () => {
+  const cssText = readFileSync(join(__dirname, '../../client/style.css'), 'utf-8');
+
+  function loadCSS() {
+    const style = document.createElement('style');
+    style.textContent = cssText;
+    document.head.appendChild(style);
+  }
+
+  it('no media query unconditionally hides #camera-positions with display:none', () => {
+    // JSDOM does not evaluate pointer/orientation media queries, so a
+    // computed-style test cannot catch a regression inside a media query
+    // block.  Instead, scan the raw CSS for the dangerous pattern.
+    // Extract all @media blocks and verify none contain
+    // `#camera-positions` + `display: none`.
+    const mediaBlockRegex = /@media[^{]*\{([\s\S]*?)\n\}/gs;
+    let match;
+    while ((match = mediaBlockRegex.exec(cssText)) !== null) {
+      const blockContent = match[1];
+      if (blockContent.includes('#camera-positions')) {
+        expect(
+          blockContent,
+          'Media query block must not contain display:none for #camera-positions'
+        ).not.toMatch(/#camera-positions[\s\S]*display\s*:\s*none/i);
+      }
+    }
+  });
+
+  it('camera buttons are visible by computed style when .visible class is set', () => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = `
+      <div id="camera-positions" class="visible">
+        <button data-pos="1">1</button>
+        <button data-pos="2">2</button>
+        <button data-pos="3">3</button>
+        <button data-pos="4">4</button>
+        <button data-pos="5">5</button>
+        <button data-pos="6">6</button>
+      </div>
+    `;
+    loadCSS();
+
+    const el = document.getElementById('camera-positions');
+    const computed = getComputedStyle(el);
+    expect(computed.display).not.toBe('none');
+  });
+
+  it('camera buttons are hidden by computed style when .visible class is absent', () => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = `
+      <div id="camera-positions" class="hidden">
+        <button data-pos="1">1</button>
+      </div>
+    `;
+    loadCSS();
+
+    const el = document.getElementById('camera-positions');
+    const computed = getComputedStyle(el);
+    expect(computed.display).toBe('none');
   });
 });
 

@@ -63,6 +63,51 @@ const mouseModeEl = domRef('mouse-mode');
 const btnMenuToggle = domRef('btn-menu-toggle');
 const btnClaimDraw = domRefOptional('btn-claim-draw');
 const menuOverlay = domRef('menu-overlay');
+
+// ── Top bar refs (mobile landscape / short-height) ───────
+const topBarRole = document.getElementById('top-bar-role');
+const topBarTurn = document.getElementById('top-bar-turn');
+const btnModeToggle = document.getElementById('btn-mode-toggle');
+const btnStatusDrawer = document.getElementById('btn-status-drawer');
+const statusDrawer = document.getElementById('status-drawer');
+const drawerPlayerCount = document.getElementById('drawer-player-count');
+const drawerCapturedWhitePieces = document.querySelector('#drawer-captured-white .cap-pieces');
+const drawerCapturedBlackPieces = document.querySelector('#drawer-captured-black .cap-pieces');
+const drawerMoveLog = document.getElementById('drawer-move-log');
+const drawerDrawInfo = document.getElementById('drawer-draw-info');
+
+let statusDrawerOpen = false;
+
+function openStatusDrawer() {
+  statusDrawerOpen = true;
+  if (statusDrawer) statusDrawer.classList.add('open');
+}
+function closeStatusDrawer() {
+  statusDrawerOpen = false;
+  if (statusDrawer) statusDrawer.classList.remove('open');
+}
+function toggleStatusDrawer() {
+  statusDrawerOpen = !statusDrawerOpen;
+  if (statusDrawerOpen) {
+    openStatusDrawer();
+  } else {
+    closeStatusDrawer();
+  }
+}
+
+// ── Top bar event handlers ───────────────────────────────
+if (btnModeToggle) {
+  btnModeToggle.addEventListener('click', () => {
+    if (menuOpen) return;
+    toggleMouseMode();
+  });
+}
+if (btnStatusDrawer) {
+  btnStatusDrawer.addEventListener('click', () => {
+    toggleStatusDrawer();
+  });
+}
+
 const btnResume = domRef('btn-resume');
 const btnGiveUpSpot = domRef('btn-give-up-spot');
 const btnReconnectAsPlayer = domRef('btn-reconnect-as-player');
@@ -114,6 +159,19 @@ btnMenuToggle.addEventListener('click', () => {
   }
 });
 
+// Desktop menu toggle (inside #desktop-hud)
+const btnMenuToggleDesktop = document.getElementById('btn-menu-toggle-desktop');
+if (btnMenuToggleDesktop) {
+  btnMenuToggleDesktop.addEventListener('click', () => {
+    if (menuOpen) {
+      hideMenu();
+    } else {
+      showMenu();
+    }
+  });
+}
+// Desktop fullscreen button is handled by the document-level delegated listener
+
 roleBadge.addEventListener('click', () => {
   if (menuOpen) return;
   showMenu();
@@ -152,7 +210,10 @@ if (btnFullscreen && !document.documentElement.requestFullscreen) {
 // Use event delegation so the handler works even when the DOM is recreated
 document.addEventListener('click', (e) => {
   const target = e.target;
-  if (target instanceof HTMLElement && target.id === 'btn-fullscreen') {
+  if (
+    target instanceof HTMLElement &&
+    (target.id === 'btn-fullscreen' || target.id === 'btn-fullscreen-desktop')
+  ) {
     if (document.fullscreenElement) {
       document.exitFullscreen();
     } else {
@@ -164,10 +225,15 @@ document.addEventListener('click', (e) => {
 // Update fullscreen button icon based on actual state
 document.addEventListener('fullscreenchange', () => {
   const btn = document.getElementById('btn-fullscreen');
+  const btnDesktop = document.getElementById('btn-fullscreen-desktop');
   if (document.fullscreenElement) {
     if (btn) {
       btn.textContent = '✕';
       btn.setAttribute('aria-label', 'Exit fullscreen');
+    }
+    if (btnDesktop) {
+      btnDesktop.textContent = '✕';
+      btnDesktop.setAttribute('aria-label', 'Exit fullscreen');
     }
     // Best-effort landscape lock for gameplay fullscreen
     if (isMobilePhone() && screen.orientation?.lock) {
@@ -178,21 +244,63 @@ document.addEventListener('fullscreenchange', () => {
       btn.textContent = '⛶';
       btn.setAttribute('aria-label', 'Toggle fullscreen');
     }
+    if (btnDesktop) {
+      btnDesktop.textContent = '⛶';
+      btnDesktop.setAttribute('aria-label', 'Toggle fullscreen');
+    }
   }
 });
 
 // ── M3.5.1 — Portrait HUD hiding ────────────────────────
 
+// Returns true when the compact top-bar layout is active in landscape.
+// Mirrors the CSS breakpoints:
+//   @media (pointer: coarse) and (max-height: 480px)
+//   @media (pointer: coarse) and (orientation: landscape) and (max-width: 900px)
+function isCompactLandscapeActive() {
+  const hasCoarsePointer =
+    navigator.maxTouchPoints > 0 ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (!hasCoarsePointer) return false;
+  // Short-height (any orientation)
+  if (window.innerHeight <= 480) return true;
+  // Landscape phone (max-width 900px)
+  if (window.innerWidth >= window.innerHeight && window.innerWidth <= 900) return true;
+  return false;
+}
+
+let portraitMobileInitialized = false;
+let prevCompactLandscape = false;
+
 function updatePortraitMobileClass() {
+  const wasPortrait = document.body.classList.contains('portrait-mobile');
+  const wasCompactLandscape = prevCompactLandscape;
+
   if (!isMobilePhone()) {
     document.body.classList.remove('portrait-mobile');
-    return;
-  }
-  if (window.innerWidth < window.innerHeight) {
+  } else if (window.innerWidth < window.innerHeight) {
     document.body.classList.add('portrait-mobile');
   } else {
     document.body.classList.remove('portrait-mobile');
   }
+
+  const isPortrait = document.body.classList.contains('portrait-mobile');
+  const isCompactLandscape = isCompactLandscapeActive();
+  prevCompactLandscape = isCompactLandscape;
+
+  // Close drawer when:
+  // 1. Entering portrait (toggle button is hidden)
+  // 2. Leaving compact landscape entirely (not mobile, or viewport too large)
+  // Skip on initial call to avoid closing a drawer the test/user hasn't opened yet.
+  if (portraitMobileInitialized) {
+    if (
+      (!wasPortrait && isPortrait) ||
+      (wasCompactLandscape && !isCompactLandscape && !isPortrait)
+    ) {
+      closeStatusDrawer();
+    }
+  }
+  portraitMobileInitialized = true;
 }
 
 window.addEventListener('resize', updatePortraitMobileClass);
@@ -268,30 +376,40 @@ export function updateMouseModeDisplay(mouseLookOn) {
     mouseModeEl.style.borderColor = 'rgba(181, 136, 99, 0.3)';
     hud.textContent =
       'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu';
+    if (btnModeToggle) btnModeToggle.textContent = '🖱';
   } else {
     mouseModeEl.textContent = '♟ Piece Mode';
     mouseModeEl.style.borderColor = 'rgba(68, 187, 68, 0.6)';
     hud.textContent = 'Click to move pieces · TAB toggle mouse-look · ESC menu';
+    if (btnModeToggle) btnModeToggle.textContent = '♟';
   }
 }
 
 function updateRoleBadge() {
-  roleBadge.textContent =
-    myRole === 'white' ? '♔ White' : myRole === 'black' ? '♚ Black' : '👁 Spectator';
+  const roleText = myRole === 'white' ? '♔ White' : myRole === 'black' ? '♚ Black' : '👁 Spectator';
+  roleBadge.textContent = roleText;
   roleBadge.className = myRole;
+  if (topBarRole) {
+    topBarRole.textContent = roleText;
+    topBarRole.className = myRole;
+  }
 }
 
 function updatePlayerCount(players, spectators) {
-  playerCountEl.textContent = `Players: ${players} · Spectators: ${spectators}`;
+  const text = `Players: ${players} · Spectators: ${spectators}`;
+  playerCountEl.textContent = text;
+  if (drawerPlayerCount) drawerPlayerCount.textContent = text;
 }
 
 function updateTurnIndicator() {
-  if (serverTurn === 'white') {
-    turnIndicator.textContent = "⬤ White's Turn";
-    turnIndicator.className = 'white-turn';
-  } else {
-    turnIndicator.textContent = "⬤ Black's Turn";
-    turnIndicator.className = 'black-turn';
+  const isWhite = serverTurn === 'white';
+  const text = isWhite ? "⬤ White's Turn" : "⬤ Black's Turn";
+  const cls = isWhite ? 'white-turn' : 'black-turn';
+  turnIndicator.textContent = text;
+  turnIndicator.className = cls;
+  if (topBarTurn) {
+    topBarTurn.textContent = text;
+    topBarTurn.className = cls;
   }
 }
 
@@ -327,6 +445,12 @@ export function updateMoveLog() {
   }
   // Auto-scroll to bottom
   el.scrollTop = el.scrollHeight;
+
+  // Also update the drawer move log
+  if (drawerMoveLog) {
+    drawerMoveLog.innerHTML = el.innerHTML;
+    drawerMoveLog.scrollTop = drawerMoveLog.scrollHeight;
+  }
 }
 
 function updateDrawInfo() {
@@ -337,8 +461,11 @@ function updateDrawInfo() {
   const fiftyLabel = halfmoveClock > 0 ? `50-move: ${halfmoveClock}/100` : '';
   const seventyFiveLabel = halfmoveClock >= 100 ? `75-move: ${halfmoveClock}/150` : '';
 
-  if (!repLabel && !fiftyLabel && !seventyFiveLabel) {
+  const hasInfo = repLabel || fiftyLabel || seventyFiveLabel;
+
+  if (!hasInfo) {
     el.classList.remove('visible');
+    if (drawerDrawInfo) drawerDrawInfo.classList.remove('visible');
     return;
   }
 
@@ -348,6 +475,12 @@ function updateDrawInfo() {
   for (const part of parts) {
     el.appendChild(document.createTextNode(part));
     el.appendChild(document.createElement('br'));
+  }
+
+  // Also update the drawer draw info
+  if (drawerDrawInfo) {
+    drawerDrawInfo.classList.add('visible');
+    drawerDrawInfo.innerHTML = el.innerHTML;
   }
 }
 
@@ -373,19 +506,25 @@ function updateCapturedPieces(captured) {
   if (!captured) {
     capturedWhitePieces.textContent = '';
     capturedBlackPieces.textContent = '';
+    if (drawerCapturedWhitePieces) drawerCapturedWhitePieces.textContent = '';
+    if (drawerCapturedBlackPieces) drawerCapturedBlackPieces.textContent = '';
     return;
   }
   const sortFn = (a, b) => (CAPTURE_ORDER[a] ?? 99) - (CAPTURE_ORDER[b] ?? 99);
-  capturedWhitePieces.textContent = captured.white
+  const whiteText = captured.white
     .slice()
     .sort(sortFn)
     .map((t) => CAPTURE_SYMBOLS[t]?.black || '')
     .join(' ');
-  capturedBlackPieces.textContent = captured.black
+  const blackText = captured.black
     .slice()
     .sort(sortFn)
     .map((t) => CAPTURE_SYMBOLS[t]?.white || '')
     .join(' ');
+  capturedWhitePieces.textContent = whiteText;
+  capturedBlackPieces.textContent = blackText;
+  if (drawerCapturedWhitePieces) drawerCapturedWhitePieces.textContent = whiteText;
+  if (drawerCapturedBlackPieces) drawerCapturedBlackPieces.textContent = blackText;
 }
 
 // ── Menu ─────────────────────────────────────────────────
@@ -394,6 +533,8 @@ export function showMenu() {
   menuOpen = true;
   menuOverlay.classList.add('visible');
   if (document.pointerLockElement) document.exitPointerLock();
+  // Close status drawer when menu is opened
+  closeStatusDrawer();
   finishShowMenu();
 }
 

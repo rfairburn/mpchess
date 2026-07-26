@@ -108,7 +108,7 @@ canvas {
 }
 #hud {
   position: fixed;
-  bottom: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
   color: #f0d9b5;
@@ -129,6 +129,215 @@ canvas {
 }
 #hud.hidden {
   opacity: 0;
+}
+
+/* ═══ Compact top bar (mobile landscape / short-height) ═══ */
+#top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  min-height: 44px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 max(8px, env(safe-area-inset-right));
+  padding-left: max(8px, env(safe-area-inset-left));
+  background: rgba(20, 14, 8, 0.92);
+  border-bottom: 1px solid rgba(181, 136, 99, 0.4);
+  z-index: 70;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+#top-bar.visible {
+  display: flex;
+}
+#top-bar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+}
+#top-bar-role {
+  color: #f0d9b5;
+  font:
+    bold 14px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+#top-bar-role.white {
+  color: #f0e6d0;
+}
+#top-bar-role.black {
+  color: #ccc;
+}
+#top-bar-role.spectator {
+  color: #999;
+}
+#top-bar-turn {
+  color: #c4a882;
+  font:
+    13px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#top-bar-turn.white-turn {
+  color: #f0e6d0;
+}
+#top-bar-turn.black-turn {
+  color: #ccc;
+}
+#top-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+#top-bar button {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  color: #f0d9b5;
+  font: bold 16px sans-serif;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+#top-bar button:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+#btn-menu-toggle {
+  font-size: 20px;
+}
+#btn-menu-toggle::before {
+  content: '☰';
+}
+#btn-mode-toggle {
+  font-size: 18px;
+}
+#btn-status-drawer {
+  font-size: 18px;
+}
+
+/* ═══ Status drawer (mobile landscape / short-height) ═══ */
+#status-drawer {
+  position: fixed;
+  top: 44px;
+  left: 0;
+  right: 0;
+  max-height: calc(50dvh - 44px);
+  background: rgba(20, 14, 8, 0.95);
+  border-bottom: 1px solid rgba(181, 136, 99, 0.4);
+  z-index: 69;
+  overflow-y: auto;
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+#status-drawer.open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+#status-drawer-content {
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+#drawer-player-count {
+  color: #a08060;
+  font:
+    13px/1.4 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  text-align: center;
+}
+#drawer-captured-white,
+#drawer-captured-black {
+  color: #f0d9b5;
+  font:
+    18px/1.4 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(40, 30, 20, 0.6);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(181, 136, 99, 0.2);
+  letter-spacing: 1px;
+}
+#drawer-captured-white .cap-label,
+#drawer-captured-black .cap-label {
+  display: block;
+  font:
+    bold 11px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  color: #a08060;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+#drawer-move-log {
+  color: #c4a882;
+  font:
+    13px/2 'Courier New',
+    Courier,
+    monospace;
+  background: rgba(40, 30, 20, 0.6);
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(181, 136, 99, 0.25);
+  text-align: right;
+  min-width: 140px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+#drawer-move-log b {
+  color: #887766;
+}
+#drawer-draw-info {
+  color: #a08060;
+  font:
+    12px/1.8 'Courier New',
+    Courier,
+    monospace;
+  background: rgba(40, 30, 20, 0.6);
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(181, 136, 99, 0.2);
+  text-align: right;
+  display: none;
+}
+#drawer-draw-info.visible {
+  display: block;
 }
 #turn-indicator {
   position: fixed;
@@ -185,7 +394,7 @@ canvas {
 #mouse-mode:hover {
   background: rgba(40, 30, 20, 0.95);
 }
-#btn-menu-toggle {
+#btn-menu-toggle-desktop {
   position: fixed;
   top: 20px;
   right: 20px;
@@ -209,18 +418,18 @@ canvas {
   justify-content: center;
   transition: background 0.2s;
 }
-#btn-menu-toggle::before {
+#btn-menu-toggle-desktop::before {
   content: '☰';
   display: inline-block;
   transform: translateY(-1px);
 }
-#btn-menu-toggle:hover {
+#btn-menu-toggle-desktop:hover {
   background: rgba(40, 30, 20, 0.95);
 }
 
-/* ── Fullscreen button ── */
+/* ── Fullscreen button (desktop) ── */
 
-#btn-fullscreen {
+#btn-fullscreen-desktop {
   position: fixed;
   top: 20px;
   right: 64px;
@@ -240,7 +449,7 @@ canvas {
   transition: background 0.2s;
   touch-action: manipulation;
 }
-#btn-fullscreen:hover {
+#btn-fullscreen-desktop:hover {
   background: rgba(40, 30, 20, 0.95);
 }
 
@@ -1307,18 +1516,122 @@ canvas {
   border-color: #f0d9b5;
 }
 
-/* ═══ M3.5.1 — Hide nonessential HUD in portrait on mobile ═══ */
-body.portrait-mobile #role-badge,
-body.portrait-mobile #turn-indicator,
-body.portrait-mobile #player-count,
-body.portrait-mobile #captured-white,
-body.portrait-mobile #captured-black,
-body.portrait-mobile #move-log,
-body.portrait-mobile #draw-info,
-body.portrait-mobile #btn-claim-draw,
-body.portrait-mobile #hud,
-body.portrait-mobile #computer-thinking {
-  visibility: hidden;
+/* ═══ Desktop HUD wrapper ═══ */
+#desktop-hud {
+  /* Visible by default on desktop */
+}
+
+/* ═══ Mobile landscape / short-height responsive rules ═══ */
+
+/* On coarse-pointer devices with short height, use the compact top bar
+   and hide the desktop HUD elements. */
+@media (pointer: coarse) and (max-height: 480px) {
+  #desktop-hud {
+    display: none !important;
+  }
+  #top-bar {
+    display: flex !important;
+  }
+  /* Hide the instruction HUD on coarse-pointer devices — it describes
+     keyboard controls that are not useful on mobile. */
+  #hud {
+    display: none !important;
+  }
+}
+
+/* Also activate compact layout on coarse-pointer landscape phones */
+@media (pointer: coarse) and (orientation: landscape) and (max-width: 900px) {
+  #desktop-hud {
+    display: none !important;
+  }
+  #top-bar {
+    display: flex !important;
+  }
+  #hud {
+    display: none !important;
+  }
+}
+
+/* ═══ Portrait fallback on mobile ═══ */
+body.portrait-mobile #desktop-hud {
+  display: none !important;
+}
+body.portrait-mobile #hud {
+  display: none !important;
+}
+
+/* In portrait, show the top bar but simplified (no status drawer needed) */
+body.portrait-mobile #top-bar {
+  display: flex !important;
+}
+body.portrait-mobile #btn-status-drawer {
+  display: none;
+}
+/* Hide the status drawer in portrait since its toggle is hidden */
+body.portrait-mobile #status-drawer {
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+/* ═══ Dialog sizing for small viewports ═══ */
+
+/* Promotion picker — fit 320px viewports */
+@media (max-width: 420px) {
+  #promo-box {
+    padding: 16px 12px;
+  }
+  #promo-choices {
+    gap: 6px;
+  }
+  #promo-choices button {
+    width: 56px;
+    height: 56px;
+    font-size: 30px;
+  }
+}
+
+/* Import FEN — fit 320px viewports */
+@media (max-width: 420px) {
+  #import-fen-box {
+    min-width: auto;
+    width: calc(100vw - 32px);
+    max-width: 400px;
+    padding: 20px 16px;
+  }
+}
+
+/* Game over, join, concede, draw offer, give-up-spot — fit small viewports */
+@media (max-width: 420px) {
+  #game-over-box,
+  #join-box,
+  #concede-box,
+  #give-up-spot-box,
+  #draw-offer-box,
+  #reconnecting-box,
+  #connection-error-box {
+    width: calc(100vw - 32px);
+    max-width: 400px;
+    padding: 24px 20px;
+  }
+  #game-over-box h2 {
+    font-size: 24px;
+  }
+  #game-over-box p {
+    font-size: 16px;
+  }
+  #join-box h2 {
+    font-size: 22px;
+  }
+}
+
+/* ═══ Safe area insets for notched devices ═══ */
+@media (env(safe-area-inset-bottom) > 0px) {
+  #menu-box {
+    padding-bottom: max(40px, env(safe-area-inset-bottom));
+  }
+  #hud {
+    bottom: max(20px, env(safe-area-inset-bottom));
+  }
 }
 
 /* ═══ M4.0 — Joystick toggle in menu ═══ */

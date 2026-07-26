@@ -17,16 +17,35 @@ function loadCSS() {
 
 function buildProductionDOM() {
   document.body.innerHTML = `
-    <div id="move-log"></div>
-    <div id="menu-overlay"><div id="menu-box"></div></div>
-    <button id="btn-menu-toggle" aria-label="Menu"></button>
-    <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
     <div id="hud" class="hidden"></div>
-    <div id="role-badge"></div>
-    <div id="player-count"></div>
-    <div id="turn-indicator"></div>
-    <div id="mouse-mode"></div>
-    <div id="draw-info"></div>
+    <div id="desktop-hud">
+      <div id="computer-thinking"></div>
+      <div id="move-log"></div>
+      <div id="role-badge"></div>
+      <div id="player-count"></div>
+      <div id="turn-indicator"></div>
+      <div id="mouse-mode"></div>
+      <div id="draw-info"></div>
+      <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
+      <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
+      <div id="btn-claim-draw" class="hidden"></div>
+      <div id="captured-white"><span class="cap-pieces"></span></div>
+      <div id="captured-black"><span class="cap-pieces"></span></div>
+    </div>
+    <div id="top-bar">
+      <button id="btn-menu-toggle" aria-label="Menu"></button>
+      <div id="top-bar-status">
+        <span id="top-bar-role">Connecting...</span>
+        <span id="top-bar-turn">⬤ White's Turn</span>
+      </div>
+      <div id="top-bar-controls">
+        <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
+        <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
+        <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
+      </div>
+    </div>
+    <div id="status-drawer"><div id="status-drawer-content"></div></div>
+    <div id="menu-overlay"><div id="menu-box"></div></div>
     <div id="promo-overlay"><div id="promo-choices"><button data-type="queen"></button><button data-type="rook"></button><button data-type="bishop"></button><button data-type="knight"></button></div></div>
     <div id="concede-overlay"><div id="concede-box"><button id="btn-concede-confirm"></button><button id="btn-concede-cancel"></button></div></div>
     <div id="give-up-spot-overlay"><div id="give-up-spot-box"><button id="btn-give-up-spot-confirm"></button><button id="btn-give-up-spot-cancel"></button></div></div>
@@ -52,10 +71,6 @@ function buildProductionDOM() {
     <div id="menu-computer-section" class="hidden"><select id="menu-computer-skill-dropdown"></select><button id="btn-menu-activate-computer"></button></div>
     <div id="menu-skill-change-section" class="hidden"><select id="menu-skill-change-dropdown"></select><button id="btn-menu-change-skill"></button></div>
     <div id="sensitivity-row"><input type="range" id="sensitivity-slider" /><span id="sensitivity-value"></span></div>
-    <div id="btn-claim-draw" class="hidden"></div>
-    <div id="captured-white"><span class="cap-pieces"></span></div>
-    <div id="captured-black"><span class="cap-pieces"></span></div>
-    <div id="computer-thinking"></div>
   `;
 }
 
@@ -69,20 +84,10 @@ describe('portrait HUD CSS contract', () => {
     loadCSS();
   });
 
-  const nonessentialIds = [
-    'role-badge',
-    'turn-indicator',
-    'player-count',
-    'captured-white',
-    'captured-black',
-    'move-log',
-    'draw-info',
-    'btn-claim-draw',
-    'hud',
-    'computer-thinking',
-  ];
+  // Nonessential elements are now inside #desktop-hud, which is hidden as a unit
+  const nonessentialWrapper = 'desktop-hud';
 
-  const essentialIds = ['btn-fullscreen', 'btn-menu-toggle', 'mouse-mode'];
+  const essentialIds = ['btn-fullscreen', 'btn-menu-toggle'];
 
   const overlayIds = [
     'join-overlay',
@@ -101,14 +106,12 @@ describe('portrait HUD CSS contract', () => {
     'game-available-banner',
   ];
 
-  it('hides all nonessential HUD elements in portrait-mobile', () => {
+  it('hides the desktop-hud wrapper in portrait-mobile', () => {
     document.body.classList.add('portrait-mobile');
 
-    for (const id of nonessentialIds) {
-      const el = document.getElementById(id);
-      expect(el, `Expected ${id} to exist in DOM`).not.toBeNull();
-      expect(getComputedStyle(el).visibility, `${id} should be hidden`).toBe('hidden');
-    }
+    const el = document.getElementById(nonessentialWrapper);
+    expect(el, `Expected ${nonessentialWrapper} to exist in DOM`).not.toBeNull();
+    expect(getComputedStyle(el).display, `${nonessentialWrapper} should be hidden`).toBe('none');
   });
 
   it('keeps essential HUD elements visible in portrait-mobile', () => {
@@ -131,21 +134,17 @@ describe('portrait HUD CSS contract', () => {
     }
   });
 
-  it('shows all nonessential HUD elements without portrait-mobile class', () => {
+  it('shows the desktop-hud wrapper without portrait-mobile class', () => {
     // No portrait-mobile class
-    for (const id of nonessentialIds) {
-      const el = document.getElementById(id);
-      expect(el, `Expected ${id} to exist in DOM`).not.toBeNull();
-      expect(getComputedStyle(el).visibility, `${id} should be visible`).toBe('visible');
-    }
+    const el = document.getElementById(nonessentialWrapper);
+    expect(el, `Expected ${nonessentialWrapper} to exist in DOM`).not.toBeNull();
+    expect(getComputedStyle(el).display, `${nonessentialWrapper} should be visible`).toBe('block');
   });
 
-  it('declares portrait-mobile rules for all nonessential elements in CSS', () => {
-    for (const id of nonessentialIds) {
-      expect(cssText, `CSS should contain .portrait-mobile #${id} rule`).toContain(
-        `.portrait-mobile #${id}`
-      );
-    }
+  it('declares portrait-mobile rules for the desktop-hud wrapper in CSS', () => {
+    expect(cssText, `CSS should contain .portrait-mobile #desktop-hud rule`).toContain(
+      '.portrait-mobile #desktop-hud'
+    );
   });
 
   it('does not declare portrait-mobile rules for essential elements in CSS', () => {
@@ -339,5 +338,81 @@ describe('portrait HUD JS behavior', () => {
     await import('../../client/ui.js');
 
     expect(document.body.classList.contains('portrait-mobile')).toBe(false);
+  });
+
+  it('hides status drawer via CSS in portrait mode', () => {
+    loadCSS();
+    document.body.classList.add('portrait-mobile');
+
+    const drawer = document.getElementById('status-drawer');
+    // Even with .open class, CSS should hide the drawer in portrait
+    drawer.classList.add('open');
+    const computed = getComputedStyle(drawer);
+    expect(computed.pointerEvents).toBe('none');
+  });
+
+  it('closes status drawer class when entering portrait via resize', async () => {
+    commonMocks();
+
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+
+    await import('../../client/ui.js');
+
+    expect(document.body.classList.contains('portrait-mobile')).toBe(false);
+
+    // Rotate to portrait
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 390, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 844, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+
+    expect(document.body.classList.contains('portrait-mobile')).toBe(true);
+  });
+
+  it('closes status drawer class when leaving compact landscape to desktop', async () => {
+    commonMocks();
+
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+
+    await import('../../client/ui.js');
+
+    // Resize to desktop viewport
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 0, configurable: true });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 1920, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 1080, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+
+    expect(document.body.classList.contains('portrait-mobile')).toBe(false);
+  });
+
+  it('closes status drawer class when leaving compact landscape to non-compact landscape', async () => {
+    commonMocks();
+
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 844, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 390, configurable: true });
+
+    await import('../../client/ui.js');
+
+    // Open the drawer
+    const drawer = document.getElementById('status-drawer');
+    drawer.classList.add('open');
+    expect(drawer.classList.contains('open')).toBe(true);
+
+    // Resize to non-compact landscape (exceeds CSS max-width:900px)
+    Object.defineProperty(globalThis.window, 'innerWidth', { value: 901, configurable: true });
+    Object.defineProperty(globalThis.window, 'innerHeight', { value: 600, configurable: true });
+    window.dispatchEvent(new Event('resize'));
+
+    // Still mobile but no longer compact landscape; drawer should close
+    expect(document.body.classList.contains('portrait-mobile')).toBe(false);
+    expect(drawer.classList.contains('open')).toBe(false);
   });
 });
