@@ -113,6 +113,31 @@ describe('portrait HUD CSS contract', () => {
       );
     }
   });
+
+  it('declares portrait-mobile rule for vertical-joystick in CSS', () => {
+    expect(cssText, 'CSS should contain .portrait-mobile #vertical-joystick rule').toContain(
+      '.portrait-mobile #vertical-joystick'
+    );
+  });
+
+  it('moves vertical joystick closer to right edge in portrait mode', () => {
+    // Inject the vertical joystick element
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div id="vertical-joystick"><div id="vjoy-track"><div id="vjoy-thumb"></div></div></div>'
+    );
+
+    // Without portrait-mobile class, right should be 70px (default)
+    document.body.classList.remove('portrait-mobile');
+    let vj = document.getElementById('vertical-joystick');
+    let computed = getComputedStyle(vj);
+    expect(computed.right).toBe('70px');
+
+    // With portrait-mobile class, right should be 20px
+    document.body.classList.add('portrait-mobile');
+    computed = getComputedStyle(vj);
+    expect(computed.right).toBe('20px');
+  });
 });
 
 // ── JS behavior tests ───────────────────────────────────

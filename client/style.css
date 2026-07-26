@@ -1572,6 +1572,11 @@ body.portrait-mobile #status-drawer {
   pointer-events: none;
 }
 
+/* In portrait, move the vertical joystick closer to the right edge */
+body.portrait-mobile #vertical-joystick {
+  right: 20px;
+}
+
 /* ═══ Dialog sizing for small viewports ═══ */
 
 /* Promotion picker — fit 320px viewports */
@@ -1715,9 +1720,8 @@ body.portrait-mobile #status-drawer {
 }
 #virtual-look-area {
   position: fixed;
-  top: 0;
-  right: 0;
-  width: 50%;
+  inset: 0;
+  width: 100%;
   height: 100%;
   z-index: 49;
   display: none;
