@@ -99,108 +99,6 @@ describe('M4.2 — camera position buttons behavior', () => {
     // warpCamera with no camera set is a no-op (no crash)
     controls.warpCamera(3);
   });
-
-  it('should show camera buttons on desktop in Camera Mode', () => {
-    // Desktop: no touch, large viewport
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
-      value: 0,
-      writable: true,
-      configurable: true,
-    });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
-    Object.defineProperty(globalThis.window, 'innerWidth', {
-      value: 1920,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis.window, 'innerHeight', {
-      value: 1080,
-      writable: true,
-      configurable: true,
-    });
-
-    // Camera buttons only show in Camera Mode — toggle to Camera Mode
-    controls.toggleMouseMode();
-    window.dispatchEvent(new Event('resize'));
-
-    const el = document.getElementById('camera-positions');
-    expect(el.classList.contains('visible')).toBe(true);
-  });
-
-  it('should hide camera buttons on mobile portrait', () => {
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
-      value: 5,
-      writable: true,
-      configurable: true,
-    });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', {
-      value: 390,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis.window, 'innerHeight', {
-      value: 844,
-      writable: true,
-      configurable: true,
-    });
-
-    window.dispatchEvent(new Event('resize'));
-
-    const el = document.getElementById('camera-positions');
-    expect(el.classList.contains('visible')).toBe(false);
-  });
-
-  it('should show camera buttons on mobile landscape in Camera Mode', () => {
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
-      value: 5,
-      writable: true,
-      configurable: true,
-    });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    Object.defineProperty(globalThis.window, 'innerWidth', {
-      value: 844,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis.window, 'innerHeight', {
-      value: 390,
-      writable: true,
-      configurable: true,
-    });
-
-    // Camera buttons only show in Camera Mode — toggle to Camera Mode
-    controls.toggleMouseMode();
-    window.dispatchEvent(new Event('resize'));
-
-    const el = document.getElementById('camera-positions');
-    expect(el.classList.contains('visible')).toBe(true);
-  });
-
-  it('should hide camera buttons in Piece Mode', () => {
-    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
-      value: 0,
-      writable: true,
-      configurable: true,
-    });
-    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
-    Object.defineProperty(globalThis.window, 'innerWidth', {
-      value: 1920,
-      writable: true,
-      configurable: true,
-    });
-    Object.defineProperty(globalThis.window, 'innerHeight', {
-      value: 1080,
-      writable: true,
-      configurable: true,
-    });
-
-    // Piece Mode (default) — camera buttons should be hidden
-    window.dispatchEvent(new Event('resize'));
-
-    const el = document.getElementById('camera-positions');
-    expect(el.classList.contains('visible')).toBe(false);
-  });
 });
 
 describe('M4.2 — camera buttons with production stylesheet', () => {
@@ -231,10 +129,10 @@ describe('M4.2 — camera buttons with production stylesheet', () => {
     }
   });
 
-  it('camera buttons are visible by computed style when .visible class is set', () => {
+  it('camera buttons visible in portrait and landscape across Piece and Camera Mode', async () => {
     document.head.innerHTML = '';
     document.body.innerHTML = `
-      <div id="camera-positions" class="visible">
+      <div id="camera-positions">
         <button data-pos="1">1</button>
         <button data-pos="2">2</button>
         <button data-pos="3">3</button>
@@ -245,23 +143,63 @@ describe('M4.2 — camera buttons with production stylesheet', () => {
     `;
     loadCSS();
 
-    const el = document.getElementById('camera-positions');
-    const computed = getComputedStyle(el);
-    expect(computed.display).not.toBe('none');
+    const viewports = [
+      { label: 'portrait', width: 390, height: 844 },
+      { label: 'landscape', width: 844, height: 390 },
+    ];
+
+    // Piece Mode (default) — check both orientations
+    for (const vp of viewports) {
+      window.resizeTo(vp.width, vp.height);
+      const el = document.getElementById('camera-positions');
+      const computed = getComputedStyle(el);
+      expect(computed.display, `${vp.label} Piece Mode`).not.toBe('none');
+    }
+
+    // Toggle once into Camera Mode
+    const controls = await import('../../client/controls.js');
+    controls.toggleMouseMode();
+
+    // Camera Mode — check both orientations
+    for (const vp of viewports) {
+      window.resizeTo(vp.width, vp.height);
+      const el = document.getElementById('camera-positions');
+      const computed = getComputedStyle(el);
+      expect(computed.display, `${vp.label} Camera Mode`).not.toBe('none');
+    }
   });
 
-  it('camera buttons are hidden by computed style when .visible class is absent', () => {
+  it('virtual joystick has touch-action: none', () => {
     document.head.innerHTML = '';
     document.body.innerHTML = `
-      <div id="camera-positions" class="hidden">
-        <button data-pos="1">1</button>
-      </div>
+      <div id="virtual-joystick"><div id="joystick-base"></div></div>
     `;
     loadCSS();
 
-    const el = document.getElementById('camera-positions');
-    const computed = getComputedStyle(el);
-    expect(computed.display).toBe('none');
+    const el = document.getElementById('virtual-joystick');
+    expect(getComputedStyle(el).touchAction).toBe('none');
+  });
+
+  it('virtual look area has touch-action: none', () => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = `
+      <div id="virtual-look-area"></div>
+    `;
+    loadCSS();
+
+    const el = document.getElementById('virtual-look-area');
+    expect(getComputedStyle(el).touchAction).toBe('none');
+  });
+
+  it('vertical joystick has touch-action: none', () => {
+    document.head.innerHTML = '';
+    document.body.innerHTML = `
+      <div id="vertical-joystick"><div id="vjoy-track"></div></div>
+    `;
+    loadCSS();
+
+    const el = document.getElementById('vertical-joystick');
+    expect(getComputedStyle(el).touchAction).toBe('none');
   });
 });
 

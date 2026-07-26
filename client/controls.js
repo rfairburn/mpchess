@@ -93,34 +93,6 @@ function updateJoystickVisibility() {
       vJoyThumb.style.transform = 'translate(-50%, -50%)';
     }
   }
-
-  // Camera buttons: visible when in camera mode (always on desktop, landscape on mobile)
-  updateCameraButtonsVisibility();
-}
-
-function updateCameraButtonsVisibility() {
-  const camPosEl = document.getElementById('camera-positions');
-  if (!camPosEl) return;
-
-  // Only show camera buttons when in Camera Mode
-  if (!mouseLookOn) {
-    camPosEl.classList.remove('visible');
-    return;
-  }
-
-  // On mobile, show only in landscape
-  const hasTouch =
-    navigator.maxTouchPoints > 0 ||
-    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
-  const isMobile = hasTouch && Math.min(window.innerWidth, window.innerHeight) <= 768;
-
-  if (isMobile && window.innerWidth < window.innerHeight) {
-    // Mobile portrait — hide
-    camPosEl.classList.remove('visible');
-  } else {
-    // Desktop or mobile landscape — show in Camera Mode
-    camPosEl.classList.add('visible');
-  }
 }
 
 // Tracks whether pointer lock was actually acquired. Used by the
@@ -853,9 +825,3 @@ document.addEventListener('click', (e) => {
     }
   }
 });
-
-// Update camera buttons visibility on resize
-window.addEventListener('resize', updateCameraButtonsVisibility);
-
-// Initial visibility check on load
-updateCameraButtonsVisibility();
