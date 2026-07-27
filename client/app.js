@@ -83,8 +83,8 @@ setPieceMaterials(matWhite, matBlack);
 // ── Scene / Camera / Renderer ────────────────────────────
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1410);
-scene.fog = new THREE.FogExp2(0x1a1410, 0.035);
+scene.background = new THREE.Color(0x251e16);
+scene.fog = new THREE.FogExp2(0x251e16, 0.035);
 
 function updateCameraFov() {
   camera.fov = window.innerHeight > window.innerWidth ? 87 : 50;

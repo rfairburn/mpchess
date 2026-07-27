@@ -244,8 +244,8 @@ describe('CSS reset', () => {
   });
 
   describe('application overrides', () => {
-    it('sets body background to #1a1410', () => {
-      expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(26, 20, 16)');
+    it('sets body background to #251e16', () => {
+      expect(getComputedStyle(document.body).backgroundColor).toBe('rgb(37, 30, 22)');
     });
 
     it('sets overflow hidden on body', () => {

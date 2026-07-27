@@ -47,14 +47,6 @@ export function createBoard(scene, matBorder) {
   lip.position.y = 0.01;
   lip.receiveShadow = true;
   scene.add(lip);
-  const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(12, 12),
-    new THREE.MeshStandardMaterial({ color: 0x1a1008, roughness: 0.9 })
-  );
-  ground.rotation.x = -Math.PI / 2;
-  ground.position.y = -0.12;
-  ground.receiveShadow = true;
-  scene.add(ground);
 }
 
 // ── Highlights ───────────────────────────────────────────
