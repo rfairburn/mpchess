@@ -109,8 +109,8 @@ export function createLabels(scene, font) {
     height: 0.025,
     curveSegments: 4,
     bevelEnabled: true,
-    bevelThickness: 0.008,
-    bevelSize: 0.008,
+    bevelThickness: 0.003,
+    bevelSize: 0.003,
     bevelSegments: 2,
   };
   files.forEach((ch, i) => {
@@ -123,6 +123,16 @@ export function createLabels(scene, font) {
     m.position.set(i - 3.5, 0.02, 4.15);
     m.rotation.x = -Math.PI / 2;
     scene.add(m);
+    // Top side (mirrored)
+    const g2 = new TextGeometry(ch, textOpts);
+    g2.computeBoundingBox();
+    g2.boundingBox.getCenter(center);
+    g2.translate(-center.x, -center.y, -center.z);
+    const m2 = new THREE.Mesh(g2, fileMat);
+    m2.position.set(i - 3.5, 0.02, -4.15);
+    m2.rotation.x = -Math.PI / 2;
+    m2.rotation.z = Math.PI;
+    scene.add(m2);
   });
   ranks.forEach((ch, i) => {
     const g = new TextGeometry(ch, textOpts);
@@ -135,5 +145,15 @@ export function createLabels(scene, font) {
     m.rotation.x = -Math.PI / 2;
     m.rotation.z = -Math.PI / 2;
     scene.add(m);
+    // Right side (mirrored)
+    const g2 = new TextGeometry(ch, textOpts);
+    g2.computeBoundingBox();
+    g2.boundingBox.getCenter(center);
+    g2.translate(-center.x, -center.y, -center.z);
+    const m2 = new THREE.Mesh(g2, fileMat);
+    m2.position.set(4.15, 0.02, 3.5 - i);
+    m2.rotation.x = -Math.PI / 2;
+    m2.rotation.z = Math.PI / 2;
+    scene.add(m2);
   });
 }
