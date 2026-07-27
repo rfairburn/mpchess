@@ -18,7 +18,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameResult: null,
   moveHistory: [],
   seatStatus: {},
-  tokenKey: () => '',
+  tokenKey: (color) => `mpchess_session_${color}`,
   halfmoveClock: 0,
   threefoldCount: 0,
   canClaimDraw: false,
@@ -77,3 +77,40 @@ vi.mock('../../client/ui/computer.js', () => ({
 }));
 
 vi.mock('../../client/ui/connection.js', () => ({}));
+
+// Stateful sound mock — reads localStorage on each isMuted() call,
+// persists on setMute, so tests can set localStorage before importing.
+const _soundState = { muted: false };
+vi.mock('../../client/sound.js', () => ({
+  init: vi.fn().mockResolvedValue(undefined),
+  playMove: vi.fn(),
+  setMute: vi.fn((val) => {
+    _soundState.muted = val;
+    try {
+      localStorage.setItem('mpchessSoundMuted', String(val));
+    } catch {
+      /* noop */
+    }
+  }),
+  isMuted: vi.fn(() => {
+    // Read from localStorage first (simulates real module behavior),
+    // fall back to in-memory state
+    try {
+      const val = localStorage.getItem('mpchessSoundMuted');
+      if (val !== null) return val === 'true';
+    } catch {
+      /* noop */
+    }
+    return _soundState.muted;
+  }),
+}));
+
+// Exported for tests that need to reset sound state between tests
+export function resetSoundMockState() {
+  _soundState.muted = false;
+  try {
+    localStorage.removeItem('mpchessSoundMuted');
+  } catch {
+    /* noop */
+  }
+}

@@ -36,6 +36,8 @@ import {
   onFenImportWarning,
 } from './network.js';
 import { setCameraForRole, toggleMouseMode, setJoystickEnabled } from './controls.js';
+import { setMute, isMuted } from './sound.js';
+import { reloadPage } from './navigation.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isTouchDevice, isMobilePhone, hasFullscreen } from './capabilities.js';
@@ -234,6 +236,38 @@ document.addEventListener('fullscreenchange', () => {
     }
   }
 });
+
+// ── Sound toggle button ──────────────────────────────────
+
+// Sync button icons with persisted mute state on page load
+function updateSoundButtons() {
+  const icon = isMuted() ? '🔇' : '🔊';
+  const label = isMuted() ? 'Enable sound' : 'Mute sound';
+  const btn = document.getElementById('btn-sound');
+  const btnDesktop = document.getElementById('btn-sound-desktop');
+  if (btn) {
+    btn.textContent = icon;
+    btn.setAttribute('aria-label', label);
+  }
+  if (btnDesktop) {
+    btnDesktop.textContent = icon;
+    btnDesktop.setAttribute('aria-label', label);
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.id === 'btn-sound' || target.id === 'btn-sound-desktop')
+  ) {
+    setMute(!isMuted());
+    updateSoundButtons();
+  }
+});
+
+// Apply saved mute state to button icons on load
+updateSoundButtons();
 
 // ── M3.5.1 — Portrait HUD hiding ────────────────────────
 
@@ -571,7 +605,7 @@ btnReconnectAsPlayer.addEventListener('click', () => {
 btnJoinGame.addEventListener('click', () => {
   localStorage.removeItem(tokenKey('white'));
   localStorage.removeItem(tokenKey('black'));
-  window.location.reload();
+  reloadPage();
 });
 
 btnRestart.addEventListener('click', () => {

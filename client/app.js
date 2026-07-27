@@ -7,6 +7,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 
 import { onMove } from './network.js';
 import { updateMouseModeDisplay } from './ui.js';
+import { init as initSound } from './sound.js';
 import { createBoard, setMaterials as setBoardMaterials, createLabels } from './board.js';
 import {
   setMaterials as setPieceMaterials,
@@ -129,6 +130,7 @@ setRenderer(renderer, camera);
 setClickHandler(renderer);
 setDragHandlers(renderer);
 setScene(scene);
+initSound();
 
 // ── Build scene ──────────────────────────────────────────
 

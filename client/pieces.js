@@ -8,6 +8,7 @@ import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from
 import { clearHighlights, highlightCheck } from './board.js';
 import { diffBoardState } from './board_diff.js';
 import { pieceColor, pieceType } from './chess.mjs';
+import { playMove } from './sound.js';
 
 // Materials — set from app.js
 let matWhite, matBlack;
@@ -269,6 +270,7 @@ function createSlideAnimation(
       );
       if (t >= 1) {
         animatingPieces.delete(piece);
+        playMove();
         return true;
       }
       return false;

@@ -34,6 +34,7 @@ import {
 } from './board.js';
 import { pieceColor, getValidMoves } from './chess.mjs';
 import { pieceMeshes } from './pieces.js';
+import { playMove } from './sound.js';
 
 // ── Controls configuration (from standalone module, re-exported) ──
 
@@ -399,6 +400,7 @@ function commitDrag() {
   dragPiece = { file, rank };
   dragStartPos = { x: pm.mesh.position.x, y: pm.mesh.position.y, z: pm.mesh.position.z };
   pm.mesh.position.y = DRAG_HEIGHT;
+  playMove();
   dragCandidate = null;
 }
 

@@ -76,6 +76,7 @@ export function setupUIDOM() {
   document.body.innerHTML = `
     <div id="menu-overlay"><div id="menu-box"></div></div>
     <button id="btn-menu-toggle" aria-label="Menu"></button>
+    <button id="btn-sound" aria-label="Toggle sound">🔊</button>
     <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
     <div id="hud" class="hidden"></div>
     <div id="role-badge"></div>
@@ -125,6 +126,7 @@ export function setupProductionDOM() {
       <div id="mouse-mode"></div>
       <div id="draw-info"></div>
       <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
+      <button id="btn-sound-desktop" aria-label="Toggle sound">🔊</button>
       <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
       <div id="btn-claim-draw" class="hidden"></div>
       <div id="captured-white"><span class="cap-pieces"></span></div>
@@ -138,6 +140,7 @@ export function setupProductionDOM() {
       </div>
       <div id="top-bar-controls">
         <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
+        <button id="btn-sound" aria-label="Toggle sound">🔊</button>
         <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
         <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
       </div>
@@ -260,6 +263,7 @@ const REQUIRED_UIDOM_IDS = [
   'menu-overlay',
   'menu-box',
   'btn-menu-toggle',
+  'btn-sound',
   'btn-fullscreen',
   'hud',
   'role-badge',
@@ -363,6 +367,7 @@ const REQUIRED_PRODUCTION_DOM_IDS = [
   // Production-specific elements
   'desktop-hud',
   'btn-menu-toggle-desktop',
+  'btn-sound-desktop',
   'btn-fullscreen-desktop',
   'top-bar',
   'top-bar-role',

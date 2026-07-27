@@ -235,6 +235,9 @@ canvas {
 #btn-status-drawer {
   font-size: 18px;
 }
+#btn-sound {
+  font-size: 18px;
+}
 
 /* ═══ Status drawer (mobile landscape / short-height) ═══ */
 #status-drawer {
@@ -454,6 +457,34 @@ canvas {
   touch-action: manipulation;
 }
 #btn-fullscreen-desktop:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+
+/* ── Sound toggle button (desktop) ── */
+
+#btn-sound-desktop {
+  position: fixed;
+  top: 20px;
+  right: 108px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  color: #f0d9b5;
+  font: bold 16px sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 0;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  touch-action: manipulation;
+}
+#btn-sound-desktop:hover {
   background: rgba(40, 30, 20, 0.95);
 }
 
