@@ -217,15 +217,47 @@ describe('portrait HUD JS behavior', () => {
     expect(document.body.classList.contains('portrait-mobile')).toBe(false);
   });
 
-  it('hides status drawer via CSS in portrait mode', () => {
+  it('shows the info button (btn-status-drawer) in portrait mode', () => {
+    loadCSS();
+    document.body.classList.add('portrait-mobile');
+
+    const btn = document.getElementById('btn-status-drawer');
+    expect(btn).not.toBeNull();
+    const computed = getComputedStyle(btn);
+    expect(computed.display).not.toBe('none');
+  });
+
+  it('allows status drawer to open in portrait mode', () => {
     loadCSS();
     document.body.classList.add('portrait-mobile');
 
     const drawer = document.getElementById('status-drawer');
-    // Even with .open class, CSS should hide the drawer in portrait
     drawer.classList.add('open');
     const computed = getComputedStyle(drawer);
-    expect(computed.pointerEvents).toBe('none');
+    // Drawer should be interactive in portrait (no longer forced hidden)
+    expect(computed.pointerEvents).not.toBe('none');
+  });
+
+  it('tightens top-bar-controls gap in portrait mode', () => {
+    loadCSS();
+    document.body.classList.add('portrait-mobile');
+
+    const controls = document.getElementById('top-bar-controls');
+    const computed = getComputedStyle(controls);
+    // Gap should be reduced from default 4px to 2px
+    expect(computed.gap).toBe('2px');
+  });
+
+  it('reduces top-bar button width in portrait mode', () => {
+    loadCSS();
+    document.body.classList.add('portrait-mobile');
+
+    const controls = document.getElementById('top-bar-controls');
+    const buttons = controls.querySelectorAll('button');
+    for (const btn of buttons) {
+      const computed = getComputedStyle(btn);
+      expect(computed.width).toBe('36px');
+    }
   });
 
   it('closes status drawer class when entering portrait via resize', async () => {

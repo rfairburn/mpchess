@@ -1594,14 +1594,16 @@ body.portrait-mobile #hud {
 body.portrait-mobile #top-bar {
   display: flex !important;
 }
-body.portrait-mobile #btn-status-drawer {
-  display: none;
+
+/* Tighten controls so the info button fits in portrait */
+body.portrait-mobile #top-bar-controls {
+  gap: 2px;
 }
-/* Hide the status drawer in portrait since its toggle is hidden */
-body.portrait-mobile #status-drawer {
-  transform: translateY(-100%);
-  pointer-events: none;
+body.portrait-mobile #top-bar-controls button {
+  width: 36px;
+  min-width: 36px;
 }
+/* Status drawer can open in portrait (no longer forced hidden) */
 
 /* In portrait, move the vertical joystick closer to the right edge */
 body.portrait-mobile #vertical-joystick {
