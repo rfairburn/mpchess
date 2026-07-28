@@ -1913,6 +1913,7 @@ select:focus-visible {
 }
 #board-2d-overlay.visible {
   display: block;
+  pointer-events: auto;
 }
 
 /* Fullscreen mode: centered, large */
@@ -1927,7 +1928,7 @@ select:focus-visible {
   height: min(75vw, 75vh);
 }
 #board-2d-overlay.fullscreen .board2d-piece {
-  font-size: min(10vw, 10vh);
+  font-size: min(8vw, 8vh);
 }
 
 #board-2d-container {
@@ -1982,6 +1983,50 @@ select:focus-visible {
   -webkit-text-stroke-color: #f0d9b5;
 }
 
+/* ── 2D Board Highlights ── */
+
+/* Selected square */
+.board2d-square.selected {
+  background-color: #bbc962 !important;
+}
+
+/* Valid move (empty square) */
+.board2d-square.valid-move::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.15);
+}
+
+/* Capture move (square with opponent piece) */
+.board2d-square.capture-move::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 3px solid rgba(0, 0, 0, 0.15);
+  background-color: transparent;
+}
+
+/* King in check */
+.board2d-square.in-check {
+  background: radial-gradient(circle, #ff0000 0%, #ff6666 40%, transparent 70%) !important;
+}
+
+/* Drag ghost — floating piece that follows cursor */
+.board2d-drag-ghost {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-text-stroke: 0.5px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+}
+
 /* 2D board toggle button (desktop) */
 #btn-board-2d-desktop {
   position: fixed;
@@ -2025,7 +2070,7 @@ select:focus-visible {
   }
 
   .board2d-piece {
-    font-size: min(10vw, 10vh);
+    font-size: min(8vw, 8vh);
   }
 
   #btn-board-2d-desktop {
@@ -2044,7 +2089,7 @@ body.portrait-mobile .board2d-grid {
   height: min(90vw, calc(90dvh - 44px));
 }
 body.portrait-mobile .board2d-piece {
-  font-size: min(10vw, 10vh);
+  font-size: min(8vw, 8vh);
 }
 body.portrait-mobile #btn-board-2d-desktop {
   display: none !important;

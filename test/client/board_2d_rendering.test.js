@@ -37,10 +37,19 @@ vi.mock('../../client/network.js', () => ({
   onDrawOfferCancelled: vi.fn(),
   onPlayerLeft: vi.fn(),
   onFenImportWarning: vi.fn(),
+  onPromotion: vi.fn(),
 }));
 
 vi.mock('../../client/capabilities.js', () => ({
   isTouchDevice: () => false,
+}));
+
+vi.mock('../../client/ui.js', () => ({
+  showError: vi.fn(),
+}));
+
+vi.mock('../../client/sound.js', () => ({
+  playMove: vi.fn(),
 }));
 
 describe('board_2d black perspective rendering', () => {
