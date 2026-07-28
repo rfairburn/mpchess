@@ -1901,3 +1901,151 @@ select:focus-visible {
   outline: 2px solid #f0d9b5;
   outline-offset: 2px;
 }
+
+/* ═══ 2D Board Overlay ═══ */
+#board-2d-overlay {
+  position: fixed;
+  top: 110px;
+  right: 20px;
+  z-index: 55;
+  display: none;
+  pointer-events: none;
+}
+#board-2d-overlay.visible {
+  display: block;
+}
+
+/* Fullscreen mode: centered, large */
+#board-2d-overlay.fullscreen {
+  top: 50%;
+  right: auto;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+#board-2d-overlay.fullscreen .board2d-grid {
+  width: min(75vw, 75vh);
+  height: min(75vw, 75vh);
+}
+#board-2d-overlay.fullscreen .board2d-piece {
+  font-size: min(10vw, 10vh);
+}
+
+#board-2d-container {
+  background: rgba(20, 14, 8, 0.92);
+  border: 2px solid rgba(181, 136, 99, 0.5);
+  border-radius: 8px;
+  padding: 4px;
+  pointer-events: auto;
+}
+
+.board2d-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  width: min(240px, calc(100vw - 60px));
+  height: min(240px, calc(100vw - 60px));
+}
+
+.board2d-square {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.board2d-square.light {
+  background-color: #f0d9b5;
+}
+
+.board2d-square.dark {
+  background-color: #b58863;
+}
+
+.board2d-piece {
+  font-size: min(30px, calc((100vw - 60px) / 8));
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+  /* Thin stroke for all pieces */
+  -webkit-text-stroke: 0.5px;
+}
+
+/* White pieces: white fill, dark stroke */
+.board2d-piece.white-piece {
+  color: #ffffff;
+  -webkit-text-stroke-color: #1a1a1a;
+}
+
+/* Black pieces: dark fill, light stroke */
+.board2d-piece.black-piece {
+  color: #1a1a1a;
+  -webkit-text-stroke-color: #f0d9b5;
+}
+
+/* 2D board toggle button (desktop) */
+#btn-board-2d-desktop {
+  position: fixed;
+  top: 20px;
+  right: 152px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  color: #f0d9b5;
+  font: bold 16px sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 0;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  touch-action: manipulation;
+}
+#btn-board-2d-desktop:hover {
+  background: rgba(40, 30, 20, 0.95);
+}
+
+/* ═══ 2D Board — Mobile ═══ */
+@media (pointer: coarse) and (max-height: 480px),
+  (pointer: coarse) and (orientation: landscape) and (max-width: 900px) {
+  #board-2d-overlay {
+    top: calc(50% + 22px);
+    right: auto;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .board2d-grid {
+    width: min(90vw, calc(90dvh - 44px));
+    height: min(90vw, calc(90dvh - 44px));
+  }
+
+  .board2d-piece {
+    font-size: min(10vw, 10vh);
+  }
+
+  #btn-board-2d-desktop {
+    display: none !important;
+  }
+}
+
+body.portrait-mobile #board-2d-overlay {
+  top: calc(50% + 22px);
+  right: auto;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+body.portrait-mobile .board2d-grid {
+  width: min(90vw, calc(90dvh - 44px));
+  height: min(90vw, calc(90dvh - 44px));
+}
+body.portrait-mobile .board2d-piece {
+  font-size: min(10vw, 10vh);
+}
+body.portrait-mobile #btn-board-2d-desktop {
+  display: none !important;
+}

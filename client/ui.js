@@ -41,6 +41,7 @@ import { reloadPage } from './navigation.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isTouchDevice, isMobilePhone, hasFullscreen } from './capabilities.js';
+import { toggle2DBoard } from './board_2d.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -268,6 +269,18 @@ document.addEventListener('click', (e) => {
 
 // Apply saved mute state to button icons on load
 updateSoundButtons();
+
+// ── 2D Board toggle ──────────────────────────────────────
+
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (
+    target instanceof HTMLElement &&
+    (target.id === 'btn-board-2d' || target.id === 'btn-board-2d-desktop')
+  ) {
+    toggle2DBoard();
+  }
+});
 
 // ── M3.5.1 — Portrait HUD hiding ────────────────────────
 
