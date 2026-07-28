@@ -49,11 +49,12 @@ function renderBoard() {
     const actualRank = orientation === 'flipped' ? displayRank : 7 - displayRank;
 
     for (let file = 0; file < 8; file++) {
+      const actualFile = orientation === 'flipped' ? 7 - file : file;
       const square = document.createElement('div');
-      const isLight = (actualRank + file) % 2 === 1; // white-on-right: h1 is light
+      const isLight = (actualRank + actualFile) % 2 === 1; // white-on-right: h1 is light
       square.className = `board2d-square ${isLight ? 'light' : 'dark'}`;
 
-      const piece = serverBoard?.[actualRank]?.[file];
+      const piece = serverBoard?.[actualRank]?.[actualFile];
       if (piece && piece !== 0) {
         const symbol = document.createElement('span');
         symbol.className = 'board2d-piece';
@@ -117,4 +118,27 @@ export function toggle2DBoard() {
  */
 export function is2DBoardVisible() {
   return mode > 0;
+}
+
+// Saved mode for restoring after camera navigation
+let savedMode = 0;
+
+/**
+ * Save the current 2D board mode and hide it.
+ * Call this when entering camera/move navigation mode.
+ */
+export function saveAndHide2DBoard() {
+  savedMode = mode;
+  mode = 0;
+  applyMode();
+}
+
+/**
+ * Restore the 2D board to its previously saved state.
+ * Call this when exiting camera/move navigation mode.
+ */
+export function restore2DBoard() {
+  mode = savedMode;
+  savedMode = 0;
+  applyMode();
 }

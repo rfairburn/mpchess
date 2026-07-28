@@ -25,6 +25,7 @@ import {
   mouseSensitivity,
   showError,
 } from './ui.js';
+import { saveAndHide2DBoard, restore2DBoard } from './board_2d.js';
 import {
   squares,
   clearHighlights,
@@ -106,6 +107,7 @@ export function toggleMouseMode() {
   mouseLookOn = !mouseLookOn;
   updateMouseModeDisplay(mouseLookOn);
   if (mouseLookOn) {
+    saveAndHide2DBoard();
     // Try to acquire pointer lock whenever the API is available.
     // On iPadOS (Safari/Chrome) requestPointerLock does not exist, so
     // this is a no-op and the virtual joystick provides camera control.
@@ -113,6 +115,7 @@ export function toggleMouseMode() {
       _renderer.domElement.requestPointerLock();
     }
   } else {
+    restore2DBoard();
     if (document.pointerLockElement) document.exitPointerLock();
   }
   updateJoystickVisibility();
@@ -211,6 +214,7 @@ document.addEventListener('pointerlockchange', () => {
     pointerLockAcquired = true;
     if (!mouseLookOn) {
       mouseLookOn = true;
+      saveAndHide2DBoard();
       updateMouseModeDisplay(mouseLookOn);
       updateJoystickVisibility();
     }
@@ -224,6 +228,7 @@ document.addEventListener('pointerlockchange', () => {
     if (mouseLookOn && wasAcquired) {
       // Pointer lock was lost while in Camera Mode (e.g. ESC) — exit.
       mouseLookOn = false;
+      restore2DBoard();
       updateMouseModeDisplay(mouseLookOn);
       updateJoystickVisibility();
     }

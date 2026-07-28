@@ -1373,4 +1373,248 @@ describe('controls.js', () => {
       expect(sliderForDefault).toBeLessThan(cfg.sensitivitySliderMax);
     });
   });
+
+  // ── 2D board integration with camera mode ──
+
+  describe('2D board save/restore on camera mode toggle', () => {
+    let board2d;
+
+    beforeEach(async () => {
+      vi.clearAllMocks();
+      vi.resetModules();
+      mockPieceMeshes.length = 0;
+
+      // Set up DOM with 2D board overlay
+      document.body.innerHTML = `
+        <div id="hud" class="hidden"></div>
+        <div id="board-2d-overlay"><div id="board-2d-container"></div></div>
+      `;
+
+      // Re-import after reset
+      network = await import('../../client/network.js');
+      ui = await import('../../client/ui.js');
+      board = await import('../../client/board.js');
+      chess = await import('../../client/chess.mjs');
+      board2d = await import('../../client/board_2d.js');
+      controls = await import('../../client/controls.js');
+    });
+
+    afterEach(() => {
+      delete globalThis.__mockRaycasterResult;
+    });
+
+    it('toggleMouseMode hides 2D board on enter and restores on exit (mode 1)', async () => {
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Enter 2D board mode 1 (small)
+      board2d.toggle2DBoard();
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('visible')).toBe(true);
+
+      // Enter camera mode via toggleMouseMode
+      controls.toggleMouseMode();
+      expect(controls.mouseLookOn).toBe(true);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+      expect(overlay.classList.contains('visible')).toBe(false);
+
+      // Exit camera mode
+      controls.toggleMouseMode();
+      expect(controls.mouseLookOn).toBe(false);
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('visible')).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(false);
+    });
+
+    it('toggleMouseMode hides and restores 2D board from fullscreen (mode 2)', async () => {
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Enter 2D board mode 2 (fullscreen)
+      board2d.toggle2DBoard(); // mode 1
+      board2d.toggle2DBoard(); // mode 2
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      // Enter camera mode
+      controls.toggleMouseMode();
+      expect(board2d.is2DBoardVisible()).toBe(false);
+      expect(overlay.classList.contains('visible')).toBe(false);
+
+      // Exit camera mode — should restore fullscreen
+      controls.toggleMouseMode();
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('visible')).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+    });
+
+    it('toggleMouseMode handles 2D board off (mode 0) correctly', async () => {
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // 2D board is off
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Enter and exit camera mode
+      controls.toggleMouseMode();
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      controls.toggleMouseMode();
+      expect(board2d.is2DBoardVisible()).toBe(false);
+      expect(overlay.classList.contains('visible')).toBe(false);
+    });
+
+    it('pointerlockchange acquire hides 2D board and release restores it', async () => {
+      const canvas = document.createElement('canvas');
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: canvas };
+      controls.setRenderer(renderer, camera);
+
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Enter 2D board mode 1
+      board2d.toggle2DBoard();
+      expect(board2d.is2DBoardVisible()).toBe(true);
+
+      // Enter camera mode via toggleMouseMode (sets mouseLookOn)
+      controls.toggleMouseMode();
+      expect(controls.mouseLookOn).toBe(true);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Simulate pointer lock acquired
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: canvas,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      // Board should still be hidden (already hidden by toggleMouseMode)
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Simulate pointer lock lost (ESC)
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      // mouseLookOn should be off and board restored
+      expect(controls.mouseLookOn).toBe(false);
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('visible')).toBe(true);
+    });
+
+    it('pointerlockchange acquire auto-enters camera mode and hides 2D board', async () => {
+      const canvas = document.createElement('canvas');
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: canvas };
+      controls.setRenderer(renderer, camera);
+
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Enter 2D board mode 1
+      board2d.toggle2DBoard();
+      expect(board2d.is2DBoardVisible()).toBe(true);
+
+      // mouseLookOn is false, then pointer lock is acquired externally
+      expect(controls.mouseLookOn).toBe(false);
+
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: canvas,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      // Should auto-enter camera mode and hide board
+      expect(controls.mouseLookOn).toBe(true);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+      expect(overlay.classList.contains('visible')).toBe(false);
+
+      // Lose pointer lock
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      // Should restore board
+      expect(controls.mouseLookOn).toBe(false);
+      expect(board2d.is2DBoardVisible()).toBe(true);
+    });
+
+    it('pointerlockchange acquire/loss preserves mode 0 (off)', async () => {
+      const canvas = document.createElement('canvas');
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: canvas };
+      controls.setRenderer(renderer, camera);
+
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // 2D board is off (mode 0)
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Acquire pointer lock — auto-enters camera mode
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: canvas,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      expect(controls.mouseLookOn).toBe(true);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Lose pointer lock — should restore to off
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      expect(controls.mouseLookOn).toBe(false);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+      expect(overlay.classList.contains('visible')).toBe(false);
+    });
+
+    it('pointerlockchange acquire/loss preserves mode 2 (fullscreen)', async () => {
+      const canvas = document.createElement('canvas');
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: canvas };
+      controls.setRenderer(renderer, camera);
+
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Enter 2D board mode 2 (fullscreen)
+      board2d.toggle2DBoard(); // mode 1
+      board2d.toggle2DBoard(); // mode 2
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      // Acquire pointer lock — auto-enters camera mode, hides board
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: canvas,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      expect(controls.mouseLookOn).toBe(true);
+      expect(board2d.is2DBoardVisible()).toBe(false);
+
+      // Lose pointer lock — should restore fullscreen
+      Object.defineProperty(globalThis.document, 'pointerLockElement', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+      document.dispatchEvent(new Event('pointerlockchange'));
+
+      expect(controls.mouseLookOn).toBe(false);
+      expect(board2d.is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('visible')).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+    });
+  });
 });
