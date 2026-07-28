@@ -134,9 +134,15 @@ export class PerspectiveCamera {
   }
 }
 
+// Track Scene instances for testing
+export const sceneInstances = [];
+
 export class Scene {
   constructor() {
     this.children = [];
+    this.background = null;
+    this.fog = null;
+    sceneInstances.push(this);
   }
   add(obj) {
     this.children.push(obj);
@@ -260,3 +266,24 @@ export class Clock {
     return 0.016;
   }
 }
+
+export class Texture {
+  constructor() {
+    this.mapping = null;
+  }
+}
+
+// Track load calls for testing
+export const textureLoaderCalls = [];
+export const textureLoaderInstances = [];
+
+export class TextureLoader {
+  load(url) {
+    textureLoaderCalls.push(url);
+    const tex = new Texture();
+    textureLoaderInstances.push(tex);
+    return tex;
+  }
+}
+
+export const EquirectangularReflectionMapping = 1;

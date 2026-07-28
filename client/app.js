@@ -84,7 +84,9 @@ setPieceMaterials(matWhite, matBlack);
 // ── Scene / Camera / Renderer ────────────────────────────
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x251e16);
+const bgTexture = new THREE.TextureLoader().load('./files/background.png');
+bgTexture.mapping = THREE.EquirectangularReflectionMapping;
+scene.background = bgTexture;
 scene.fog = new THREE.FogExp2(0x251e16, 0.035);
 
 function updateCameraFov() {
