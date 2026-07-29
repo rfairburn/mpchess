@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from './network.js';
-import { clearHighlights, highlightCheck } from './board.js';
+import { clearHighlights, highlightCheck, highlightPreviousMove } from './board.js';
 import { diffBoardState } from './board_diff.js';
 import { pieceColor, pieceType } from './chess.mjs';
 import { playMove } from './sound.js';
@@ -418,6 +418,7 @@ export function setScene(scene) {
 onStateUpdate(() => {
   if (_scene) rebuildPieces(_scene);
   clearHighlights();
+  highlightPreviousMove();
   highlightCheck();
 });
 

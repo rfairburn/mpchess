@@ -34,6 +34,7 @@ import {
   highlightSelected,
   highlightValidMoves,
   highlightCheck,
+  highlightPreviousMove,
 } from './board.js';
 import { pieceColor, getValidMoves } from './chess.mjs';
 import { pieceMeshes } from './pieces.js';
@@ -125,7 +126,12 @@ export function toggleMouseMode() {
 
 let _renderer = null;
 let _camera = null;
+let _scene = null;
 let _hud = null;
+
+export function setScene(scene) {
+  _scene = scene;
+}
 
 export function setRenderer(renderer, camera) {
   _renderer = renderer;
@@ -329,6 +335,7 @@ export function setClickHandler(renderer) {
         selectedSquare = null;
         validMoves = [];
         clearHighlights();
+        highlightPreviousMove();
         highlightCheck();
         return;
       }
@@ -345,12 +352,14 @@ export function setClickHandler(renderer) {
             enPassantTarget
           );
           clearHighlights();
+          highlightPreviousMove();
           highlightSelected(file, rank);
-          highlightValidMoves(validMoves);
+          highlightValidMoves(_scene, validMoves);
         } else {
           selectedSquare = null;
           validMoves = [];
           clearHighlights();
+          highlightPreviousMove();
           highlightCheck();
         }
         return;
@@ -359,6 +368,7 @@ export function setClickHandler(renderer) {
       selectedSquare = null;
       validMoves = [];
       clearHighlights();
+      highlightPreviousMove();
       highlightCheck();
       return;
     }
@@ -373,12 +383,14 @@ export function setClickHandler(renderer) {
         enPassantTarget
       );
       clearHighlights();
+      highlightPreviousMove();
       highlightSelected(file, rank);
-      highlightValidMoves(validMoves);
+      highlightValidMoves(_scene, validMoves);
     } else {
       selectedSquare = null;
       validMoves = [];
       clearHighlights();
+      highlightPreviousMove();
       highlightCheck();
       // Immediate local feedback when clicking on own piece but it's not your turn
       if (myRole && piece !== 0 && pieceColor(piece) === myRole && myRole !== serverTurn) {
@@ -407,8 +419,9 @@ function commitDrag() {
     enPassantTarget
   );
   clearHighlights();
+  highlightPreviousMove();
   highlightSelected(file, rank);
-  highlightValidMoves(validMoves);
+  highlightValidMoves(_scene, validMoves);
 
   const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
   if (!pm) {
@@ -492,6 +505,7 @@ function onDragEnd(event) {
     selectedSquare = null;
     validMoves = [];
     clearHighlights();
+    highlightPreviousMove();
     highlightCheck();
   } else {
     // Invalid drop — return piece to original position
@@ -501,6 +515,7 @@ function onDragEnd(event) {
     selectedSquare = null;
     validMoves = [];
     clearHighlights();
+    highlightPreviousMove();
     highlightCheck();
   }
 
@@ -642,6 +657,7 @@ function touchCancelHandler(event) {
   selectedSquare = null;
   validMoves = [];
   clearHighlights();
+  highlightPreviousMove();
   highlightCheck();
 }
 

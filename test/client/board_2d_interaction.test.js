@@ -299,6 +299,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameOver: false,
   castlingRights: { wK: true, wQ: true, bK: true, bQ: true },
   enPassantTarget: null,
+  previousMove: null,
   sendMove: vi.fn(),
   onStateUpdate(fn) {
     stateListeners.push(fn);

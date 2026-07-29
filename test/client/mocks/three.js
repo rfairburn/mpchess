@@ -287,3 +287,21 @@ export class TextureLoader {
 }
 
 export const EquirectangularReflectionMapping = 1;
+
+export class SphereGeometry {
+  constructor(radius = 1, widthSegments = 8, heightSegments = 6) {
+    this.radius = radius;
+    this.widthSegments = widthSegments;
+    this.heightSegments = heightSegments;
+  }
+  dispose() {}
+}
+
+export class RingGeometry {
+  constructor(innerRadius = 0.5, outerRadius = 1, thetaSegments = 16) {
+    this.innerRadius = innerRadius;
+    this.outerRadius = outerRadius;
+    this.thetaSegments = thetaSegments;
+  }
+  dispose() {}
+}

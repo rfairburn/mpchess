@@ -11,6 +11,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameOver: false,
   castlingRights: { wK: true, wQ: true, bK: true, bQ: true },
   enPassantTarget: null,
+  previousMove: null,
   sendMove: vi.fn(),
   onRestart: vi.fn(),
   onStateUpdate: vi.fn(),
@@ -46,6 +47,7 @@ vi.mock('../../client/board.js', () => ({
   highlightSelected: vi.fn(),
   highlightValidMoves: vi.fn(),
   highlightCheck: vi.fn(),
+  highlightPreviousMove: vi.fn(),
 }));
 
 vi.mock('../../client/chess.mjs', () => ({
@@ -769,7 +771,39 @@ describe('controls.js', () => {
       expect(controls.selectedSquare).toBeNull();
       expect(controls.validMoves).toEqual([]);
       expect(board.clearHighlights).toHaveBeenCalled();
+      expect(board.highlightPreviousMove).toHaveBeenCalled();
       expect(board.highlightCheck).toHaveBeenCalled();
+    });
+
+    it('should call highlightPreviousMove on touch cancel', async () => {
+      const renderer = setupGame();
+
+      // Simulate a touchstart on a valid piece
+      const touch = {
+        identifier: 1,
+        clientX: 100,
+        clientY: 100,
+      };
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      const ts = new TouchEvent('touchstart', {
+        bubbles: true,
+        cancelable: true,
+        changedTouches: [touch],
+        touches: [touch],
+      });
+      renderer.domElement.dispatchEvent(ts);
+
+      // Dispatch touchcancel
+      const tc = new TouchEvent('touchcancel', {
+        bubbles: true,
+        cancelable: true,
+        changedTouches: [touch],
+      });
+      document.dispatchEvent(tc);
+
+      // highlightPreviousMove should be called to restore previous move
+      expect(board.highlightPreviousMove).toHaveBeenCalled();
     });
 
     it('should clear drag candidate on restart', async () => {

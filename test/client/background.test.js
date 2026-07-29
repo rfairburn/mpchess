@@ -10,6 +10,7 @@ vi.mock('../../client/board.js', () => ({
   highlightCheck: vi.fn(),
   highlightValidMoves: vi.fn(),
   highlightSelected: vi.fn(),
+  highlightPreviousMove: vi.fn(),
 }));
 
 vi.mock('../../client/pieces.js', () => ({
@@ -26,6 +27,7 @@ vi.mock('../../client/ui.js', () => ({
 
 vi.mock('../../client/controls.js', () => ({
   setRenderer: vi.fn(),
+  setScene: vi.fn(),
   setClickHandler: vi.fn(),
   setDragHandlers: vi.fn(),
   keys: {},
@@ -44,6 +46,7 @@ vi.mock('../../client/network.js', () => ({
   onMove: vi.fn(),
   serverBoard: null,
   serverTurn: null,
+  previousMove: null,
 }));
 
 vi.mock('../../client/chess.mjs', () => ({

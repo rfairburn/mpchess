@@ -4,22 +4,36 @@
 
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
-import { serverBoard, serverTurn } from './network.js';
+import { serverBoard, serverTurn, previousMove } from './network.js';
 import { findKing, isInCheck } from './chess.mjs';
 
 // Materials — created in app.js, referenced here
-let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck;
+let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck, matPreviousMove;
 
-export function setMaterials(light, dark, selected, validMove, captureMove, check) {
+export function setMaterials(light, dark, selected, validMove, captureMove, check, previousMove) {
   matLight = light;
   matDark = dark;
   matSelected = selected;
   matValidMove = validMove;
   matCaptureMove = captureMove;
   matCheck = check;
+  matPreviousMove = previousMove;
 }
 
 export const squares = [];
+
+// Dot indicators for valid moves (3D)
+let moveDots = []; // { mesh, file, rank }[]
+// Shared geometries — created once, reused across selections
+let dotGeometry = null;
+let ringGeometry = null;
+
+function ensureDotGeometry() {
+  // Solid ring (filled circle) for valid moves on empty squares
+  if (!dotGeometry) dotGeometry = new THREE.RingGeometry(0, 0.18, 16);
+  // Hollow ring for capture moves
+  if (!ringGeometry) ringGeometry = new THREE.RingGeometry(0.32, 0.48, 20);
+}
 
 export function createBoard(scene, matBorder) {
   const sq = new THREE.PlaneGeometry(1, 1);
@@ -60,6 +74,7 @@ export function clearHighlights() {
       sq.material.emissiveIntensity = 0;
       sq.material.color.copy(isLight ? matLight.color : matDark.color);
     }
+  removeMoveDots();
 }
 
 function highlightSquare(file, rank, mat) {
@@ -67,13 +82,31 @@ function highlightSquare(file, rank, mat) {
   squares[rank][file].material.copy(mat);
 }
 
-export function highlightValidMoves(moves) {
+// ── Dot indicators for valid moves ───────────────────────
+
+function removeMoveDots() {
+  for (const dot of moveDots) {
+    dot.mesh.parent?.remove(dot.mesh);
+    // Meshes reuse shared geometries and materials — no dispose needed.
+  }
+  moveDots = [];
+}
+
+export function highlightValidMoves(scene, moves) {
+  removeMoveDots();
+  ensureDotGeometry();
+
   for (const m of moves) {
-    if (serverBoard && (serverBoard[m.rank][m.file] !== 0 || m.enPassant)) {
-      highlightSquare(m.file, m.rank, matCaptureMove);
-    } else {
-      highlightSquare(m.file, m.rank, matValidMove);
-    }
+    const isCapture = serverBoard && (serverBoard[m.rank][m.file] !== 0 || m.enPassant);
+    // Reuse shared materials directly — no cloning needed.
+    const dotMat = isCapture ? matCaptureMove : matValidMove;
+
+    const mesh = new THREE.Mesh(isCapture ? ringGeometry : dotGeometry, dotMat);
+    // Both are flat rings lying on the board
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(m.file - 3.5, 0.06, 3.5 - m.rank);
+    scene.add(mesh);
+    moveDots.push({ mesh, file: m.file, rank: m.rank });
   }
 }
 
@@ -87,6 +120,15 @@ export function highlightCheck() {
   if (king && isInCheck(serverBoard, serverTurn)) {
     highlightSquare(king.file, king.rank, matCheck);
   }
+}
+
+// ── Previous move highlight ──────────────────────────────
+
+export function highlightPreviousMove() {
+  if (!previousMove) return;
+  const { fromFile, fromRank, toFile, toRank } = previousMove;
+  highlightSquare(fromFile, fromRank, matPreviousMove);
+  highlightSquare(toFile, toRank, matPreviousMove);
 }
 
 // ── Coordinate labels ────────────────────────────────────

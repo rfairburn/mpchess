@@ -21,7 +21,7 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['test/client/**/*.test.js'],
+    include: ['test/client/**/*.test.js', 'test/shared/**/*.test.js'],
     setupFiles: ['test/client/setup.js'],
   },
 });

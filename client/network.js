@@ -34,6 +34,7 @@ export let threefoldCount = 0;
 export let canClaimDraw = false;
 export let currentFen = '';
 export let debugEnabled = false; // set by server in state message
+export let previousMove = null; // { fromFile, fromRank, toFile, toRank } | null
 
 // Event emitter — replaces 25 callback arrays
 import { EventEmitter } from './event_emitter.js';
@@ -191,225 +192,229 @@ function connect() {
     }
   };
 
-  ws.onmessage = (event) => {
-    let msg;
-    try {
-      msg = JSON.parse(event.data);
-    } catch {
-      return;
+  ws.onmessage = handleServerMessage;
+}
+
+export function handleServerMessage(event) {
+  let msg;
+  try {
+    msg = JSON.parse(event.data);
+  } catch {
+    return;
+  }
+  switch (msg.type) {
+    case 'debug': {
+      if (debugEnabled) {
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[DEBUG]', msg);
+        } else {
+          console.log('[DEBUG]', msg);
+        }
+      }
+      break;
     }
-    switch (msg.type) {
-      case 'debug': {
-        if (debugEnabled) {
-          if (typeof console !== 'undefined' && console.debug) {
-            console.debug('[DEBUG]', msg);
+    case 'state': {
+      myRole = msg.role;
+      serverBoard = msg.board;
+      serverTurn = msg.turn;
+      serverPromotingPiece = msg.promotingPiece;
+      serverGameOver = msg.gameOver;
+      serverGameResult = msg.gameResult;
+      moveHistory = msg.moveHistory || [];
+      castlingRights = msg.castlingRights;
+      enPassantTarget = msg.enPassantTarget;
+      disconnectedPlayersInfo = msg.disconnectedPlayers || [];
+      if (msg.seats) seatStatus = msg.seats;
+      computerPlayer = msg.computerPlayer || null;
+      halfmoveClock = msg.halfmoveClock ?? 0;
+      threefoldCount = msg.threefoldCount ?? 0;
+      canClaimDraw = msg.canClaimDraw ?? false;
+      currentFen = msg.fen || '';
+      previousMove = msg.lastMove || null;
+      if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
+      emitter.emit('stateUpdate', msg);
+      break;
+    }
+    case 'move': {
+      emitter.emit('move', msg);
+      break;
+    }
+    case 'promotion': {
+      // Server confirmed the promoted piece type. Update serverBoard
+      // so the pawn at the destination is replaced with the promoted piece.
+      const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
+      const base = pieceMap[msg.pieceType];
+      if (base !== undefined && serverBoard) {
+        // Prefer explicit position from the message (computer promotions),
+        // fall back to serverPromotingPiece (human promotions where the
+        // client initiated the move).
+        const file = msg.file != null ? msg.file : serverPromotingPiece?.file;
+        const rank = msg.rank != null ? msg.rank : serverPromotingPiece?.rank;
+        // Use explicit color from server if provided; fall back to
+        // serverPromotingPiece (human) or infer from board (legacy).
+        const color = msg.color || serverPromotingPiece?.color;
+        if (file != null && rank != null) {
+          if (color) {
+            const val = color === 'white' ? base : base + 6;
+            serverBoard[rank][file] = val;
           } else {
-            console.log('[DEBUG]', msg);
+            // Infer color from the existing piece on the board (the pawn)
+            const existing = serverBoard[rank][file];
+            const existingColor = existing >= 7 ? 'black' : 'white';
+            const val = existingColor === 'white' ? base : base + 6;
+            serverBoard[rank][file] = val;
           }
         }
-        break;
       }
-      case 'state': {
-        myRole = msg.role;
-        serverBoard = msg.board;
-        serverTurn = msg.turn;
-        serverPromotingPiece = msg.promotingPiece;
-        serverGameOver = msg.gameOver;
-        serverGameResult = msg.gameResult;
-        moveHistory = msg.moveHistory || [];
-        castlingRights = msg.castlingRights;
-        enPassantTarget = msg.enPassantTarget;
-        disconnectedPlayersInfo = msg.disconnectedPlayers || [];
-        if (msg.seats) seatStatus = msg.seats;
-        computerPlayer = msg.computerPlayer || null;
-        halfmoveClock = msg.halfmoveClock ?? 0;
-        threefoldCount = msg.threefoldCount ?? 0;
-        canClaimDraw = msg.canClaimDraw ?? false;
-        currentFen = msg.fen || '';
-        if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
-        emitter.emit('stateUpdate', msg);
-        break;
-      }
-      case 'move': {
-        emitter.emit('move', msg);
-        break;
-      }
-      case 'promotion': {
-        // Server confirmed the promoted piece type. Update serverBoard
-        // so the pawn at the destination is replaced with the promoted piece.
-        const pieceMap = { queen: 5, rook: 4, bishop: 3, knight: 2 };
-        const base = pieceMap[msg.pieceType];
-        if (base !== undefined && serverBoard) {
-          // Prefer explicit position from the message (computer promotions),
-          // fall back to serverPromotingPiece (human promotions where the
-          // client initiated the move).
-          const file = msg.file != null ? msg.file : serverPromotingPiece?.file;
-          const rank = msg.rank != null ? msg.rank : serverPromotingPiece?.rank;
-          // Use explicit color from server if provided; fall back to
-          // serverPromotingPiece (human) or infer from board (legacy).
-          const color = msg.color || serverPromotingPiece?.color;
-          if (file != null && rank != null) {
-            if (color) {
-              const val = color === 'white' ? base : base + 6;
-              serverBoard[rank][file] = val;
-            } else {
-              // Infer color from the existing piece on the board (the pawn)
-              const existing = serverBoard[rank][file];
-              const existingColor = existing >= 7 ? 'black' : 'white';
-              const val = existingColor === 'white' ? base : base + 6;
-              serverBoard[rank][file] = val;
-            }
-          }
-        }
-        emitter.emit('promotion', msg);
-        break;
-      }
-      case 'error': {
-        emitter.emit('error', msg);
-        break;
-      }
-      case 'restart': {
-        moveHistory = [];
-        emitter.emit('restart', msg);
-        break;
-      }
-      case 'joined': {
-        if (msg.color === 'white' || msg.color === 'black') {
-          localStorage.setItem(tokenKey(msg.color), msg.token);
-        }
-        // Spectator: leave session tokens untouched
-        if (!pendingToken) pendingToken = null;
-        reconnectAttempts = 0;
-        reconnecting = false;
-        emitter.emit('reconnected', msg);
-        break;
-      }
-      case 'reconnected': {
-        if (msg.color === 'white' || msg.color === 'black') {
-          const existing = localStorage.getItem(tokenKey(msg.color));
-          if (existing !== pendingToken) {
-            localStorage.setItem(tokenKey(msg.color), pendingToken);
-          }
-        }
-        pendingToken = null;
-        reconnectAttempts = 0;
-        reconnecting = false;
-        emitter.emit('reconnected', msg);
-        break;
-      }
-      case 'reconnectFailed': {
-        // Remove the stale token we tried to reconnect with
-        if (pendingToken) {
-          for (const color of ['white', 'black']) {
-            if (localStorage.getItem(tokenKey(color)) === pendingToken) {
-              localStorage.removeItem(tokenKey(color));
-              validatedTokens[color] = false;
-            }
-          }
-        }
-        // Clear stale role state so the UI and reconnect loop don't reason from an old role
-        myRole = null;
-        reconnectColor = null;
-        pendingToken = null;
-        reconnectAttempts = 0;
-        reconnecting = false;
-        emitter.emit('reconnectFailed', msg);
-        break;
-      }
-      case 'playerDisconnected': {
-        emitter.emit('playerDisconnected', msg);
-        break;
-      }
-      case 'playerDropped': {
-        emitter.emit('playerDropped', msg);
-        break;
-      }
-      case 'gameAvailable': {
-        emitter.emit('gameAvailable', msg);
-        break;
-      }
-      case 'tokenValid': {
-        validatedTokens[msg.color] = msg.valid;
-        emitter.emit('stateUpdate', { seats: seatStatus });
-        break;
-      }
-      case 'fenExport': {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard
-            .writeText(msg.fen)
-            .then(() => {
-              emitter.emit('info', { reason: 'FEN copied to clipboard' });
-            })
-            .catch(() => {
-              downloadText(msg.fen, 'position.fen', 'text/plain');
-              emitter.emit('info', { reason: 'FEN downloaded' });
-            });
-        } else {
-          downloadText(msg.fen, 'position.fen', 'text/plain');
-          emitter.emit('info', { reason: 'FEN downloaded' });
-        }
-        break;
-      }
-      case 'pgnExport': {
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard
-            .writeText(msg.pgn)
-            .then(() => {
-              emitter.emit('info', { reason: 'PGN copied to clipboard' });
-            })
-            .catch(() => {
-              downloadText(msg.pgn, 'game.pgn', 'text/plain');
-              emitter.emit('info', { reason: 'PGN downloaded' });
-            });
-        } else {
-          downloadText(msg.pgn, 'game.pgn', 'text/plain');
-          emitter.emit('info', { reason: 'PGN downloaded' });
-        }
-        break;
-      }
-      case 'computerActivated': {
-        emitter.emit('computerActivated', msg);
-        break;
-      }
-      case 'computerThinking': {
-        emitter.emit('computerThinking', msg);
-        break;
-      }
-      case 'computerSkillChanged': {
-        emitter.emit('computerSkillChanged', msg);
-        break;
-      }
-      case 'computerUnavailable': {
-        emitter.emit('computerUnavailable', msg);
-        break;
-      }
-      case 'drawOffer': {
-        emitter.emit('drawOffer', msg);
-        break;
-      }
-      case 'drawResult': {
-        emitter.emit('drawResult', msg);
-        break;
-      }
-      case 'drawOfferCancelled': {
-        emitter.emit('drawOfferCancelled', msg);
-        break;
-      }
-      case 'left': {
-        myRole = null;
-        emitter.emit('left', msg);
-        break;
-      }
-      case 'playerLeft': {
-        emitter.emit('playerLeft', msg);
-        break;
-      }
-      case 'fenImportWarning': {
-        emitter.emit('fenImportWarning', msg);
-        break;
-      }
+      emitter.emit('promotion', msg);
+      break;
     }
-  };
+    case 'error': {
+      emitter.emit('error', msg);
+      break;
+    }
+    case 'restart': {
+      moveHistory = [];
+      previousMove = null;
+      emitter.emit('restart', msg);
+      break;
+    }
+    case 'joined': {
+      if (msg.color === 'white' || msg.color === 'black') {
+        localStorage.setItem(tokenKey(msg.color), msg.token);
+      }
+      // Spectator: leave session tokens untouched
+      if (!pendingToken) pendingToken = null;
+      reconnectAttempts = 0;
+      reconnecting = false;
+      emitter.emit('reconnected', msg);
+      break;
+    }
+    case 'reconnected': {
+      if (msg.color === 'white' || msg.color === 'black') {
+        const existing = localStorage.getItem(tokenKey(msg.color));
+        if (existing !== pendingToken) {
+          localStorage.setItem(tokenKey(msg.color), pendingToken);
+        }
+      }
+      pendingToken = null;
+      reconnectAttempts = 0;
+      reconnecting = false;
+      emitter.emit('reconnected', msg);
+      break;
+    }
+    case 'reconnectFailed': {
+      // Remove the stale token we tried to reconnect with
+      if (pendingToken) {
+        for (const color of ['white', 'black']) {
+          if (localStorage.getItem(tokenKey(color)) === pendingToken) {
+            localStorage.removeItem(tokenKey(color));
+            validatedTokens[color] = false;
+          }
+        }
+      }
+      // Clear stale role state so the UI and reconnect loop don't reason from an old role
+      myRole = null;
+      reconnectColor = null;
+      pendingToken = null;
+      reconnectAttempts = 0;
+      reconnecting = false;
+      emitter.emit('reconnectFailed', msg);
+      break;
+    }
+    case 'playerDisconnected': {
+      emitter.emit('playerDisconnected', msg);
+      break;
+    }
+    case 'playerDropped': {
+      emitter.emit('playerDropped', msg);
+      break;
+    }
+    case 'gameAvailable': {
+      emitter.emit('gameAvailable', msg);
+      break;
+    }
+    case 'tokenValid': {
+      validatedTokens[msg.color] = msg.valid;
+      emitter.emit('stateUpdate', { seats: seatStatus });
+      break;
+    }
+    case 'fenExport': {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(msg.fen)
+          .then(() => {
+            emitter.emit('info', { reason: 'FEN copied to clipboard' });
+          })
+          .catch(() => {
+            downloadText(msg.fen, 'position.fen', 'text/plain');
+            emitter.emit('info', { reason: 'FEN downloaded' });
+          });
+      } else {
+        downloadText(msg.fen, 'position.fen', 'text/plain');
+        emitter.emit('info', { reason: 'FEN downloaded' });
+      }
+      break;
+    }
+    case 'pgnExport': {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard
+          .writeText(msg.pgn)
+          .then(() => {
+            emitter.emit('info', { reason: 'PGN copied to clipboard' });
+          })
+          .catch(() => {
+            downloadText(msg.pgn, 'game.pgn', 'text/plain');
+            emitter.emit('info', { reason: 'PGN downloaded' });
+          });
+      } else {
+        downloadText(msg.pgn, 'game.pgn', 'text/plain');
+        emitter.emit('info', { reason: 'PGN downloaded' });
+      }
+      break;
+    }
+    case 'computerActivated': {
+      emitter.emit('computerActivated', msg);
+      break;
+    }
+    case 'computerThinking': {
+      emitter.emit('computerThinking', msg);
+      break;
+    }
+    case 'computerSkillChanged': {
+      emitter.emit('computerSkillChanged', msg);
+      break;
+    }
+    case 'computerUnavailable': {
+      emitter.emit('computerUnavailable', msg);
+      break;
+    }
+    case 'drawOffer': {
+      emitter.emit('drawOffer', msg);
+      break;
+    }
+    case 'drawResult': {
+      emitter.emit('drawResult', msg);
+      break;
+    }
+    case 'drawOfferCancelled': {
+      emitter.emit('drawOfferCancelled', msg);
+      break;
+    }
+    case 'left': {
+      myRole = null;
+      emitter.emit('left', msg);
+      break;
+    }
+    case 'playerLeft': {
+      emitter.emit('playerLeft', msg);
+      break;
+    }
+    case 'fenImportWarning': {
+      emitter.emit('fenImportWarning', msg);
+      break;
+    }
+  }
 }
 
 export function downloadText(text, filename, mimeType) {

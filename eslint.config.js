@@ -57,6 +57,7 @@ const browserGlobals = {
   HTMLAnchorElement: 'readonly',
   HTMLTableElement: 'readonly',
   MouseEvent: 'readonly',
+  TouchEvent: 'readonly',
   KeyboardEvent: 'readonly',
   Event: 'readonly',
   ErrorEvent: 'readonly',
@@ -147,6 +148,15 @@ module.exports = [
       ecmaVersion: 2022,
       sourceType: 'module',
       globals: { ...browserGlobals, ...testGlobals },
+    },
+  },
+  // Shared test files — ESM + node globals
+  {
+    files: ['test/shared/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...nodeCjsGlobals, ...testGlobals },
     },
   },
   // Playwright config — ESM

@@ -68,6 +68,7 @@
  * @property {{color: string, file: number, rank: number}|null} promotingPiece — Non-null during promotion
  * @property {boolean} gameOver
  * @property {'checkmate'|'stalemate'|'draw'|null} gameResult
+ * @property {{fromFile: number, fromRank: number, toFile: number, toRank: number}|null} lastMove — Most recent move coordinates
  * @property {string[]} moveHistory — Algebraic notation moves
  * @property {{white: string[], black: string[]}} capturedPieces — Pieces each side has captured (type strings)
  * @property {number} playerCount — Number of seated players

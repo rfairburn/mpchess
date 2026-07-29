@@ -13,6 +13,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameOver: false,
   serverGameResult: null,
   moveHistory: [],
+  previousMove: null,
   seatStatus: {},
   tokenKey: (color) => `mpchess_session_${color}`,
   halfmoveClock: 0,

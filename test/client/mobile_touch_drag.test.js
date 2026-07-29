@@ -11,6 +11,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameOver: false,
   castlingRights: { wK: true, wQ: true, bK: true, bQ: true },
   enPassantTarget: null,
+  previousMove: null,
   sendMove: vi.fn(),
   onRestart: vi.fn(),
   onStateUpdate: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('../../client/board.js', () => ({
   highlightSelected: vi.fn(),
   highlightValidMoves: vi.fn(),
   highlightCheck: vi.fn(),
+  highlightPreviousMove: vi.fn(),
 }));
 
 vi.mock('../../client/chess.mjs', () => ({

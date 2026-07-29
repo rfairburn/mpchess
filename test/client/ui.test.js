@@ -9,6 +9,7 @@ vi.mock('../../client/network.js', () => ({
   serverGameOver: false,
   serverGameResult: null,
   moveHistory: [],
+  previousMove: null,
   seatStatus: {},
   tokenKey: vi.fn(),
   halfmoveClock: 0,

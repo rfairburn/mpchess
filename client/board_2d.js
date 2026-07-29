@@ -13,6 +13,7 @@ import {
   castlingRights,
   enPassantTarget,
   sendMove,
+  previousMove,
 } from './network.js';
 import { isTouchDevice } from './capabilities.js';
 import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
@@ -74,7 +75,7 @@ function getOrientation() {
 function clearHighlights() {
   if (!gridEl) return;
   for (const sq of gridEl.children) {
-    sq.classList.remove('selected', 'valid-move', 'capture-move', 'in-check');
+    sq.classList.remove('selected', 'valid-move', 'capture-move', 'in-check', 'previous-move');
   }
 }
 
@@ -123,12 +124,23 @@ function highlightCheck() {
 }
 
 /**
+ * Highlight the squares of the previous move.
+ */
+function highlightPreviousMove() {
+  if (!previousMove) return;
+  const { fromFile, fromRank, toFile, toRank } = previousMove;
+  highlightSquare(fromFile, fromRank, 'previous-move');
+  highlightSquare(toFile, toRank, 'previous-move');
+}
+
+/**
  * Deselect the current piece and clear all highlights.
  */
 function deselect() {
   selectedSquare = null;
   validMoves = [];
   clearHighlights();
+  highlightPreviousMove();
   highlightCheck();
 }
 
@@ -145,6 +157,7 @@ function selectPiece(file, rank) {
     enPassantTarget
   );
   clearHighlights();
+  highlightPreviousMove();
   highlightSelected(file, rank);
   highlightValidMoves(validMoves);
 }
@@ -215,9 +228,11 @@ function renderBoard() {
 
   // Re-apply highlights if something is selected
   if (selectedSquare) {
+    highlightPreviousMove();
     highlightSelected(selectedSquare.file, selectedSquare.rank);
     highlightValidMoves(validMoves);
   } else {
+    highlightPreviousMove();
     highlightCheck();
   }
 }

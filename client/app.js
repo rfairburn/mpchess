@@ -18,6 +18,7 @@ import {
 } from './pieces.js';
 import {
   setRenderer,
+  setScene as setControlsScene,
   setClickHandler,
   setDragHandlers,
   keys,
@@ -76,9 +77,23 @@ const matCheck = new THREE.MeshStandardMaterial({
   emissive: new THREE.Color(0xff0000),
   emissiveIntensity: 0.8,
 });
+const matPreviousMove = new THREE.MeshStandardMaterial({
+  color: 0xf0d9b5,
+  roughness: 0.7,
+  emissive: new THREE.Color(0xe8a830),
+  emissiveIntensity: 0.45,
+});
 
 // Share materials with other modules
-setBoardMaterials(matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck);
+setBoardMaterials(
+  matLight,
+  matDark,
+  matSelected,
+  matValidMove,
+  matCaptureMove,
+  matCheck,
+  matPreviousMove
+);
 setPieceMaterials(matWhite, matBlack);
 
 // ── Scene / Camera / Renderer ────────────────────────────
@@ -132,6 +147,7 @@ setRenderer(renderer, camera);
 setClickHandler(renderer);
 setDragHandlers(renderer);
 setScene(scene);
+setControlsScene(scene);
 initSound();
 
 // ── Build scene ──────────────────────────────────────────

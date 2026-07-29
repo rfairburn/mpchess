@@ -1967,7 +1967,12 @@ body.portrait-mobile #vertical-joystick {
 
 /* ── 2D Board Highlights ── */
 
-/* Selected square */
+/* Previous move squares */
+.board2d-square.previous-move {
+  background-color: #e8a830 !important;
+}
+
+/* Selected square (after previous-move so it takes priority) */
 .board2d-square.selected {
   background-color: #bbc962 !important;
 }

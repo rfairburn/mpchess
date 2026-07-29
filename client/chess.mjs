@@ -570,6 +570,7 @@ class Game {
     this.capturedPieces = { white: [], black: [] }; // pieces each side has captured
     this.gameOver = false;
     this.gameResult = null;
+    this.lastMove = null; // { fromFile, fromRank, toFile, toRank } of the most recent move
 
     // Position history for threefold repetition, 50-move rule, FEN/PGN export
     this.halfmoveClock = 0;
@@ -699,6 +700,7 @@ class Game {
     this.capturedPieces = { white: [], black: [] };
     this.gameOver = false;
     this.gameResult = null;
+    this.lastMove = null;
     this.positionHistory = [];
     this.positionCounts = new Map();
     // Record the loaded position as the first entry
@@ -960,6 +962,9 @@ class Game {
     // Record position in history (for threefold, 50-move, FEN export)
     this._recordPosition({ fromFile, fromRank, toFile, toRank, notation });
 
+    // Track the last move for client-side highlighting
+    this.lastMove = { fromFile, fromRank, toFile, toRank };
+
     // Check game end and append check/mate symbol
     this.checkGameEnd();
     this._appendMoveSuffix();
@@ -1123,6 +1128,7 @@ class Game {
         : null,
       gameOver: this.gameOver,
       gameResult: this.gameResult,
+      lastMove: this.lastMove,
       moveHistory: [...this.moveHistory],
       capturedPieces: {
         white: [...this.capturedPieces.white],
@@ -1150,6 +1156,7 @@ class Game {
     this.capturedPieces = { white: [], black: [] };
     this.gameOver = false;
     this.gameResult = null;
+    this.lastMove = null;
     this.halfmoveClock = 0;
     this.fullmoveNumber = 1;
     this.positionHistory = [];

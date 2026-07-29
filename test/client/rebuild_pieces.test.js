@@ -11,6 +11,7 @@ import * as THREE from 'three';
 vi.mock('../../client/board.js', () => ({
   clearHighlights: vi.fn(),
   highlightCheck: vi.fn(),
+  highlightPreviousMove: vi.fn(),
 }));
 
 vi.mock('../../client/ui.js', () => ({
