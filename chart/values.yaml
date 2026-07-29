@@ -75,6 +75,8 @@ server:
   # rateLimitWindow: 10000   # Rate-limit window duration (ms)
   # slowClientThreshold: 1048576  # Slow-client buffered-amount threshold (bytes)
   # minMoveDelay: 500        # Minimum delay between moves (ms)
+  # connectionRateLimitMax: 5          # Max new WebSocket connections per window per IP
+  # connectionRateLimitWindow: 10000   # Connection rate-limit window duration (ms)
   # Computer player (Stockfish) settings
   # computerPlayer:
   #   enabled: true          # Master switch for computer player

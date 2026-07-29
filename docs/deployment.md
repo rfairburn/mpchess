@@ -297,6 +297,8 @@ microk8s helm uninstall mpchess --namespace mpchess
 | `server.rateLimitWindow`                             | Rate-limit window duration (ms)                             | `10000`                 |
 | `server.slowClientThreshold`                         | Slow-client buffered-amount threshold (bytes)               | `1048576`               |
 | `server.minMoveDelay`                                | Minimum delay between moves (ms)                            | `500`                   |
+| `server.connectionRateLimitMax`                      | Max new WebSocket connections per window per IP             | `5`                     |
+| `server.connectionRateLimitWindow`                   | Connection rate-limit window duration (ms)                  | `10000`                 |
 | `server.computerPlayer.enabled`                      | Enable computer player (Stockfish)                          | `true`                  |
 | `server.computerPlayer.stockfishPath`                | Path to Stockfish binary (empty = auto-resolve)             | _(auto)_                |
 | `server.computerPlayer.spawnTimeout`                 | Engine startup timeout (ms)                                 | `10000`                 |
@@ -445,8 +447,8 @@ The Helm chart exposes a subset as `server.*` values; the rest can be set via th
 | `MPCHESS_PREFIX`                       | `server.prefix`                       | URL prefix for subpath deployments    | _(none)_       |
 | `MPCHESS_DEBUG`                        | `server.debug`                        | Enable debug logging                  | `false`        |
 | `MPCHESS_HOST`                         | `server.host`                         | Listen address                        | `0.0.0.0`      |
-| `MPCHESS_CONNECTION_RATE_LIMIT_MAX`    | _(not exposed)_                       | Max connections per rate-limit window | `5`            |
-| `MPCHESS_CONNECTION_RATE_LIMIT_WINDOW` | _(not exposed)_                       | Connection rate-limit window (ms)     | `10000`        |
+| `MPCHESS_CONNECTION_RATE_LIMIT_MAX`    | `server.connectionRateLimitMax`       | Max connections per rate-limit window | `5`            |
+| `MPCHESS_CONNECTION_RATE_LIMIT_WINDOW` | `server.connectionRateLimitWindow`    | Connection rate-limit window (ms)     | `10000`        |
 | `MPCHESS_SEAT_TIMEOUT`                 | `server.seatTimeout`                  | Reconnect seat reservation (ms)       | `60000`        |
 | `MPCHESS_JOIN_TIMEOUT`                 | `server.joinTimeout`                  | Join handshake timeout (ms)           | `5000`         |
 | `MPCHESS_RATE_LIMIT_MAX`               | `server.rateLimitMax`                 | Max messages per window               | `60`           |

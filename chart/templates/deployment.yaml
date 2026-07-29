@@ -85,6 +85,14 @@ spec:
             - name: MPCHESS_MIN_MOVE_DELAY
               value: {{ .Values.server.minMoveDelay | toString | quote }}
             {{- end }}
+            {{- if hasKey .Values.server "connectionRateLimitMax" }}
+            - name: MPCHESS_CONNECTION_RATE_LIMIT_MAX
+              value: {{ .Values.server.connectionRateLimitMax | toString | quote }}
+            {{- end }}
+            {{- if hasKey .Values.server "connectionRateLimitWindow" }}
+            - name: MPCHESS_CONNECTION_RATE_LIMIT_WINDOW
+              value: {{ .Values.server.connectionRateLimitWindow | toString | quote }}
+            {{- end }}
             {{- if hasKey .Values.server "computerPlayer" }}
             {{- if hasKey .Values.server.computerPlayer "enabled" }}
             - name: MPCHESS_COMPUTER_ENABLED
