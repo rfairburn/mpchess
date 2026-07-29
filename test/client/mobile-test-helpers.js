@@ -200,6 +200,15 @@ export function setupMobileViewport(width = 390, height = 844) {
     writable: true,
     configurable: true,
   });
+
+  // Mock ResizeObserver (not available in JSDOM)
+  if (!globalThis.window.ResizeObserver) {
+    globalThis.window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
 }
 
 export function setupDesktopViewport(width = 1920, height = 1080) {
@@ -219,6 +228,15 @@ export function setupDesktopViewport(width = 1920, height = 1080) {
     writable: true,
     configurable: true,
   });
+
+  // Mock ResizeObserver (not available in JSDOM)
+  if (!globalThis.window.ResizeObserver) {
+    globalThis.window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
 }
 
 // ── Fullscreen mock setup ─────────────────────────────────

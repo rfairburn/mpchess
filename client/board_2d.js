@@ -19,6 +19,14 @@ import { isTouchDevice } from './capabilities.js';
 import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
 import { playMove } from './sound.js';
 import { showError } from './ui.js';
+import {
+  getArrows,
+  onArrowChange,
+  addArrow,
+  clearArrows,
+  getArrowPath,
+  getArrowColor,
+} from './arrows.js';
 
 // Unicode chess pieces — all dark (filled) variants; color via CSS
 const PIECE_SYMBOLS = {
@@ -40,6 +48,15 @@ let boardEl = null;
 let gridEl = null;
 // 0 = off, 1 = small (top-right), 2 = fullscreen (centered)
 let mode = 0;
+
+// ── Arrow state (2D) ────────────────────────────────────
+
+let arrowSvg = null;
+let arrowStart = null; // { file, rank } — right-click start square
+
+const ARROW_STROKE_RATIO = 0.25; // stroke as fraction of square size (2x)
+const ARROW_HEAD_LENGTH_RATIO = 0.25; // head length as fraction of square
+const ARROW_HEAD_WIDTH_RATIO = 0.36; // head base width matches thick line * 1.5
 
 // ── Selection state ──────────────────────────────────────
 
@@ -181,7 +198,7 @@ function executeMove(fromFile, fromRank, toFile, toRank) {
 
 function renderBoard() {
   if (!boardEl) return;
-
+  arrowSvg = null; // old SVG destroyed by innerHTML reset below
   const orientation = getOrientation();
   boardEl.innerHTML = '';
 
@@ -234,6 +251,137 @@ function renderBoard() {
   } else {
     highlightPreviousMove();
     highlightCheck();
+  }
+
+  // Create or update the arrow SVG overlay
+  ensureArrowLayer2D();
+  scheduleArrowRender2D();
+}
+
+// ── Arrow rendering (2D) ────────────────────────────────
+
+let observedArrowContainer = null;
+let arrowResizeObserver = null;
+let arrowRenderFrame = 0;
+let arrowInputContainer = null;
+
+function scheduleArrowRender2D() {
+  cancelAnimationFrame(arrowRenderFrame);
+  arrowRenderFrame = requestAnimationFrame(renderArrows2D);
+}
+
+function ensureArrowLayer2D() {
+  const container = gridEl?.closest('#board-2d-container');
+  if (!container) return null;
+
+  if (!arrowSvg) {
+    arrowSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    arrowSvg.style.cssText =
+      'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:visible;';
+  }
+
+  container.style.position = 'relative';
+  if (arrowSvg.parentElement !== container) container.appendChild(arrowSvg);
+
+  if (observedArrowContainer !== container) {
+    arrowResizeObserver?.disconnect();
+    observedArrowContainer = container;
+    arrowResizeObserver = new window.ResizeObserver(scheduleArrowRender2D);
+    arrowResizeObserver.observe(container);
+  }
+
+  bindArrowInput2D(container);
+  return container;
+}
+
+function bindArrowInput2D(container) {
+  if (arrowInputContainer === container) return;
+  arrowInputContainer?.removeEventListener('contextmenu', onContextMenu);
+  arrowInputContainer = container;
+  arrowInputContainer.addEventListener('contextmenu', onContextMenu);
+}
+
+function getSquareCenter(file, rank) {
+  if (!gridEl || !arrowSvg?.parentElement) return null;
+
+  const containerRect = arrowSvg.parentElement.getBoundingClientRect();
+  const orientation = getOrientation();
+  const displayRank = orientation === 'flipped' ? rank : 7 - rank;
+  const displayFile = orientation === 'flipped' ? 7 - file : file;
+  const square = gridEl.children[displayRank * 8 + displayFile];
+  if (!square) return null;
+
+  const rect = square.getBoundingClientRect();
+  return {
+    x: rect.left - containerRect.left + rect.width / 2,
+    y: rect.top - containerRect.top + rect.height / 2,
+  };
+}
+
+function renderArrows2D() {
+  const container = ensureArrowLayer2D();
+  if (!container || !gridEl || !arrowSvg) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const firstSquareRect = gridEl.children[0]?.getBoundingClientRect();
+  if (!containerRect.width || !containerRect.height || !firstSquareRect) return;
+
+  arrowSvg.setAttribute('viewBox', `0 0 ${containerRect.width} ${containerRect.height}`);
+  arrowSvg.setAttribute('preserveAspectRatio', 'none');
+  arrowSvg.replaceChildren();
+
+  const squareSize = Math.min(firstSquareRect.width, firstSquareRect.height);
+  const strokeWidth = squareSize * ARROW_STROKE_RATIO;
+  const headLength = squareSize * ARROW_HEAD_LENGTH_RATIO;
+  const headHalfWidth = (squareSize * ARROW_HEAD_WIDTH_RATIO) / 2;
+
+  for (const arrow of getArrows()) {
+    const path = getArrowPath(arrow.from, arrow.to);
+    const points = path.map((p) => getSquareCenter(p.file, p.rank));
+    if (points.length < 2 || points.some((p) => p === null)) continue;
+
+    const tip = points.at(-1);
+    const previous = points.at(-2);
+    const dx = tip.x - previous.x;
+    const dy = tip.y - previous.y;
+    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+    const fx = dx / len;
+    const fy = dy / len;
+    const px = -fy;
+    const py = fx;
+    const base = {
+      x: tip.x - fx * headLength,
+      y: tip.y - fy * headLength,
+    };
+
+    // Line body: from start to arrowhead base
+    const bodyPoints = [...points.slice(0, -1), base];
+    const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    body.setAttribute(
+      'd',
+      bodyPoints.map((p, index) => `${index === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+    );
+    body.setAttribute('fill', 'none');
+    body.setAttribute('stroke', arrow.color);
+    body.setAttribute('stroke-width', strokeWidth);
+    body.setAttribute('stroke-linecap', 'butt');
+    body.setAttribute('stroke-linejoin', 'round');
+
+    // Arrowhead: filled triangle
+    const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    head.setAttribute(
+      'points',
+      [
+        `${base.x + px * headHalfWidth},${base.y + py * headHalfWidth}`,
+        `${base.x - px * headHalfWidth},${base.y - py * headHalfWidth}`,
+        `${tip.x},${tip.y}`,
+      ].join(' ')
+    );
+    head.setAttribute('fill', arrow.color);
+
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    group.append(body, head);
+    arrowSvg.appendChild(group);
   }
 }
 
@@ -549,7 +697,57 @@ function onClickHandler(event) {
     return;
   }
   const sq = event.target.closest('.board2d-square');
-  if (sq) handleSquareClick(sq);
+  if (sq) {
+    clearArrows();
+    handleSquareClick(sq);
+  }
+}
+
+function getSquareFromPointer(event) {
+  const rect = gridEl?.getBoundingClientRect();
+  if (
+    !rect ||
+    event.clientX < rect.left ||
+    event.clientX >= rect.right ||
+    event.clientY < rect.top ||
+    event.clientY >= rect.bottom
+  ) {
+    return null;
+  }
+
+  const displayFile = Math.min(7, Math.floor(((event.clientX - rect.left) / rect.width) * 8));
+  const displayRank = Math.min(7, Math.floor(((event.clientY - rect.top) / rect.height) * 8));
+  const flipped = getOrientation() === 'flipped';
+  return {
+    file: flipped ? 7 - displayFile : displayFile,
+    rank: flipped ? displayRank : 7 - displayRank,
+  };
+}
+
+function onRightMouseDown(event) {
+  if (event.button !== 2) return;
+  const coords = getSquareFromPointer(event);
+  if (!coords) return;
+  arrowStart = coords;
+}
+
+function onRightMouseUp(event) {
+  if (event.button !== 2) return;
+  if (!arrowStart) return;
+
+  const coords = getSquareFromPointer(event);
+  if (!coords) {
+    arrowStart = null;
+    return;
+  }
+
+  const color = getArrowColor(event);
+  addArrow(arrowStart, coords, color);
+  arrowStart = null;
+}
+
+function onContextMenu(event) {
+  event.preventDefault();
 }
 
 function bindEvents() {
@@ -560,6 +758,11 @@ function bindEvents() {
   boardEl.addEventListener('mousedown', onMouseDown);
   document.addEventListener('mousemove', onMouseMove);
   document.addEventListener('mouseup', onMouseUp);
+
+  // Right-click arrow drawing
+  boardEl.addEventListener('contextmenu', onContextMenu);
+  boardEl.addEventListener('mousedown', onRightMouseDown);
+  document.addEventListener('mouseup', onRightMouseUp);
 
   boardEl.addEventListener('touchstart', onTouchStart, { passive: false });
   document.addEventListener('touchmove', onTouchMove, { passive: false });
@@ -574,10 +777,13 @@ function unbindEvents() {
   if (boardEl) {
     boardEl.removeEventListener('click', onClickHandler);
     boardEl.removeEventListener('mousedown', onMouseDown);
+    boardEl.removeEventListener('contextmenu', onContextMenu);
+    boardEl.removeEventListener('mousedown', onRightMouseDown);
     boardEl.removeEventListener('touchstart', onTouchStart);
   }
   document.removeEventListener('mousemove', onMouseMove);
   document.removeEventListener('mouseup', onMouseUp);
+  document.removeEventListener('mouseup', onRightMouseUp);
   document.removeEventListener('touchmove', onTouchMove);
   document.removeEventListener('touchend', onTouchEnd);
   document.removeEventListener('touchcancel', onTouchCancel);
@@ -610,7 +816,13 @@ onRestart(() => {
   dragCompleted = false;
   dragTouchId = null;
   removeDragGhost();
+  clearArrows();
   if (mode > 0) renderBoard();
+});
+
+// Re-render arrows when they change
+onArrowChange(() => {
+  scheduleArrowRender2D();
 });
 
 // ── Mode management ──────────────────────────────────────
@@ -624,6 +836,10 @@ function applyMode() {
     unbindEvents();
     selectedSquare = null;
     validMoves = [];
+    arrowSvg = null; // allow recreation on next show
+    arrowResizeObserver?.disconnect();
+    arrowResizeObserver = null;
+    observedArrowContainer = null;
   } else {
     boardEl.classList.add('visible');
     if (mode === 2) {

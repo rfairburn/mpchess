@@ -323,6 +323,15 @@ function setupDOM() {
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   document.elementFromPoint = vi.fn(() => null);
+
+  // Mock ResizeObserver (not available in JSDOM)
+  if (!globalThis.window.ResizeObserver) {
+    globalThis.window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
 }
 
 describe('2D board interaction', () => {

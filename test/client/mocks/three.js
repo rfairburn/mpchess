@@ -305,3 +305,29 @@ export class RingGeometry {
   }
   dispose() {}
 }
+
+// Line2 and LineMaterial mocks (for arrow rendering)
+export class LineGeometry {
+  constructor() {
+    this.positions = null;
+  }
+  setPositions(arr) {
+    this.positions = arr;
+  }
+  dispose() {}
+}
+
+export class Line2 {
+  constructor(geometry, material) {
+    this.geometry = geometry;
+    this.material = material;
+  }
+}
+
+export class LineMaterial {
+  constructor(opts = {}) {
+    this.color = opts.color || new Color(0xffffff);
+    this.linewidth = opts.linewidth || 1;
+    this.resolution = opts.resolution || new Vector2(1, 1);
+  }
+}

@@ -64,6 +64,15 @@ describe('2D board — previous move highlight persistence', () => {
     `);
     globalThis.document = dom.window.document;
     globalThis.window = dom.window;
+
+    // Mock ResizeObserver (not available in JSDOM)
+    if (!globalThis.window.ResizeObserver) {
+      globalThis.window.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+    }
   });
 
   it('shows previous move highlight when no piece is selected', async () => {

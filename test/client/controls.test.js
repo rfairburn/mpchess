@@ -1427,6 +1427,15 @@ describe('controls.js', () => {
         <div id="board-2d-overlay"><div id="board-2d-container"></div></div>
       `;
 
+      // Mock ResizeObserver (not available in JSDOM)
+      if (!globalThis.window.ResizeObserver) {
+        globalThis.window.ResizeObserver = class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        };
+      }
+
       // Re-import after reset
       network = await import('../../client/network.js');
       ui = await import('../../client/ui.js');

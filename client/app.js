@@ -8,7 +8,12 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 import { onMove } from './network.js';
 import { updateMouseModeDisplay } from './ui.js';
 import { init as initSound } from './sound.js';
-import { createBoard, setMaterials as setBoardMaterials, createLabels } from './board.js';
+import {
+  createBoard,
+  setMaterials as setBoardMaterials,
+  createLabels,
+  initArrows3D,
+} from './board.js';
 import {
   setMaterials as setPieceMaterials,
   loadPieceModels,
@@ -153,6 +158,7 @@ initSound();
 // ── Build scene ──────────────────────────────────────────
 
 createBoard(scene, matBorder);
+initArrows3D(scene, camera);
 updateMouseModeDisplay(mouseLookOn);
 
 loadPieceModels(scene, () => {

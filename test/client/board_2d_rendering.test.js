@@ -59,6 +59,15 @@ describe('board_2d black perspective rendering', () => {
     document.body.innerHTML = `
       <div id="board-2d-overlay"><div id="board-2d-container"></div></div>
     `;
+
+    // Mock ResizeObserver (not available in JSDOM)
+    if (!globalThis.window.ResizeObserver) {
+      globalThis.window.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      };
+    }
   });
 
   it('reverses file order and keeps bottom-right square light', async () => {

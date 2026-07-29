@@ -16,6 +16,9 @@ export default defineConfig({
         __dirname,
         'test/client/mocks/text_geometry.js'
       ),
+      'three/addons/lines/Line2.js': path.resolve(__dirname, 'test/client/mocks/three.js'),
+      'three/addons/lines/LineGeometry.js': path.resolve(__dirname, 'test/client/mocks/three.js'),
+      'three/addons/lines/LineMaterial.js': path.resolve(__dirname, 'test/client/mocks/three.js'),
       three: path.resolve(__dirname, 'test/client/mocks/three.js'),
     },
   },

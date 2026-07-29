@@ -4,8 +4,10 @@
 
 import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+
 import { serverBoard, serverTurn, previousMove } from './network.js';
 import { findKing, isInCheck } from './chess.mjs';
+import { getArrows, onArrowChange, getArrowPath } from './arrows.js';
 
 // Materials — created in app.js, referenced here
 let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck, matPreviousMove;
@@ -27,6 +29,268 @@ let moveDots = []; // { mesh, file, rank }[]
 // Shared geometries — created once, reused across selections
 let dotGeometry = null;
 let ringGeometry = null;
+
+// ── Arrow rendering (3D) ────────────────────────────────
+// Unified geometry: line body + arrowhead as a single flat mesh.
+// Width is updated each frame to maintain constant screen-space thickness.
+
+let arrowGroup = null;
+let arrowScene = null;
+let arrowCamera = null;
+const ARROW_Y = 0.065; // slightly above board to avoid z-fight
+const TARGET_LINEWIDTH = 20; // pixels — 2.5x original 8px
+const HEAD_LEN = 0.25; // 1/4 of a square
+const HEAD_HALF_W_RATIO = 1.5; // arrowhead base wider than line
+
+const materialCache = new Map();
+
+function getArrowMaterial(color) {
+  if (!materialCache.has(color)) {
+    materialCache.set(
+      color,
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      })
+    );
+  }
+  return materialCache.get(color);
+}
+
+function squareToWorld(file, rank) {
+  return { x: file - 3.5, z: 3.5 - rank };
+}
+
+/**
+ * Compute perpendicular offset for a path vertex, using miter at bends
+ * to maintain uniform ribbon thickness.
+ * Returns { px, pz } = unit perpendicular * miter extension.
+ */
+function getPerpAtVertex(worldPoints, i) {
+  const n = worldPoints.length;
+
+  if (i === 0) {
+    const dx = worldPoints[1].x - worldPoints[0].x;
+    const dz = worldPoints[1].z - worldPoints[0].z;
+    const len = Math.sqrt(dx * dx + dz * dz) || 1;
+    return { px: -dz / len, pz: dx / len };
+  }
+  if (i === n - 1) {
+    const dx = worldPoints[i].x - worldPoints[i - 1].x;
+    const dz = worldPoints[i].z - worldPoints[i - 1].z;
+    const len = Math.sqrt(dx * dx + dz * dz) || 1;
+    return { px: -dz / len, pz: dx / len };
+  }
+
+  // Bend: compute miter perpendicular that maintains uniform ribbon thickness.
+  // Miter = bisector of the two segment perpendiculars, extended by 2/||p1+p2||
+  // so the edge stays at unit distance from both centerlines.
+  const bend = worldPoints[i];
+  const dx1 = bend.x - worldPoints[i - 1].x;
+  const dz1 = bend.z - worldPoints[i - 1].z;
+  const dx2 = worldPoints[i + 1].x - bend.x;
+  const dz2 = worldPoints[i + 1].z - bend.z;
+  const len1 = Math.sqrt(dx1 * dx1 + dz1 * dz1) || 1;
+  const len2 = Math.sqrt(dx2 * dx2 + dz2 * dz2) || 1;
+
+  const p1x = -dz1 / len1;
+  const p1z = dx1 / len1;
+  const p2x = -dz2 / len2;
+  const p2z = dx2 / len2;
+
+  const bx = p1x + p2x;
+  const bz = p1z + p2z;
+  const blen = Math.sqrt(bx * bx + bz * bz);
+  if (blen < 0.01) {
+    // Nearly opposite perpendiculars (straight line) — use either
+    return { px: p1x, pz: p1z };
+  }
+
+  // Miter factor: 2/||p1+p2||. For 90° bend: 2/√2 = √2 ≈ 1.414
+  const miter = 2 / blen;
+  return { px: (bx / blen) * miter, pz: (bz / blen) * miter };
+}
+
+/**
+ * Build a continuous ribbon body for the entire path + triangle arrowhead.
+ * Body is shortened by HEAD_LEN at the end so the arrowhead fills the gap.
+ * Miter joins at bends maintain uniform thickness.
+ * Arrowhead is identical to original per-segment version.
+ * Unit half-width = 1, scaled at render time.
+ */
+function buildPathGeometry(worldPoints, y) {
+  const n = worldPoints.length;
+  const positions = [];
+  const indices = [];
+
+  // Compute last segment direction for shortening the body end
+  const tip = worldPoints[n - 1];
+  const prev = worldPoints[n - 2];
+  const lastDx = tip.x - prev.x;
+  const lastDz = tip.z - prev.z;
+  const lastLen = Math.sqrt(lastDx * lastDx + lastDz * lastDz) || 1;
+  const lastFx = lastDx / lastLen;
+  const lastFz = lastDz / lastLen;
+  const bodyEnd = {
+    x: tip.x - lastFx * HEAD_LEN,
+    z: tip.z - lastFz * HEAD_LEN,
+  };
+
+  // Build ribbon with miter joins at bends
+  for (let i = 0; i < n; i++) {
+    const p = i === n - 1 ? bodyEnd : worldPoints[i];
+    const { px, pz } = getPerpAtVertex(worldPoints, i);
+
+    positions.push(p.x + px, y, p.z + pz);
+    positions.push(p.x - px, y, p.z - pz);
+  }
+
+  // Triangulate ribbon
+  for (let i = 0; i < n - 1; i++) {
+    const a = i * 2;
+    const b = i * 2 + 1;
+    const c = (i + 1) * 2;
+    const d = (i + 1) * 2 + 1;
+    indices.push(a, b, d, a, d, c);
+  }
+
+  // Arrowhead: IDENTICAL to original per-segment version
+  const px = -lastFz;
+  const pz = lastFx;
+  const bodyEndX = bodyEnd.x;
+  const bodyEndZ = bodyEnd.z;
+
+  const headStartIdx = positions.length / 3;
+  positions.push(
+    bodyEndX + px * HEAD_HALF_W_RATIO,
+    y,
+    bodyEndZ + pz * HEAD_HALF_W_RATIO,
+    bodyEndX - px * HEAD_HALF_W_RATIO,
+    y,
+    bodyEndZ - pz * HEAD_HALF_W_RATIO,
+    tip.x,
+    y,
+    tip.z
+  );
+  indices.push(headStartIdx, headStartIdx + 1, headStartIdx + 2);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
+ * Compute the world-space half-width that gives TARGET_LINEWIDTH pixels
+ * on screen at the given distance from the camera.
+ */
+function worldHalfWidth(camera, dist) {
+  const fovRad = camera.fov * (Math.PI / 180);
+  const frustumHeight = 2 * dist * Math.tan(fovRad / 2);
+  const pixelsHeight = window.innerHeight;
+  const worldPerPx = frustumHeight / pixelsHeight;
+  return (TARGET_LINEWIDTH / 2) * worldPerPx;
+}
+
+/**
+ * Update the position attribute so width matches current camera distance.
+ * Body is shortened by HEAD_LEN at the end; arrowhead is identical to original.
+ */
+function updateArrowWidth(mesh, camera) {
+  const pos = mesh.geometry.attributes.position;
+  const hw = worldHalfWidth(camera, camera.position.distanceTo(mesh.position));
+  const { worldPoints, y } = mesh.userData;
+  const n = worldPoints.length;
+
+  // Compute body end (shortened by HEAD_LEN)
+  const tip = worldPoints[n - 1];
+  const prev = worldPoints[n - 2];
+  const lastDx = tip.x - prev.x;
+  const lastDz = tip.z - prev.z;
+  const lastLen = Math.sqrt(lastDx * lastDx + lastDz * lastDz) || 1;
+  const lastFx = lastDx / lastLen;
+  const lastFz = lastDz / lastLen;
+  const bodyEnd = {
+    x: tip.x - lastFx * HEAD_LEN,
+    z: tip.z - lastFz * HEAD_LEN,
+  };
+
+  // Update body vertices with miter joins at bends
+  for (let i = 0; i < n; i++) {
+    const p = i === n - 1 ? bodyEnd : worldPoints[i];
+    const { px, pz } = getPerpAtVertex(worldPoints, i);
+
+    pos.setXYZ(i * 2, p.x + px * hw, y, p.z + pz * hw);
+    pos.setXYZ(i * 2 + 1, p.x - px * hw, y, p.z - pz * hw);
+  }
+
+  // Arrowhead: IDENTICAL to original per-segment version
+  const px = -lastFz;
+  const pz = lastFx;
+  const bodyEndX = bodyEnd.x;
+  const bodyEndZ = bodyEnd.z;
+  const headHw = hw * HEAD_HALF_W_RATIO;
+  const headStartIdx = n * 2;
+
+  pos.setXYZ(headStartIdx, bodyEndX + px * headHw, y, bodyEndZ + pz * headHw);
+  pos.setXYZ(headStartIdx + 1, bodyEndX - px * headHw, y, bodyEndZ - pz * headHw);
+  pos.setXYZ(headStartIdx + 2, tip.x, y, tip.z);
+
+  pos.needsUpdate = true;
+}
+
+function renderArrows3D() {
+  if (!arrowGroup || !arrowScene) return;
+
+  // Remove old arrows
+  while (arrowGroup.children.length > 0) {
+    const child = arrowGroup.children[0];
+    arrowGroup.remove(child);
+    if (child.geometry) child.geometry.dispose();
+  }
+
+  const arrows = getArrows();
+  for (const arrow of arrows) {
+    const path = getArrowPath(arrow.from, arrow.to);
+    const color = arrow.color;
+    const mat = getArrowMaterial(color);
+
+    const worldPoints = path.map((p) => squareToWorld(p.file, p.rank));
+    const geo = buildPathGeometry(worldPoints, ARROW_Y);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.userData = { worldPoints, y: ARROW_Y };
+    arrowGroup.add(mesh);
+  }
+}
+
+function updateAllArrowWidths() {
+  if (!arrowCamera || !arrowGroup) return;
+  for (const child of arrowGroup.children) {
+    updateArrowWidth(child, arrowCamera);
+  }
+}
+
+export function initArrows3D(scene, camera) {
+  arrowScene = scene;
+  arrowCamera = camera;
+  arrowGroup = new THREE.Group();
+  arrowGroup.name = 'arrowGroup';
+  scene.add(arrowGroup);
+
+  onArrowChange(renderArrows3D);
+
+  // Update arrow widths every frame
+  const animate = () => {
+    updateAllArrowWidths();
+  };
+  const loop = () => {
+    animate();
+    requestAnimationFrame(loop);
+  };
+  loop();
+}
 
 function ensureDotGeometry() {
   // Solid ring (filled circle) for valid moves on empty squares

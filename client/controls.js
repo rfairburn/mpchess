@@ -39,6 +39,7 @@ import {
 import { pieceColor, getValidMoves } from './chess.mjs';
 import { pieceMeshes } from './pieces.js';
 import { playMove } from './sound.js';
+import { addArrow, clearArrows, getArrowColor } from './arrows.js';
 
 // ── Controls configuration (from standalone module, re-exported) ──
 
@@ -285,6 +286,10 @@ let dragStartY = 0; // clientY at mousedown
 let dragCompleted = false; // true after a committed drag mouseup (suppresses click)
 let dragTouchId = null; // touch identifier that owns the board drag gesture
 
+// ── Arrow drawing state (3D) ─────────────────────────────
+
+let arrowStart = null; // { file, rank } — right-click start square
+
 function getBoardSquareFromRay(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -323,6 +328,9 @@ export function setClickHandler(renderer) {
       return;
     }
     if (!serverBoard) return;
+
+    // Clear arrows on left-click on the 3D board
+    clearArrows();
 
     const sq = getBoardSquareFromRay(event);
     if (!sq) return;
@@ -694,6 +702,36 @@ export function setDragHandlers(renderer) {
 
   document.addEventListener('mousemove', onDragMove);
   document.addEventListener('mouseup', onDragEnd);
+
+  // ── Right-click arrow drawing (3D) ──
+  renderer.domElement.addEventListener('contextmenu', (event) => {
+    event.preventDefault();
+  });
+
+  renderer.domElement.addEventListener('mousedown', (event) => {
+    if (event.button !== 2) return;
+    if (mouseLookOn) return;
+
+    const sq = getBoardSquareFromRay(event);
+    if (!sq) return;
+    arrowStart = sq;
+  });
+
+  document.addEventListener('mouseup', (event) => {
+    if (event.button !== 2) return;
+    if (mouseLookOn) return;
+    if (!arrowStart) return;
+
+    const sq = getBoardSquareFromRay(event);
+    if (!sq) {
+      arrowStart = null;
+      return;
+    }
+
+    const color = getArrowColor(event);
+    addArrow(arrowStart, sq, color);
+    arrowStart = null;
+  });
 }
 
 // ── Cancel drag on board state change ────────────────────
