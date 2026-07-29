@@ -286,6 +286,7 @@ microk8s helm uninstall mpchess --namespace mpchess
 | `gateway.backendTls.insecureSkipVerify`              | Skip backend cert verification (testing only)               | `false`                 |
 | `server.port`                                        | Server listen port                                          | `3000`                  |
 | `server.host`                                        | Listen address                                              | `0.0.0.0`               |
+| `server.debug`                                       | Enable debug logging                                        | `false`                 |
 | `server.fen`                                         | Custom starting FEN                                         | _(none)_                |
 | `server.initHalfmoveClock`                           | Initial halfmove clock (testing)                            | `0`                     |
 | `server.allowedOrigins`                              | Allowed WebSocket origins                                   | _(none)_                |
@@ -435,48 +436,63 @@ All server settings can be configured via environment variables (prefixed `MPCHE
 The Helm chart exposes a subset as `server.*` values; the rest can be set via the
 `config` ConfigMap or by adding env entries directly to the deployment.
 
-| Env Var                           | Helm Value                            | Description                          | Default        |
-| --------------------------------- | ------------------------------------- | ------------------------------------ | -------------- |
-| `MPCHESS_PORT`                    | `server.port`                         | HTTP/WebSocket listen port           | `3000`         |
-| `MPCHESS_FEN`                     | `server.fen`                          | Custom starting FEN position         | standard setup |
-| `MPCHESS_INIT_HALFMOVE_CLOCK`     | `server.initHalfmoveClock`            | Initial halfmove clock (testing)     | `0`            |
-| `MPCHESS_ALLOWED_ORIGINS`         | `server.allowedOrigins`               | Comma-separated WebSocket origins    | _(accept all)_ |
-| `MPCHESS_PREFIX`                  | `server.prefix`                       | URL prefix for subpath deployments   | _(none)_       |
-| `MPCHESS_DEBUG`                   | `server.debug`                        | Enable debug logging                 | `false`        |
-| `MPCHESS_HOST`                    | `server.host`                         | Listen address                       | `0.0.0.0`      |
-| `MPCHESS_SEAT_TIMEOUT`            | `server.seatTimeout`                  | Reconnect seat reservation (ms)      | `60000`        |
-| `MPCHESS_JOIN_TIMEOUT`            | `server.joinTimeout`                  | Join handshake timeout (ms)          | `5000`         |
-| `MPCHESS_RATE_LIMIT_MAX`          | `server.rateLimitMax`                 | Max messages per window              | `60`           |
-| `MPCHESS_RATE_LIMIT_WINDOW`       | `server.rateLimitWindow`              | Rate-limit window duration (ms)      | `10000`        |
-| `MPCHESS_SLOW_CLIENT_THRESHOLD`   | `server.slowClientThreshold`          | Slow-client buffer threshold (bytes) | `1048576`      |
-| `MPCHESS_MIN_MOVE_DELAY`          | `server.minMoveDelay`                 | Min delay between moves (ms)         | `500`          |
-| `MPCHESS_COMPUTER_ENABLED`        | `server.computerPlayer.enabled`       | Enable computer player               | `true`         |
-| `MPCHESS_COMPUTER_STOCKFISH_PATH` | `server.computerPlayer.stockfishPath` | Path to Stockfish binary             | _(auto)_       |
-| `MPCHESS_COMPUTER_SPAWN_TIMEOUT`  | `server.computerPlayer.spawnTimeout`  | Engine startup timeout (ms)          | `10000`        |
-| `MPCHESS_COMPUTER_MOVE_TIMEOUT`   | `server.computerPlayer.moveTimeout`   | Engine move timeout (ms)             | `30000`        |
-| `MPCHESS_COMPUTER_SKILLS`         | `server.computerPlayer.skills`        | JSON skill-level overrides           | _(built-in)_   |
-| `MPCHESS_CERT`                    | _(auto, via `tls`)_                   | TLS certificate file path            | _(none)_       |
-| `MPCHESS_KEY`                     | _(auto, via `tls`)_                   | TLS private key file path            | _(none)_       |
-| `MPCHESS_CHAIN`                   | _(not exposed)_                       | TLS certificate chain file path      | _(none)_       |
+| Env Var                                | Helm Value                            | Description                           | Default        |
+| -------------------------------------- | ------------------------------------- | ------------------------------------- | -------------- |
+| `MPCHESS_PORT`                         | `server.port`                         | HTTP/WebSocket listen port            | `3000`         |
+| `MPCHESS_FEN`                          | `server.fen`                          | Custom starting FEN position          | standard setup |
+| `MPCHESS_INIT_HALFMOVE_CLOCK`          | `server.initHalfmoveClock`            | Initial halfmove clock (testing)      | `0`            |
+| `MPCHESS_ALLOWED_ORIGINS`              | `server.allowedOrigins`               | Comma-separated WebSocket origins     | _(accept all)_ |
+| `MPCHESS_PREFIX`                       | `server.prefix`                       | URL prefix for subpath deployments    | _(none)_       |
+| `MPCHESS_DEBUG`                        | `server.debug`                        | Enable debug logging                  | `false`        |
+| `MPCHESS_HOST`                         | `server.host`                         | Listen address                        | `0.0.0.0`      |
+| `MPCHESS_CONNECTION_RATE_LIMIT_MAX`    | _(not exposed)_                       | Max connections per rate-limit window | `5`            |
+| `MPCHESS_CONNECTION_RATE_LIMIT_WINDOW` | _(not exposed)_                       | Connection rate-limit window (ms)     | `10000`        |
+| `MPCHESS_SEAT_TIMEOUT`                 | `server.seatTimeout`                  | Reconnect seat reservation (ms)       | `60000`        |
+| `MPCHESS_JOIN_TIMEOUT`                 | `server.joinTimeout`                  | Join handshake timeout (ms)           | `5000`         |
+| `MPCHESS_RATE_LIMIT_MAX`               | `server.rateLimitMax`                 | Max messages per window               | `60`           |
+| `MPCHESS_RATE_LIMIT_WINDOW`            | `server.rateLimitWindow`              | Rate-limit window duration (ms)       | `10000`        |
+| `MPCHESS_SLOW_CLIENT_THRESHOLD`        | `server.slowClientThreshold`          | Slow-client buffer threshold (bytes)  | `1048576`      |
+| `MPCHESS_MIN_MOVE_DELAY`               | `server.minMoveDelay`                 | Min delay between moves (ms)          | `500`          |
+| `MPCHESS_COMPUTER_ENABLED`             | `server.computerPlayer.enabled`       | Enable computer player                | `true`         |
+| `MPCHESS_COMPUTER_STOCKFISH_PATH`      | `server.computerPlayer.stockfishPath` | Path to Stockfish binary              | _(auto)_       |
+| `MPCHESS_COMPUTER_SPAWN_TIMEOUT`       | `server.computerPlayer.spawnTimeout`  | Engine startup timeout (ms)           | `10000`        |
+| `MPCHESS_COMPUTER_MOVE_TIMEOUT`        | `server.computerPlayer.moveTimeout`   | Engine move timeout (ms)              | `30000`        |
+| `MPCHESS_COMPUTER_SKILLS`              | `server.computerPlayer.skills`        | JSON skill-level overrides            | _(built-in)_   |
+| `MPCHESS_CERT`                         | _(auto, via `tls`)_                   | TLS certificate file path             | _(none)_       |
+| `MPCHESS_KEY`                          | _(auto, via `tls`)_                   | TLS private key file path             | _(none)_       |
+| `MPCHESS_CHAIN`                        | _(not exposed)_                       | TLS certificate chain file path       | _(none)_       |
 
 ---
 
 ## Rate Limiting
 
-The server enforces per-client WebSocket message rate limiting to prevent abuse:
+The server enforces two independent per-IP rate limiters:
+
+### Message Rate Limiting
+
+WebSocket messages are rate-limited to prevent abuse:
 
 - **Default**: 60 messages per 10-second sliding window.
 - **Configurable** via `rateLimitMax` and `rateLimitWindow` (see env var table above).
-- Rate limiting is per-IP, not per-connection. Multiple connections from the same IP share a single bucket, which persists across disconnects. A single abusive connection can temporarily rate-limit all other connections from the same IP (e.g., behind NAT).
 - Excess messages are silently dropped; the client is not disconnected.
 
-For high-traffic deployments, consider increasing `rateLimitMax` or shortening `rateLimitWindow`.
+### Connection Rate Limiting
+
+WebSocket connection attempts are rate-limited before the handshake completes:
+
+- **Default**: 5 connections per 10-second sliding window.
+- **Configurable** via `connectionRateLimitMax` and `connectionRateLimitWindow` (see env var table above).
+- Checked during the WebSocket `verifyClient` callback. Excess connection attempts are rejected.
+
+Both limiters are per-IP, not per-connection. Multiple connections from the same IP share a single bucket, which persists across disconnects. A single abusive connection can temporarily rate-limit all other connections from the same IP (e.g., behind NAT).
+
+For high-traffic deployments, consider increasing the limits or shortening the windows.
 
 ---
 
 ## Health Probes
 
-The Helm chart configures liveness and readiness probes on the root path (`/`):
+The Helm chart configures liveness and readiness probes on the root path (`/`), which serves the static client files:
 
 | Probe     | Initial Delay | Period | Scheme                           |
 | --------- | ------------- | ------ | -------------------------------- |
@@ -485,6 +501,10 @@ The Helm chart configures liveness and readiness probes on the root path (`/`):
 
 These are defined in `chart/templates/deployment.yaml` and adapt automatically to TLS mode.
 Tune them by editing the template or applying a post-install patch.
+
+**Note:** The server does not expose a dedicated health endpoint (e.g., `/health`). The probes
+rely on the root path serving the static client files, which returns 200 as long as the process
+is running.
 
 ---
 
