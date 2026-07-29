@@ -35,7 +35,12 @@ import {
   onPlayerLeft,
   onFenImportWarning,
 } from './network.js';
-import { setCameraForRole, toggleMouseMode, setJoystickEnabled } from './controls.js';
+import {
+  setCameraForRole,
+  toggleMouseMode,
+  setJoystickEnabled,
+  clearHeldKeys,
+} from './controls.js';
 import { setMute, isMuted } from './sound.js';
 import { reloadPage } from './navigation.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
@@ -52,6 +57,10 @@ import { updateMenuComputerSections, initComputerMenu } from './ui/computer.js';
 
 // Initialize connection overlays
 import './ui/connection.js';
+
+// Help overlay
+import { showHelp, hideHelp, helpOpen, closeHelpForMenu } from './ui/help.js';
+export { helpOpen, hideHelp };
 
 // Re-export toast functions for use by other modules
 export { showError, showInfo, showWarning };
@@ -562,8 +571,9 @@ export function showMenu() {
   menuOpen = true;
   menuOverlay.classList.add('visible');
   if (document.pointerLockElement) document.exitPointerLock();
-  // Close status drawer when menu is opened
+  // Close status drawer and help overlay when menu is opened
   closeStatusDrawer();
+  closeHelpForMenu();
   finishShowMenu();
 }
 
@@ -758,6 +768,20 @@ export function hideImportFenDialog() {
 }
 
 btnImportFen.addEventListener('click', () => showImportFenDialog());
+
+// Help button
+const btnHelp = domRefOptional('btn-help');
+if (btnHelp) {
+  btnHelp.addEventListener('click', openHelpFromMenu);
+}
+
+// Production function for opening Help from the menu.
+// Hides the menu, clears held movement keys, then shows Help with showMenu as close callback.
+export function openHelpFromMenu() {
+  hideMenu();
+  clearHeldKeys();
+  showHelp(showMenu);
+}
 btnImportFenConfirm.addEventListener('click', () => {
   const fen = fenInput.value.trim();
   if (fen) {

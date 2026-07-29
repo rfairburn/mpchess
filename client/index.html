@@ -21,7 +21,7 @@
         <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
         <button id="btn-sound" aria-label="Toggle sound">🔊</button>
         <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
-        <button id="btn-board-2d" aria-label="Toggle 2D board">⃞</button>
+        <button id="btn-board-2d" aria-label="Toggle 2D board">⬜</button>
         <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
       </div>
     </div>
@@ -34,7 +34,7 @@
       <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
       <button id="btn-sound-desktop" aria-label="Toggle sound">🔊</button>
       <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
-      <button id="btn-board-2d-desktop" aria-label="Toggle 2D board">⃞</button>
+      <button id="btn-board-2d-desktop" aria-label="Toggle 2D board">⬜</button>
       <button id="btn-claim-draw" class="hidden">Claim Draw (50-move)</button>
       <div id="role-badge">Connecting...</div>
       <div id="player-count"></div>
@@ -115,7 +115,251 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
+        <button id="btn-help">Help</button>
         <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
+      </div>
+    </div>
+
+    <!-- Help overlay -->
+    <div id="help-overlay" role="dialog" aria-modal="true">
+      <div id="help-box">
+        <div id="help-header">
+          <h2>Help</h2>
+          <button id="btn-help-close" aria-label="Close">✕</button>
+        </div>
+        <div id="help-content">
+          <details class="help-section" open>
+            <summary>Getting Started</summary>
+            <div class="help-row">
+              <span class="help-label">Joining</span>
+              <span class="help-desc"
+                >Choose White, Black, or Spectate from the join screen. White/Black seats fill
+                first-come-first-served; Spectate is always available.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Your role</span>
+              <span class="help-desc"
+                >Role badge (top-left on desktop, top bar on mobile) shows
+                White/Black/Spectator.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Menu button</span>
+              <span class="help-desc"
+                >☰ button (top-left on mobile top bar, top-right on desktop) opens the main menu.
+                On desktop, clicking the role badge also opens the menu.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Turn indicator</span>
+              <span class="help-desc"
+                >Center-top shows whose turn it is with a colored dot matching the active
+                player.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Playing</summary>
+            <div class="help-row">
+              <span class="help-label">Piece mode (default)</span>
+              <span class="help-desc"
+                >Click a piece to select, click a highlighted square to move. Green dot = valid
+                move, ring = capture.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Camera mode</span>
+              <span class="help-desc"
+                >TAB or ♟ button switches to camera mode. WASD to move, mouse to look around. Click
+                "Piece Mode" label to switch back.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">2D board</span>
+              <span class="help-desc"
+                >⬜ button toggles a 2D board overlay. Click pieces to move. Desktop: small board in
+                top-right, click again for fullscreen. Mobile: centered overlay.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Pawn promotion</span>
+              <span class="help-desc"
+                >When a pawn reaches the back rank, pick Queen, Rook, Bishop, or Knight.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Camera &amp; Controls</summary>
+            <div class="help-row">
+              <span class="help-label">Camera positions</span>
+              <span class="help-desc"
+                >Numbered buttons (1–6) at bottom save/restore camera angles.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Virtual joystick</span>
+              <span class="help-desc"
+                >Toggle in menu. Left joystick orbits camera, right slider adjusts zoom. Enabled by
+                default on touch devices.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Mouse sensitivity</span>
+              <span class="help-desc"
+                >Slider in menu adjusts camera speed (1–100, logarithmic scale). Default is
+                20.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Fullscreen</span>
+              <span class="help-desc"
+                >⛶ button toggles browser fullscreen. Hidden on browsers that don't support
+                it.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Game Actions</summary>
+            <div class="help-row">
+              <span class="help-label">New Game</span>
+              <span class="help-desc"
+                >"New Game" in menu resets the board. Only available to active players.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Offer Draw</span>
+              <span class="help-desc"
+                >"Offer Draw" in menu sends a draw request. Opponent accepts or declines.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Claim Draw</span>
+              <span class="help-desc"
+                >"Claim Draw" button appears when a 50-move-rule or threefold-repetition draw is
+                eligible. The 75-move rule is automatic.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Concede</span>
+              <span class="help-desc"
+                >"Concede Game" in menu ends the game with a loss. Confirmed via popup.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Give Up Spot</span>
+              <span class="help-desc"
+                >"Give Up Spot" in menu frees your seat. Confirmed via popup.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Info Panels</summary>
+            <div class="help-row">
+              <span class="help-label">Move log</span>
+              <span class="help-desc"
+                >Scrollable list of moves in algebraic notation. Desktop: bottom-right, full
+                history. Mobile: status drawer, last 6 move-pairs.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Captured pieces</span>
+              <span class="help-desc"
+                >Unicode symbols of pieces each side has captured, sorted by value (Queen &gt; Rook
+                &gt; Bishop &gt; Knight &gt; Pawn).</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Draw info</span>
+              <span class="help-desc"
+                >Shows 50-move counter, 3-fold repetition count, and 75-move auto-draw progress.
+                Appears when any counter is active.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Status drawer (mobile)</span>
+              <span class="help-desc"
+                >ℹ button opens a slide-down panel with player count, captures, moves, and draw
+                info.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Settings &amp; Export</summary>
+            <div class="help-row">
+              <span class="help-label">Sound</span>
+              <span class="help-desc"
+                >🔊 button toggles sound on/off. State persists between sessions.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Computer opponent</span>
+              <span class="help-desc"
+                >Select skill level (Beginner → Grandmaster) and start a game vs Stockfish AI.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Export FEN/PGN</span>
+              <span class="help-desc"
+                >Copies the current position (FEN) or full game (PGN) to clipboard.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Import FEN</span>
+              <span class="help-desc"
+                >Paste a FEN string to load any position. Requires player role.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section">
+            <summary>Notifications</summary>
+            <div class="help-row">
+              <span class="help-label">Toasts</span>
+              <span class="help-desc"
+                >Brief messages at the bottom: green (info), red (error), yellow (warning).
+                Auto-dismiss after a few seconds.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Opponent disconnected</span>
+              <span class="help-desc"
+                >Orange banner appears when your opponent disconnects. "Drop Player" button
+                available after a countdown.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Game available</span>
+              <span class="help-desc"
+                >Green banner for spectators when both players disconnect — click to join.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label">Reconnecting</span>
+              <span class="help-desc"
+                >Full-screen overlay with spinner when connection is lost. "Give Up" button to
+                abort.</span
+              >
+            </div>
+          </details>
+
+          <details class="help-section help-keyboard">
+            <summary>Keyboard Shortcuts</summary>
+            <div class="help-row">
+              <span class="help-label">TAB</span>
+              <span class="help-desc">Toggle between Piece mode and Camera mode.</span>
+            </div>
+            <div class="help-row">
+              <span class="help-label">ESC</span>
+              <span class="help-desc">Open/close main menu.</span>
+            </div>
+          </details>
+        </div>
       </div>
     </div>
 

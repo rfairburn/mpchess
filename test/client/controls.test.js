@@ -28,8 +28,11 @@ vi.mock('../../client/network.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
+  helpOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
+  hideHelp: vi.fn(),
+  openHelpFromMenu: vi.fn(),
   updateMouseModeDisplay: vi.fn(),
   hidePromotionPicker: vi.fn(),
   hideConcedeConfirm: vi.fn(),

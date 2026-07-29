@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
+  helpOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
   updateMouseModeDisplay: vi.fn(),
