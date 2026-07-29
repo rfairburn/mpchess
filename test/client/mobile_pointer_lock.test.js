@@ -402,6 +402,7 @@ describe('controls.js — pointer lock behavior by API availability', () => {
       const renderer = { domElement: document.createElement('canvas') };
       controls.setRenderer(renderer, camera);
 
+      controls.setJoystickEnabled(false);
       controls.toggleMouseMode();
 
       expect(document.getElementById('virtual-joystick').classList.contains('visible')).toBe(false);

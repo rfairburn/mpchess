@@ -58,7 +58,7 @@ export let mouseLookOn = false;
 
 // ── Joystick state (M4.0) ────────────────────────────────
 
-let joystickEnabled = false;
+let joystickEnabled = navigator.maxTouchPoints > 0;
 
 export function setJoystickEnabled(state) {
   joystickEnabled = state;

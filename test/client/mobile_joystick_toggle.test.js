@@ -28,7 +28,46 @@ describe('M4.0 — joystick toggle', () => {
     cleanupMobileMocks();
   });
 
-  it('should default to off', () => {
+  it('should default to on for touch devices', () => {
+    const toggle = document.getElementById('joystick-toggle');
+    expect(toggle.checked).toBe(true);
+  });
+
+  it('should default to off for non-touch devices', async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    setupUIDOMWithJoystick();
+    setupFullscreenMocks();
+    // Simulate a desktop/non-touch device
+    Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+    globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
+
+    const freshUi = await import('../../client/ui.js');
+    await freshUi.hideMenu();
+
+    const toggle = document.getElementById('joystick-toggle');
+    expect(toggle.checked).toBe(false);
+  });
+
+  it('should respect persisted false even on touch devices', async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    setupUIDOMWithJoystick();
+    setupFullscreenMocks();
+    setupMobileViewport(390, 844);
+
+    // User previously turned joystick off
+    localStorage.setItem('virtualJoystick', 'false');
+
+    const freshUi = await import('../../client/ui.js');
+    await freshUi.hideMenu();
+
     const toggle = document.getElementById('joystick-toggle');
     expect(toggle.checked).toBe(false);
   });

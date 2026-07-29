@@ -2776,8 +2776,8 @@ describe('TLS CLI arguments', () => {
       };
       const handleStderr = (data) => {
         stderr += data.toString();
-        if (stderr.includes('Falling back to HTTP') || stderr.includes('Running in HTTP mode'))
-          tryKill();
+        // Do NOT kill on TLS warnings/fallbacks — the banner with (http)/(https)
+        // is printed asynchronously in the listen callback; let handleStdout kill.
         // If the port was already in use, the child crashes with EADDRINUSE.
         // Resolve immediately so the test can report the error.
         if (stderr.includes('EADDRINUSE')) {

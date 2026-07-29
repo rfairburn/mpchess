@@ -384,7 +384,8 @@ sensitivitySlider.addEventListener('input', () => {
 const joystickToggle = document.getElementById('joystick-toggle');
 if (joystickToggle) {
   const saved = localStorage.getItem('virtualJoystick');
-  const enabled = saved ? saved === 'true' : false;
+  const isMobile = navigator.maxTouchPoints > 0;
+  const enabled = saved ? saved === 'true' : isMobile;
   joystickToggle.checked = enabled;
   setJoystickEnabled(enabled);
 
