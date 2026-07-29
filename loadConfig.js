@@ -34,6 +34,8 @@ const DEFAULTS = {
   joinTimeout: undefined,
   rateLimitMax: undefined,
   rateLimitWindow: undefined,
+  connectionRateLimitMax: undefined,
+  connectionRateLimitWindow: undefined,
   slowClientThreshold: undefined,
   minMoveDelay: undefined,
   host: undefined,
@@ -58,6 +60,8 @@ const ENV_MAP = {
   joinTimeout: 'MPCHESS_JOIN_TIMEOUT',
   rateLimitMax: 'MPCHESS_RATE_LIMIT_MAX',
   rateLimitWindow: 'MPCHESS_RATE_LIMIT_WINDOW',
+  connectionRateLimitMax: 'MPCHESS_CONNECTION_RATE_LIMIT_MAX',
+  connectionRateLimitWindow: 'MPCHESS_CONNECTION_RATE_LIMIT_WINDOW',
   slowClientThreshold: 'MPCHESS_SLOW_CLIENT_THRESHOLD',
   minMoveDelay: 'MPCHESS_MIN_MOVE_DELAY',
   host: 'MPCHESS_HOST',
@@ -83,6 +87,8 @@ const CLI_FLAG_MAP = [
   ['--join-timeout=', 'joinTimeout'],
   ['--rate-limit-max=', 'rateLimitMax'],
   ['--rate-limit-window=', 'rateLimitWindow'],
+  ['--connection-rate-limit-max=', 'connectionRateLimitMax'],
+  ['--connection-rate-limit-window=', 'connectionRateLimitWindow'],
   ['--slow-client-threshold=', 'slowClientThreshold'],
   ['--min-move-delay=', 'minMoveDelay'],
   ['--host=', 'host'],
@@ -99,6 +105,8 @@ function convertType(key, value) {
     key === 'joinTimeout' ||
     key === 'rateLimitMax' ||
     key === 'rateLimitWindow' ||
+    key === 'connectionRateLimitMax' ||
+    key === 'connectionRateLimitWindow' ||
     key === 'slowClientThreshold' ||
     key === 'minMoveDelay'
   ) {

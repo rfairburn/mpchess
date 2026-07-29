@@ -21,6 +21,8 @@ class MockWebSocket {
     this._closed = false;
     this.bufferedAmount = 0;
     this._socket = ip ? { remoteAddress: ip } : undefined;
+    this._closeCode = null;
+    this._closeReason = null;
   }
 
   send(data) {
@@ -47,9 +49,11 @@ class MockWebSocket {
     if (this._listeners[event]) this._listeners[event](data);
   }
 
-  close() {
+  close(code, reason) {
     this.readyState = 3; // CLOSED
     this._closed = true;
+    this._closeCode = code;
+    this._closeReason = reason;
     if (this._listeners.close) this._listeners.close();
   }
 }
@@ -66,10 +70,12 @@ class MockWebSocketServer {
     this._listeners[event] = fn;
   }
 
-  simulateConnection(ip) {
+  simulateConnection(ip, reqProps = {}) {
     const ws = new MockWebSocket(ip);
     this.clients.add(ws);
-    if (this._listeners.connection) this._listeners.connection(ws);
+    // Pass req as second argument, matching real ws library: (ws, req)
+    const req = { socket: { remoteAddress: ip }, ...reqProps };
+    if (this._listeners.connection) this._listeners.connection(ws, req);
     return ws;
   }
 
@@ -724,6 +730,285 @@ describe('joinTimeout cleared on close', () => {
     assert.strictEqual(clearedTimeout, ws._joinTimeout, 'joinTimeout should be cleared on close');
 
     global.clearTimeout = originalClearTimeout;
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+//  TESTS — connection rate limiting
+// ═══════════════════════════════════════════════════════════
+
+describe('Connection rate limiter', () => {
+  test('allows connections under the limit', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 5,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    // 3 connections from the same IP should all succeed
+    for (let i = 0; i < 3; i++) {
+      const ws = wss.simulateConnection('192.168.1.1');
+      assert.strictEqual(
+        ws.getSent('rateLimited').length,
+        0,
+        `Connection ${i + 1} should be allowed`
+      );
+    }
+  });
+
+  test('rejects connections after the limit via defense-in-depth check', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 3,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    // 3 connections should succeed
+    for (let i = 0; i < 3; i++) {
+      wss.simulateConnection('10.0.0.1');
+    }
+
+    // 4th connection should be rate limited (defense-in-depth)
+    const ws4 = wss.simulateConnection('10.0.0.1');
+    assert.strictEqual(
+      ws4.getSent('rateLimited').length,
+      1,
+      '4th connection should be rate limited'
+    );
+    assert.strictEqual(ws4._closeCode, 1008, 'Should be closed with code 1008');
+  });
+
+  test('retryAfter is included in rate limit response', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 2,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    wss.simulateConnection('10.0.0.2');
+    wss.simulateConnection('10.0.0.2');
+    const ws3 = wss.simulateConnection('10.0.0.2');
+
+    const rlMsg = ws3.getSent('rateLimited')[0];
+    assert.ok(rlMsg, 'Should have received rateLimited message');
+    assert.ok(
+      typeof rlMsg.retryAfter === 'number' && rlMsg.retryAfter >= 1,
+      'retryAfter should be >= 1'
+    );
+  });
+
+  test('per-IP isolation: different IPs have independent limits', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 2,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    // Fill up IP1's limit
+    wss.simulateConnection('10.0.0.1');
+    wss.simulateConnection('10.0.0.1');
+
+    // IP2 should still be allowed
+    const ws2 = wss.simulateConnection('10.0.0.2');
+    assert.strictEqual(
+      ws2.getSent('rateLimited').length,
+      0,
+      'Different IP should not be rate limited'
+    );
+  });
+
+  test('window expiry: connections allowed after window passes', async () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 2,
+      connectionRateLimitWindow: 200, // 200ms window for fast test
+    });
+
+    wss.simulateConnection('10.0.0.3');
+    wss.simulateConnection('10.0.0.3');
+
+    // Should be rate limited
+    const ws3 = wss.simulateConnection('10.0.0.3');
+    assert.strictEqual(
+      ws3.getSent('rateLimited').length,
+      1,
+      'Should be rate limited before window expiry'
+    );
+
+    // Wait for window to expire
+    await new Promise((r) => setTimeout(r, 250));
+
+    const ws4 = wss.simulateConnection('10.0.0.3');
+    assert.strictEqual(
+      ws4.getSent('rateLimited').length,
+      0,
+      'Should be allowed after window expiry'
+    );
+  });
+
+  test('configuration wiring: custom max and window are respected', () => {
+    const game = new Game();
+    const wss = new MockWebSocketServer();
+    const connectionBuckets = new Map();
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets,
+      connectionRateLimitMax: 1,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    wss.simulateConnection('10.0.0.4');
+    const ws2 = wss.simulateConnection('10.0.0.4');
+    assert.strictEqual(ws2.getSent('rateLimited').length, 1, 'Should be rate limited with max=1');
+  });
+
+  test('stale bucket cleanup: production sweep deletes empty buckets', async () => {
+    const { createConnectionRateLimiter } = require('../../server');
+    const limiter = createConnectionRateLimiter(5, 100); // 100ms window
+
+    // Simulate a connection
+    limiter.check('10.0.0.5');
+    assert.ok(limiter.buckets.has('10.0.0.5'), 'Bucket should exist after check');
+
+    // Wait for window to expire
+    await new Promise((r) => setTimeout(r, 150));
+
+    // Run the production sweep
+    limiter.sweep();
+
+    assert.ok(
+      !limiter.buckets.has('10.0.0.5'),
+      'Bucket should be deleted after production sweep when all entries expired'
+    );
+  });
+
+  test('integrated: real server admits 5 connections, rejects 6th at upgrade', async () => {
+    const http = require('http');
+    const { WebSocketServer } = require('ws');
+    const WebSocket = require('ws');
+    const { buildWssOptions, createConnectionRateLimiter } = require('../../server');
+    const game = new Game();
+
+    // Use the production limiter
+    const limiter = createConnectionRateLimiter(5, 10_000);
+
+    // Create a real HTTP server and WebSocketServer
+    const server = http.createServer();
+    const wss = new WebSocketServer({
+      server,
+      ...buildWssOptions(server, [], limiter.check),
+    });
+
+    setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets: limiter.buckets,
+      connectionRateLimitMax: 5,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const port = server.address().port;
+
+    try {
+      // Open 5 connections — all should succeed
+      const connections = [];
+      for (let i = 0; i < 5; i++) {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+        await new Promise((resolve, reject) => {
+          ws.on('open', resolve);
+          ws.on('error', reject);
+        });
+        connections.push(ws);
+      }
+
+      // Bucket should have exactly 5 entries (one per connection)
+      const bucket = limiter.buckets.get('127.0.0.1');
+      assert.strictEqual(bucket.length, 5, 'Should have exactly 5 entries, not double-counted');
+
+      // 6th connection should be rejected at upgrade (429)
+      await assert.rejects(
+        new Promise((resolve, reject) => {
+          const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+          ws.on('open', () => reject(new Error('should not have connected')));
+          ws.on('error', reject);
+        }),
+        /ECONNRESET|429|WebSocket was closed/,
+        '6th connection should be rejected at upgrade'
+      );
+
+      // Clean up
+      for (const ws of connections) ws.close();
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
+  test('buildWssOptions with connectionCheckFn rejects at upgrade', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    let checkCallCount = 0;
+    const checkFn = () => {
+      checkCallCount++;
+      return { allowed: false };
+    };
+
+    const opts = buildWssOptions(mockServer, [], checkFn);
+    assert.ok(opts.verifyClient, 'verifyClient should be set when connectionCheckFn is provided');
+
+    // Simulate verifyClient call
+    let verifyResult = null;
+    const mockInfo = { req: { socket: { remoteAddress: '1.2.3.4' }, headers: {} } };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(checkCallCount, 1, 'checkFn should have been called');
+    assert.strictEqual(verifyResult.ok, false, 'Connection should be rejected');
+    assert.strictEqual(verifyResult.code, 429, 'Should return 429 status');
+  });
+
+  test('buildWssOptions allows connection when under limit', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, [], checkFn);
+
+    let verifyResult = null;
+    const mockInfo = { req: { socket: { remoteAddress: '1.2.3.4' }, headers: {} } };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, true, 'Connection should be allowed');
   });
 });
 

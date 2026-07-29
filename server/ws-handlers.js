@@ -18,6 +18,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   const disconnectedPlayers = new Map();
   // Per-IP sliding window: ip -> number[] of timestamps
   const rateLimitBuckets = new Map();
+  // Connection rate limiter buckets (shared with server.js verifyClient)
+  const connectionBuckets = options.connectionBuckets || new Map();
+  const connectionRateLimitMax =
+    options.connectionRateLimitMax != null ? options.connectionRateLimitMax : 5;
+  const connectionRateLimitWindow =
+    options.connectionRateLimitWindow != null ? options.connectionRateLimitWindow : 10_000;
   let bothDisconnectedTimer = null;
 
   const SLOW_CLIENT_THRESHOLD =
@@ -139,6 +145,32 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     pruneBucket(bucket);
     if (bucket.length >= rateLimitMax) {
       const retryAfter = Math.ceil((bucket[0] - (now - rateLimitWindow)) / 1000);
+      return { allowed: false, retryAfter: Math.max(1, retryAfter) };
+    }
+    bucket.push(now);
+    return { allowed: true };
+  }
+
+  function checkConnectionRateLimit(ws, req) {
+    // Defense-in-depth: skip connections already admitted by verifyClient.
+    // verifyClient pushes the timestamp and marks req._admitted = true.
+    // For test/mock scenarios where verifyClient didn't run, fall back
+    // to recording the connection here.
+    if (req && req._admitted) return { allowed: true };
+
+    const now = Date.now();
+    const clientIp = ws._socket?.remoteAddress || 'unknown';
+    let bucket = connectionBuckets.get(clientIp);
+    if (!bucket) {
+      bucket = [];
+      connectionBuckets.set(clientIp, bucket);
+    }
+    // Prune expired entries
+    while (bucket.length > 0 && bucket[0] <= now - connectionRateLimitWindow) {
+      bucket.shift();
+    }
+    if (bucket.length >= connectionRateLimitMax) {
+      const retryAfter = Math.ceil((bucket[0] - (now - connectionRateLimitWindow)) / 1000);
       return { allowed: false, retryAfter: Math.max(1, retryAfter) };
     }
     bucket.push(now);
@@ -774,7 +806,19 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     maybeStartBothDisconnectedTimer();
   }
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    // Connection rate limit: prevent floods of new connections from one IP
+    const crl = checkConnectionRateLimit(ws, req);
+    if (!crl.allowed) {
+      try {
+        ws.send(JSON.stringify({ type: 'rateLimited', retryAfter: crl.retryAfter }));
+      } catch {
+        /* client already disconnected */
+      }
+      ws.close(1008, 'Too many connections');
+      return;
+    }
+
     // Don't auto-assign players — just send state with seat info
     // Client will explicitly choose via 'join' message
     sendState(ws);

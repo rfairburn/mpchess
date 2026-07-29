@@ -95,12 +95,62 @@ const requestHandler = (req, res) => {
   }
 };
 
+// Create a connection rate limiter with a shared bucket Map.
+// Returns { check(clientIp), sweep(), buckets } for testability.
+// Exported so tests can exercise the production sweep logic.
+function createConnectionRateLimiter(max, windowMs) {
+  const buckets = new Map();
+  function check(clientIp) {
+    const now = Date.now();
+    let bucket = buckets.get(clientIp);
+    if (!bucket) {
+      bucket = [];
+      buckets.set(clientIp, bucket);
+    }
+    while (bucket.length > 0 && bucket[0] <= now - windowMs) {
+      bucket.shift();
+    }
+    if (bucket.length >= max) {
+      return { allowed: false };
+    }
+    bucket.push(now);
+    return { allowed: true };
+  }
+  function sweep() {
+    for (const [ip, bucket] of buckets) {
+      const now = Date.now();
+      while (bucket.length > 0 && bucket[0] <= now - windowMs) {
+        bucket.shift();
+      }
+      if (bucket.length === 0) {
+        buckets.delete(ip);
+      }
+    }
+  }
+  return { check, sweep, buckets };
+}
+
 // Build WebSocketServer options with security defaults.
 // Exported for testing so tests can verify the production configuration.
-function buildWssOptions(server, allowedOrigins = []) {
+function buildWssOptions(server, allowedOrigins = [], connectionCheckFn = null) {
   const opts = { server, maxPayload: 1024 * 64 }; // 64 KB
-  if (allowedOrigins.length > 0) {
+  if (allowedOrigins.length > 0 || connectionCheckFn) {
     opts.verifyClient = (info, cb) => {
+      // Connection rate limit check BEFORE WebSocket upgrade
+      // connectionCheckFn is authoritative: it pushes the timestamp.
+      if (connectionCheckFn) {
+        const clientIp = info.req.socket?.remoteAddress || 'unknown';
+        const result = connectionCheckFn(clientIp);
+        if (!result.allowed) {
+          cb(false, 429);
+          return;
+        }
+        // Mark the request as admitted so the defense-in-depth check
+        // in the connection handler does not double-count it.
+        // `info.req` is passed as the second argument to the 'connection' event.
+        info.req._admitted = true;
+      }
+
       const origin = info.req.headers.origin;
       if (!origin) {
         cb(true);
@@ -264,7 +314,23 @@ Examples:
 
   // Origin checking for WebSocket connections
   const allowedOrigins = config.allowedOrigins;
-  const wssOptions = buildWssOptions(server, allowedOrigins);
+
+  // Connection rate limiter: per-IP sliding window for new WebSocket connections
+  const connectionRateLimitMax =
+    config.connectionRateLimitMax != null ? config.connectionRateLimitMax : 5;
+  const connectionRateLimitWindow =
+    config.connectionRateLimitWindow != null ? config.connectionRateLimitWindow : 10_000;
+  const connLimiter = createConnectionRateLimiter(
+    connectionRateLimitMax,
+    connectionRateLimitWindow
+  );
+  const connectionBuckets = connLimiter.buckets;
+
+  // Periodic sweep to clean up stale connection buckets
+  const connSweepInterval = setInterval(connLimiter.sweep, connectionRateLimitWindow);
+  if (connSweepInterval.unref) connSweepInterval.unref();
+
+  const wssOptions = buildWssOptions(server, allowedOrigins, connLimiter.check);
 
   const wss = new WebSocketServer(wssOptions);
   const game = new Game();
@@ -293,6 +359,9 @@ Examples:
     joinTimeoutMs: config.joinTimeout,
     rateLimitMax: config.rateLimitMax,
     rateLimitWindow: config.rateLimitWindow,
+    connectionBuckets,
+    connectionRateLimitMax: config.connectionRateLimitMax,
+    connectionRateLimitWindow: config.connectionRateLimitWindow,
     slowClientThreshold: config.slowClientThreshold,
     minMoveDelay: config.minMoveDelay,
   });
@@ -326,5 +395,6 @@ module.exports = {
   MIME,
   CLIENT_ROOT,
   buildWssOptions,
+  createConnectionRateLimiter,
   createGracefulShutdown,
 };

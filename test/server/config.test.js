@@ -1027,6 +1027,22 @@ describe('convertType — server tuning keys', () => {
   test('rateLimitWindow: empty string returns undefined', () => {
     assert.strictEqual(convertType('rateLimitWindow', ''), undefined);
   });
+
+  test('connectionRateLimitMax: string to number', () => {
+    assert.strictEqual(convertType('connectionRateLimitMax', '10'), 10);
+  });
+
+  test('connectionRateLimitMax: invalid string returns undefined', () => {
+    assert.strictEqual(convertType('connectionRateLimitMax', 'nope'), undefined);
+  });
+
+  test('connectionRateLimitWindow: string to number', () => {
+    assert.strictEqual(convertType('connectionRateLimitWindow', '20000'), 20000);
+  });
+
+  test('connectionRateLimitWindow: empty string returns undefined', () => {
+    assert.strictEqual(convertType('connectionRateLimitWindow', ''), undefined);
+  });
 });
 
 describe('loadFromCli — server tuning flags', () => {
@@ -1048,6 +1064,16 @@ describe('loadFromCli — server tuning flags', () => {
   test('parses --rate-limit-window=', () => {
     const result = loadFromCli(['--rate-limit-window=5000']);
     assert.strictEqual(result.rateLimitWindow, 5000);
+  });
+
+  test('parses --connection-rate-limit-max=', () => {
+    const result = loadFromCli(['--connection-rate-limit-max=10']);
+    assert.strictEqual(result.connectionRateLimitMax, 10);
+  });
+
+  test('parses --connection-rate-limit-window=', () => {
+    const result = loadFromCli(['--connection-rate-limit-window=20000']);
+    assert.strictEqual(result.connectionRateLimitWindow, 20000);
   });
 
   test('parses multiple server tuning flags together', () => {
@@ -1091,6 +1117,20 @@ describe('loadFromEnv — server tuning env vars', () => {
     const result = loadFromEnv();
     assert.strictEqual(result.rateLimitWindow, 5000);
     delete process.env.MPCHESS_RATE_LIMIT_WINDOW;
+  });
+
+  test('reads MPCHESS_CONNECTION_RATE_LIMIT_MAX', () => {
+    process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX = '10';
+    const result = loadFromEnv();
+    assert.strictEqual(result.connectionRateLimitMax, 10);
+    delete process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX;
+  });
+
+  test('reads MPCHESS_CONNECTION_RATE_LIMIT_WINDOW', () => {
+    process.env.MPCHESS_CONNECTION_RATE_LIMIT_WINDOW = '20000';
+    const result = loadFromEnv();
+    assert.strictEqual(result.connectionRateLimitWindow, 20000);
+    delete process.env.MPCHESS_CONNECTION_RATE_LIMIT_WINDOW;
   });
 });
 
@@ -1172,6 +1212,48 @@ describe('loadConfig — server tuning integration', () => {
       assert.strictEqual(config.joinTimeout, undefined);
       assert.strictEqual(config.rateLimitMax, undefined);
       assert.strictEqual(config.rateLimitWindow, undefined);
+      assert.strictEqual(config.connectionRateLimitMax, undefined);
+      assert.strictEqual(config.connectionRateLimitWindow, undefined);
+    });
+    cleanupEnv();
+  });
+
+  test('loadConfig: connection rate limit from env vars', () => {
+    inTempDir((tmpDir) => {
+      process.argv = ['node', 'server.js'];
+      process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX = '10';
+      process.env.MPCHESS_CONNECTION_RATE_LIMIT_WINDOW = '20000';
+      const config = loadConfig();
+      assert.strictEqual(config.connectionRateLimitMax, 10);
+      assert.strictEqual(config.connectionRateLimitWindow, 20000);
+      delete process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX;
+      delete process.env.MPCHESS_CONNECTION_RATE_LIMIT_WINDOW;
+    });
+    cleanupEnv();
+  });
+
+  test('loadConfig: connection rate limit from CLI flags', () => {
+    inTempDir((tmpDir) => {
+      process.argv = [
+        'node',
+        'server.js',
+        '--connection-rate-limit-max=15',
+        '--connection-rate-limit-window=30000',
+      ];
+      const config = loadConfig();
+      assert.strictEqual(config.connectionRateLimitMax, 15);
+      assert.strictEqual(config.connectionRateLimitWindow, 30000);
+    });
+    cleanupEnv();
+  });
+
+  test('loadConfig: CLI wins over env for connection rate limit', () => {
+    inTempDir((tmpDir) => {
+      process.argv = ['node', 'server.js', '--connection-rate-limit-max=20'];
+      process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX = '10';
+      const config = loadConfig();
+      assert.strictEqual(config.connectionRateLimitMax, 20, 'CLI wins over env');
+      delete process.env.MPCHESS_CONNECTION_RATE_LIMIT_MAX;
     });
     cleanupEnv();
   });
@@ -1183,6 +1265,8 @@ describe('Constants — server tuning keys', () => {
     assert.ok('joinTimeout' in DEFAULTS);
     assert.ok('rateLimitMax' in DEFAULTS);
     assert.ok('rateLimitWindow' in DEFAULTS);
+    assert.ok('connectionRateLimitMax' in DEFAULTS);
+    assert.ok('connectionRateLimitWindow' in DEFAULTS);
     assert.ok('slowClientThreshold' in DEFAULTS);
     assert.ok('minMoveDelay' in DEFAULTS);
     assert.ok('host' in DEFAULTS);
@@ -1193,6 +1277,8 @@ describe('Constants — server tuning keys', () => {
     assert.strictEqual(ENV_MAP.joinTimeout, 'MPCHESS_JOIN_TIMEOUT');
     assert.strictEqual(ENV_MAP.rateLimitMax, 'MPCHESS_RATE_LIMIT_MAX');
     assert.strictEqual(ENV_MAP.rateLimitWindow, 'MPCHESS_RATE_LIMIT_WINDOW');
+    assert.strictEqual(ENV_MAP.connectionRateLimitMax, 'MPCHESS_CONNECTION_RATE_LIMIT_MAX');
+    assert.strictEqual(ENV_MAP.connectionRateLimitWindow, 'MPCHESS_CONNECTION_RATE_LIMIT_WINDOW');
     assert.strictEqual(ENV_MAP.slowClientThreshold, 'MPCHESS_SLOW_CLIENT_THRESHOLD');
     assert.strictEqual(ENV_MAP.minMoveDelay, 'MPCHESS_MIN_MOVE_DELAY');
     assert.strictEqual(ENV_MAP.host, 'MPCHESS_HOST');
@@ -1204,6 +1290,8 @@ describe('Constants — server tuning keys', () => {
     assert.ok(cliKeys.includes('joinTimeout'));
     assert.ok(cliKeys.includes('rateLimitMax'));
     assert.ok(cliKeys.includes('rateLimitWindow'));
+    assert.ok(cliKeys.includes('connectionRateLimitMax'));
+    assert.ok(cliKeys.includes('connectionRateLimitWindow'));
     assert.ok(cliKeys.includes('slowClientThreshold'));
     assert.ok(cliKeys.includes('minMoveDelay'));
     assert.ok(cliKeys.includes('host'));
