@@ -1951,6 +1951,9 @@ body.portrait-mobile #vertical-joystick {
   -webkit-user-select: none;
   /* Thin stroke for all pieces */
   -webkit-text-stroke: 0.5px;
+  /* Stay above highlight overlays (z-index: 5) */
+  position: relative;
+  z-index: 10;
 }
 
 /* White pieces: white fill, dark stroke */
