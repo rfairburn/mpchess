@@ -32,7 +32,7 @@ npm start -- --port=8080 --fen="4k3/8/8/8/8/8/8/4K2R w K - 0 1"
 | `--cert=<path>`                       | `MPCHESS_CERT`                         | TLS certificate file (PEM); enables HTTPS          | —                                            |
 | `--key=<path>`                        | `MPCHESS_KEY`                          | TLS private key file (PEM); required with `--cert` | —                                            |
 | `--chain=<path>`                      | `MPCHESS_CHAIN`                        | TLS certificate chain file (PEM)                   | —                                            |
-| `--allowed-origins=<o1,o2>`           | `MPCHESS_ALLOWED_ORIGINS`              | Comma-separated allowed WebSocket origins          | Accept all                                   |
+| `--allowed-origins=<o1,o2>`           | `MPCHESS_ALLOWED_ORIGINS`              | Comma-separated allowed WebSocket origins          | `*` (accept all)                             |
 | `--debug=<true\|false>`               | `MPCHESS_DEBUG`                        | Enable debug logging for piece rebuilding          | `false`                                      |
 | `--prefix=<path>`                     | `MPCHESS_PREFIX`                       | URL prefix for subpath deployments (e.g. `/chess`) | —                                            |
 | `--seat-timeout=<ms>`                 | `MPCHESS_SEAT_TIMEOUT`                 | Reconnect seat reservation timeout                 | `60000`                                      |
@@ -69,6 +69,18 @@ Two independent rate limiters protect the server:
 - **Connection rate limiting**: Per-IP sliding window for WebSocket connection attempts. Default: 5 connections per 10 seconds. Checked during the WebSocket handshake before upgrade.
 
 Both are per-IP, not per-connection. Multiple connections from the same IP share a single bucket, which persists across disconnects.
+
+## WebSocket Origin Checking
+
+The `allowedOrigins` setting controls which browser origins are permitted to open WebSocket connections. The default value is `*` (accept all origins), which is convenient for development and local deployments.
+
+For production deployments exposed to the public internet, narrow `allowedOrigins` to your actual domain(s):
+
+```jsonc
+"allowedOrigins": ["chess.example.com"]
+```
+
+This prevents unauthorized websites from opening WebSocket connections to your game server.
 
 ## WebSocket Payload Limit
 

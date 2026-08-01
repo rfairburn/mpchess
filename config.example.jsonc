@@ -5,7 +5,7 @@
   "cert": null,
   "key": null,
   "chain": null,
-  "allowedOrigins": [],
+  "allowedOrigins": ["*"],
   "debug": false,
   "prefix": null,
   "computerPlayer": {
@@ -42,7 +42,10 @@
 //   key             — TLS private key file path (PEM format, required with cert)
 //   chain           — TLS certificate chain file path (PEM format, optional)
 //   allowedOrigins  — Array of allowed WebSocket origins, e.g. ["games.devop.ninja", "localhost"]
-//                     Empty array means no origin checking (accept all).
+//                     Empty array or ["*"] means accept all origins.
+//                     Note: disabling origin filtering does NOT disable connection rate limiting;
+//                     rate limiting (connectionRateLimitMax/connectionRateLimitWindow) always runs
+//                     before origin evaluation and protects against connection floods.
 //                     A comma-separated string is also accepted and auto-split.
 //   debug            — Enable debug logging for piece rebuilding (default: false)
 //   prefix           — URL prefix for subpath deployments, e.g. "/chess" (default: none)

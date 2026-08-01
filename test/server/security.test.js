@@ -1010,6 +1010,116 @@ describe('Connection rate limiter', () => {
 
     assert.strictEqual(verifyResult.ok, true, 'Connection should be allowed');
   });
+
+  test('empty allowlist with connectionCheckFn accepts browser Origin header', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, [], checkFn);
+    assert.ok(opts.verifyClient, 'verifyClient should be set when connectionCheckFn is provided');
+
+    let verifyResult = null;
+    const mockInfo = {
+      req: {
+        socket: { remoteAddress: '1.2.3.4' },
+        headers: { origin: 'https://chess.example.com' },
+      },
+    };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, true, 'Empty allowlist should accept browser Origin');
+  });
+
+  test('wildcard allowlist accepts any browser Origin header', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, ['*'], checkFn);
+    assert.ok(opts.verifyClient);
+
+    let verifyResult = null;
+    const mockInfo = {
+      req: {
+        socket: { remoteAddress: '1.2.3.4' },
+        headers: { origin: 'https://evil.example.com' },
+      },
+    };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, true, 'Wildcard should accept any origin');
+  });
+
+  test('wildcard allowlist accepts opaque origin "null"', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, ['*'], checkFn);
+
+    let verifyResult = null;
+    const mockInfo = {
+      req: {
+        socket: { remoteAddress: '1.2.3.4' },
+        headers: { origin: 'null' },
+      },
+    };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, true, 'Wildcard should accept opaque origin "null"');
+  });
+
+  test('restrictive allowlist rejects non-matching Origin', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, ['chess.example.com'], checkFn);
+    assert.ok(opts.verifyClient);
+
+    let verifyResult = null;
+    const mockInfo = {
+      req: {
+        socket: { remoteAddress: '1.2.3.4' },
+        headers: { origin: 'https://evil.example.com' },
+      },
+    };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, false, 'Non-matching origin should be rejected');
+    assert.strictEqual(verifyResult.code, 403, 'Should return 403');
+  });
+
+  test('restrictive allowlist accepts matching Origin', () => {
+    const { buildWssOptions } = require('../../server');
+    const mockServer = { on: () => {} };
+
+    const checkFn = () => ({ allowed: true });
+    const opts = buildWssOptions(mockServer, ['chess.example.com'], checkFn);
+
+    let verifyResult = null;
+    const mockInfo = {
+      req: {
+        socket: { remoteAddress: '1.2.3.4' },
+        headers: { origin: 'https://chess.example.com' },
+      },
+    };
+    opts.verifyClient(mockInfo, (ok, code) => {
+      verifyResult = { ok, code };
+    });
+
+    assert.strictEqual(verifyResult.ok, true, 'Matching origin should be accepted');
+    assert.strictEqual(verifyResult.code, 200, 'Should return 200');
+  });
 });
 
 // ── Print results ─────────────────────────────────────────

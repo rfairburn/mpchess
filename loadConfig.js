@@ -17,7 +17,7 @@ const DEFAULTS = {
   cert: undefined,
   key: undefined,
   chain: undefined,
-  allowedOrigins: [],
+  allowedOrigins: ['*'],
   debug: false,
   prefix: undefined,
   // Computer-player flat keys (env/CLI surface).

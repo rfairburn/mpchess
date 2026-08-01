@@ -229,7 +229,7 @@ describe('loadConfig — full integration', () => {
       process.argv = ['node', 'server.js'];
       const config = loadConfig();
       assert.strictEqual(config.port, 3000);
-      assert.deepStrictEqual(config.allowedOrigins, []);
+      assert.deepStrictEqual(config.allowedOrigins, ['*']);
       assert.strictEqual(config.fen, undefined);
     });
     cleanupEnv();

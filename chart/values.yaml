@@ -66,7 +66,7 @@ server:
   # host: "0.0.0.0"          # Listen address (default: 0.0.0.0)
   # fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   # initHalfmoveClock: 98   # Initial halfmove clock for testing 50-move rule
-  # allowedOrigins: "chess.example.com,localhost"
+  # allowedOrigins: "*"     # Default: accept all origins. Narrow for production.
   # prefix: "/chess"        # URL prefix — configures both the app and Gateway/Ingress
   # Seat / connection tuning
   # seatTimeout: 60000       # Reconnect seat reservation timeout (ms)

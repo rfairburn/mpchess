@@ -156,6 +156,13 @@ function buildWssOptions(server, allowedOrigins = [], connectionCheckFn = null) 
         cb(true);
         return;
       }
+      // Empty allowlist or wildcard '*' means accept all origins.
+      // Check before URL parsing so that serialized opaque origins (e.g. "null")
+      // are accepted without throwing.
+      if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+        cb(true);
+        return;
+      }
       try {
         const url = new URL(origin);
         const ok = allowedOrigins.some((allowed) => {
