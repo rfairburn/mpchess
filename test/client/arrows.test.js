@@ -36,6 +36,27 @@ describe('arrows module', () => {
       addArrow({ file: 3, rank: 3 }, { file: 3, rank: 3 }, '#cccccc');
       expect(getArrows()).toHaveLength(0);
     });
+
+    it('removes arrow when same from/to with same color', async () => {
+      const { addArrow, getArrows } = await import('../../client/arrows.js');
+      addArrow({ file: 0, rank: 0 }, { file: 2, rank: 2 }, '#ff4444');
+      expect(getArrows()).toHaveLength(1);
+      addArrow({ file: 0, rank: 0 }, { file: 2, rank: 2 }, '#ff4444');
+      expect(getArrows()).toHaveLength(0);
+    });
+
+    it('replaces arrow when same from/to with different color and moves to top', async () => {
+      const { addArrow, getArrows } = await import('../../client/arrows.js');
+      addArrow({ file: 0, rank: 0 }, { file: 2, rank: 2 }, '#ff4444');
+      addArrow({ file: 1, rank: 1 }, { file: 3, rank: 3 }, '#4488ff');
+      expect(getArrows()).toHaveLength(2);
+      // Replace first arrow with different color — should move to end (top)
+      addArrow({ file: 0, rank: 0 }, { file: 2, rank: 2 }, '#44cc44');
+      const arrows = getArrows();
+      expect(arrows).toHaveLength(2);
+      expect(arrows[0].color).toBe('#4488ff');
+      expect(arrows[1].color).toBe('#44cc44');
+    });
   });
 
   describe('onArrowChange (cross-board visibility)', () => {

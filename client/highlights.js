@@ -3,6 +3,8 @@
 //  (client-side only)
 // ═══════════════════════════════════════════════════════════
 
+import { getArrows, removeArrow } from './arrows.js';
+
 let highlights = [];
 let callbacks = [];
 
@@ -26,12 +28,44 @@ export function getHighlightColor(event) {
 }
 
 /**
- * Add a square highlight. Replaces any existing highlight on the same square.
+ * Add a square highlight.
+ * Same color on same square removes it; different color replaces it.
+ * Cross-type: same-color arrow collision removes without adding;
+ * different-color replaces the arrow with the highlight.
  */
 export function addHighlight(file, rank, color) {
   if (file < 0 || file >= 8 || rank < 0 || rank >= 8) return;
-  // Remove any existing highlight on the same square
-  highlights = highlights.filter((h) => !(h.file === file && h.rank === rank));
+  // Check cross-type collisions with arrows at this square
+  const arr = getArrows();
+  const incidentArrows = arr.filter(
+    (a) =>
+      (a.from.file === file && a.from.rank === rank) || (a.to.file === file && a.to.rank === rank)
+  );
+  const sameColorArrow = incidentArrows.some((a) => a.color === color);
+  if (sameColorArrow) {
+    // Same color collision — remove only matching-color arrows
+    for (const a of incidentArrows) {
+      if (a.color === color) {
+        removeArrow(a.from.file, a.from.rank, a.to.file, a.to.rank);
+      }
+    }
+    for (const cb of callbacks) cb();
+    return;
+  }
+  // Different color or no collision — remove arrows, proceed
+  for (const a of incidentArrows) {
+    removeArrow(a.from.file, a.from.rank, a.to.file, a.to.rank);
+  }
+  const existingIdx = highlights.findIndex((h) => h.file === file && h.rank === rank);
+  if (existingIdx !== -1) {
+    if (highlights[existingIdx].color === color) {
+      highlights.splice(existingIdx, 1);
+    } else {
+      highlights[existingIdx] = { file, rank, color };
+    }
+    for (const cb of callbacks) cb();
+    return;
+  }
   highlights.push({ file, rank, color });
   for (const cb of callbacks) cb();
 }
@@ -43,6 +77,20 @@ export function clearHighlights() {
 
 export function getHighlights() {
   return highlights;
+}
+
+/**
+ * Remove a highlight by its file/rank coordinates.
+ * Returns true if a highlight was removed.
+ */
+export function removeHighlight(file, rank) {
+  const idx = highlights.findIndex((h) => h.file === file && h.rank === rank);
+  if (idx !== -1) {
+    highlights.splice(idx, 1);
+    for (const cb of callbacks) cb();
+    return true;
+  }
+  return false;
 }
 
 export function onHighlightChange(callback) {
