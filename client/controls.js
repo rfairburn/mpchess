@@ -45,6 +45,13 @@ import {
   clearHighlights as clearSquareHighlights,
   getHighlightColor,
 } from './highlights.js';
+import {
+  setSelectedSquare,
+  clearSelection,
+  getSelectedSquare,
+  getValidMovesList,
+  onSelectionChange,
+} from './selection.js';
 
 // ── Controls configuration (from standalone module, re-exported) ──
 
@@ -277,8 +284,19 @@ function ensureAllSquares() {
   }
 }
 
-export let selectedSquare = null;
-export let validMoves = [];
+// Selection state is now in selection.js — re-export for backward compat
+export let selectedSquare;
+export let validMoves;
+
+// Sync exports with shared state (updated via selection change callbacks)
+function syncSelectionExports() {
+  selectedSquare = getSelectedSquare();
+  validMoves = getValidMovesList();
+}
+syncSelectionExports();
+
+// Keep exports in sync
+onSelectionChange(syncSelectionExports);
 
 // ── Drag state ───────────────────────────────────────────
 
@@ -344,44 +362,43 @@ export function setClickHandler(renderer) {
     const { file, rank } = sq;
     const piece = serverBoard[rank][file];
 
-    if (selectedSquare) {
+    const sel = getSelectedSquare();
+    const vm = getValidMovesList();
+    if (sel) {
       // Clicking the same piece again deselects it
-      if (selectedSquare.file === file && selectedSquare.rank === rank) {
-        selectedSquare = null;
-        validMoves = [];
+      if (sel.file === file && sel.rank === rank) {
+        clearSelection();
         clearHighlights();
         highlightPreviousMove();
         highlightCheck();
         return;
       }
-      const isValid = validMoves.some((m) => m.file === file && m.rank === rank);
+      const isValid = vm.some((m) => m.file === file && m.rank === rank);
       if (!isValid) {
         // Clicked an invalid square — if it's one of our pieces on our turn, select it instead
         if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
-          selectedSquare = { file, rank };
-          validMoves = getValidMoves(
+          const moves = getValidMoves(
             serverBoard.map((r) => [...r]),
             file,
             rank,
             castlingRights,
             enPassantTarget
           );
+          setSelectedSquare({ file, rank }, moves);
           clearHighlights();
           highlightPreviousMove();
           highlightSelected(file, rank);
-          highlightValidMoves(_scene, validMoves);
+          highlightValidMoves(_scene, moves);
         } else {
-          selectedSquare = null;
-          validMoves = [];
+          clearSelection();
           clearHighlights();
           highlightPreviousMove();
           highlightCheck();
         }
         return;
       }
-      sendMove(selectedSquare.file, selectedSquare.rank, file, rank);
-      selectedSquare = null;
-      validMoves = [];
+      sendMove(sel.file, sel.rank, file, rank);
+      clearSelection();
       clearHighlights();
       highlightPreviousMove();
       highlightCheck();
@@ -389,21 +406,20 @@ export function setClickHandler(renderer) {
     }
 
     if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
-      selectedSquare = { file, rank };
-      validMoves = getValidMoves(
+      const moves = getValidMoves(
         serverBoard.map((r) => [...r]),
         file,
         rank,
         castlingRights,
         enPassantTarget
       );
+      setSelectedSquare({ file, rank }, moves);
       clearHighlights();
       highlightPreviousMove();
       highlightSelected(file, rank);
-      highlightValidMoves(_scene, validMoves);
+      highlightValidMoves(_scene, moves);
     } else {
-      selectedSquare = null;
-      validMoves = [];
+      clearSelection();
       clearHighlights();
       highlightPreviousMove();
       highlightCheck();
@@ -425,18 +441,18 @@ function commitDrag() {
   if (!dragCandidate) return;
   const { file, rank } = dragCandidate;
 
-  selectedSquare = { file, rank };
-  validMoves = getValidMoves(
+  const moves = getValidMoves(
     serverBoard.map((r) => [...r]),
     file,
     rank,
     castlingRights,
     enPassantTarget
   );
+  setSelectedSquare({ file, rank }, moves);
   clearHighlights();
   highlightPreviousMove();
   highlightSelected(file, rank);
-  highlightValidMoves(_scene, validMoves);
+  highlightValidMoves(_scene, moves);
 
   const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
   if (!pm) {
@@ -486,7 +502,7 @@ function onDragMove(event) {
         file < 8 &&
         rank >= 0 &&
         rank < 8 &&
-        validMoves.some((m) => m.file === file && m.rank === rank);
+        getValidMovesList().some((m) => m.file === file && m.rank === rank);
 
       if (isValidTarget) {
         pm.mesh.position.set(file - 3.5, DRAG_HEIGHT, 3.5 - rank);
@@ -514,11 +530,11 @@ function onDragEnd(event) {
   const sq = getBoardSquareFromRay(event);
   const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
 
-  if (sq && validMoves.some((m) => m.file === sq.file && m.rank === sq.rank)) {
+  const vm = getValidMovesList();
+  if (sq && vm.some((m) => m.file === sq.file && m.rank === sq.rank)) {
     // Valid drop — execute the move
     sendMove(dragPiece.file, dragPiece.rank, sq.file, sq.rank);
-    selectedSquare = null;
-    validMoves = [];
+    clearSelection();
     clearHighlights();
     highlightPreviousMove();
     highlightCheck();
@@ -527,8 +543,7 @@ function onDragEnd(event) {
     if (pm && dragStartPos) {
       pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
     }
-    selectedSquare = null;
-    validMoves = [];
+    clearSelection();
     clearHighlights();
     highlightPreviousMove();
     highlightCheck();
@@ -669,8 +684,7 @@ function touchCancelHandler(event) {
     dragPiece = null;
     dragStartPos = null;
   }
-  selectedSquare = null;
-  validMoves = [];
+  clearSelection();
   clearHighlights();
   highlightPreviousMove();
   highlightCheck();
@@ -771,8 +785,7 @@ onStateUpdate(() => {
 // ── Restart handler ──────────────────────────────────────
 
 onRestart(() => {
-  selectedSquare = null;
-  validMoves = [];
+  clearSelection();
   hidePromotionPicker();
   hideConcedeConfirm();
   clearHighlights();
@@ -782,6 +795,21 @@ onRestart(() => {
   dragStartPos = null;
   dragCompleted = false;
   dragTouchId = null;
+});
+
+// Re-render 3D board when selection changes (e.g. from 2D board)
+onSelectionChange(() => {
+  if (!_scene) return;
+  const sel = getSelectedSquare();
+  clearHighlights();
+  if (sel) {
+    highlightPreviousMove();
+    highlightSelected(sel.file, sel.rank);
+    highlightValidMoves(_scene, getValidMovesList());
+  } else {
+    highlightPreviousMove();
+    highlightCheck();
+  }
 });
 
 // ── M4.1 — Virtual joystick touch handlers ───────────────

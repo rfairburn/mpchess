@@ -34,6 +34,13 @@ import {
   clearHighlights as clearSquareHighlights,
   getHighlightColor,
 } from './highlights.js';
+import {
+  setSelectedSquare,
+  clearSelection,
+  getSelectedSquare,
+  getValidMovesList,
+  onSelectionChange,
+} from './selection.js';
 
 // Unicode chess pieces — all dark (filled) variants; color via CSS
 const PIECE_SYMBOLS = {
@@ -66,10 +73,7 @@ const ARROW_STROKE_RATIO = 0.25; // stroke as fraction of square size (2x)
 const ARROW_HEAD_LENGTH_RATIO = 0.25; // head length as fraction of square
 const ARROW_HEAD_WIDTH_RATIO = 0.36; // head base width matches thick line * 1.5
 
-// ── Selection state ──────────────────────────────────────
-
-let selectedSquare = null; // { file, rank } in actual (board) coordinates
-let validMoves = [];
+// ── Selection state is now in selection.js ───────────────
 
 // ── Drag state ───────────────────────────────────────────
 
@@ -162,8 +166,7 @@ function highlightPreviousMove() {
  * Deselect the current piece and clear all highlights.
  */
 function deselect() {
-  selectedSquare = null;
-  validMoves = [];
+  clearSelection();
   clearHighlights();
   highlightPreviousMove();
   highlightCheck();
@@ -173,25 +176,25 @@ function deselect() {
  * Select a piece and show its valid moves.
  */
 function selectPiece(file, rank) {
-  selectedSquare = { file, rank };
-  validMoves = getValidMoves(
+  const moves = getValidMoves(
     serverBoard.map((r) => [...r]),
     file,
     rank,
     castlingRights,
     enPassantTarget
   );
+  setSelectedSquare({ file, rank }, moves);
   clearHighlights();
   highlightPreviousMove();
   highlightSelected(file, rank);
-  highlightValidMoves(validMoves);
+  highlightValidMoves(moves);
 }
 
 /**
  * Check if a move is valid for the current selection.
  */
 function isValidMove(file, rank) {
-  return validMoves.some((m) => m.file === file && m.rank === rank);
+  return getValidMovesList().some((m) => m.file === file && m.rank === rank);
 }
 
 /**
@@ -252,10 +255,11 @@ function renderBoard() {
   boardEl.appendChild(container);
 
   // Re-apply highlights if something is selected
-  if (selectedSquare) {
+  const sel = getSelectedSquare();
+  if (sel) {
     highlightPreviousMove();
-    highlightSelected(selectedSquare.file, selectedSquare.rank);
-    highlightValidMoves(validMoves);
+    highlightSelected(sel.file, sel.rank);
+    highlightValidMoves(getValidMovesList());
   } else {
     highlightPreviousMove();
     highlightCheck();
@@ -473,9 +477,10 @@ function handleSquareClick(sq) {
     return;
   }
 
-  if (selectedSquare) {
+  const sel = getSelectedSquare();
+  if (sel) {
     // Clicking the same piece again deselects it
-    if (selectedSquare.file === file && selectedSquare.rank === rank) {
+    if (sel.file === file && sel.rank === rank) {
       deselect();
       return;
     }
@@ -491,7 +496,7 @@ function handleSquareClick(sq) {
       return;
     }
 
-    executeMove(selectedSquare.file, selectedSquare.rank, file, rank);
+    executeMove(sel.file, sel.rank, file, rank);
     return;
   }
 
@@ -861,15 +866,13 @@ onStateUpdate(() => {
     dragCandidate = null;
     removeDragGhost();
     // Clear stale selection so old highlights can't execute after a turn change
-    selectedSquare = null;
-    validMoves = [];
+    clearSelection();
     renderBoard();
   }
 });
 
 onRestart(() => {
-  selectedSquare = null;
-  validMoves = [];
+  clearSelection();
   dragging = false;
   dragCandidate = null;
   dragPiece = null;
@@ -886,6 +889,22 @@ onArrowChange(() => {
   scheduleArrowRender2D();
 });
 
+// Re-render board when selection changes (e.g. from 3D board)
+onSelectionChange(() => {
+  if (mode > 0) {
+    clearHighlights();
+    const sel = getSelectedSquare();
+    if (sel) {
+      highlightPreviousMove();
+      highlightSelected(sel.file, sel.rank);
+      highlightValidMoves(getValidMovesList());
+    } else {
+      highlightPreviousMove();
+      highlightCheck();
+    }
+  }
+});
+
 // ── Mode management ──────────────────────────────────────
 
 function applyMode() {
@@ -895,8 +914,6 @@ function applyMode() {
   if (mode === 0) {
     boardEl.classList.remove('visible', 'fullscreen');
     unbindEvents();
-    selectedSquare = null;
-    validMoves = [];
     arrowSvg = null; // allow recreation on next show
     arrowResizeObserver?.disconnect();
     arrowResizeObserver = null;
