@@ -26,6 +26,31 @@ const B_PAWN = 7,
   B_QUEEN = 11,
   B_KING = 12;
 
+// Piece direction constants — shared by isAttacked() and getValidMoves()
+const KNIGHT_OFFSETS = [
+  [-2, -1],
+  [-2, 1],
+  [-1, -2],
+  [-1, 2],
+  [1, -2],
+  [1, 2],
+  [2, -1],
+  [2, 1],
+];
+const BISHOP_DIRS = [
+  [-1, -1],
+  [-1, 1],
+  [1, -1],
+  [1, 1],
+];
+const ROOK_DIRS = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+const QUEEN_DIRS = [...BISHOP_DIRS, ...ROOK_DIRS];
+
 /**
  * Get the color of a piece.
  * @param {Piece} p — Piece integer
@@ -128,16 +153,7 @@ function isAttacked(board, file, rank, byColor) {
     if (rank + 1 < 8 && file + 1 < 8 && board[rank + 1][file + 1] === B_PAWN) return true;
   }
   const knight = byColor === 'white' ? W_KNIGHT : B_KNIGHT;
-  for (const [df, dr] of [
-    [-2, -1],
-    [-2, 1],
-    [-1, -2],
-    [-1, 2],
-    [1, -2],
-    [1, 2],
-    [2, -1],
-    [2, 1],
-  ]) {
+  for (const [df, dr] of KNIGHT_OFFSETS) {
     const nf = file + df,
       nr = rank + dr;
     if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8 && board[nr][nf] === knight) return true;
@@ -152,12 +168,7 @@ function isAttacked(board, file, rank, byColor) {
     }
   const bishop = byColor === 'white' ? W_BISHOP : B_BISHOP;
   const queen = byColor === 'white' ? W_QUEEN : B_QUEEN;
-  for (const [df, dr] of [
-    [-1, -1],
-    [-1, 1],
-    [1, -1],
-    [1, 1],
-  ]) {
+  for (const [df, dr] of BISHOP_DIRS) {
     for (let i = 1; i < 8; i++) {
       const nf = file + df * i,
         nr = rank + dr * i;
@@ -170,12 +181,7 @@ function isAttacked(board, file, rank, byColor) {
     }
   }
   const rook = byColor === 'white' ? W_ROOK : B_ROOK;
-  for (const [df, dr] of [
-    [-1, 0],
-    [1, 0],
-    [0, -1],
-    [0, 1],
-  ]) {
+  for (const [df, dr] of ROOK_DIRS) {
     for (let i = 1; i < 8; i++) {
       const nf = file + df * i,
         nr = rank + dr * i;
@@ -271,51 +277,23 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
       }
     }
   } else if (type === 'knight') {
-    for (const [df, dr] of [
-      [-2, -1],
-      [-2, 1],
-      [-1, -2],
-      [-1, 2],
-      [1, -2],
-      [1, 2],
-      [2, -1],
-      [2, 1],
-    ]) {
+    for (const [df, dr] of KNIGHT_OFFSETS) {
       addMove(file + df, rank + dr);
     }
   } else if (type === 'bishop') {
-    for (const [df, dr] of [
-      [-1, -1],
-      [-1, 1],
-      [1, -1],
-      [1, 1],
-    ]) {
+    for (const [df, dr] of BISHOP_DIRS) {
       for (let i = 1; i < 8; i++) {
         if (addMove(file + df * i, rank + dr * i)) break;
       }
     }
   } else if (type === 'rook') {
-    for (const [df, dr] of [
-      [-1, 0],
-      [1, 0],
-      [0, -1],
-      [0, 1],
-    ]) {
+    for (const [df, dr] of ROOK_DIRS) {
       for (let i = 1; i < 8; i++) {
         if (addMove(file + df * i, rank + dr * i)) break;
       }
     }
   } else if (type === 'queen') {
-    for (const [df, dr] of [
-      [-1, -1],
-      [-1, 0],
-      [-1, 1],
-      [0, -1],
-      [0, 1],
-      [1, -1],
-      [1, 0],
-      [1, 1],
-    ]) {
+    for (const [df, dr] of QUEEN_DIRS) {
       for (let i = 1; i < 8; i++) {
         if (addMove(file + df * i, rank + dr * i)) break;
       }
