@@ -15,7 +15,7 @@ import {
   sendMove,
   previousMove,
 } from './network.js';
-import { isTouchDevice } from './capabilities.js';
+import { isMobileLayout } from './capabilities.js';
 import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
 import { playMove } from './sound.js';
 import { showError } from './ui.js';
@@ -934,7 +934,7 @@ function applyMode() {
  * Cycle the 2D board modes: desktop cycles off → small → fullscreen, mobile cycles off → on.
  */
 export function toggle2DBoard() {
-  const maxMode = isTouchDevice() ? 2 : 3;
+  const maxMode = isMobileLayout() ? 2 : 3;
   mode = (mode + 1) % maxMode;
   applyMode();
 }

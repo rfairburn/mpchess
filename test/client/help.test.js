@@ -3,7 +3,9 @@ import { JSDOM } from 'jsdom';
 
 vi.mock('../../client/capabilities.js', () => ({
   isTouchDevice: vi.fn(() => false),
+  isCoarsePointer: vi.fn(() => false),
   isMobilePhone: vi.fn(() => false),
+  isMobileLayout: vi.fn(() => false),
   hasFullscreen: vi.fn(() => true),
 }));
 

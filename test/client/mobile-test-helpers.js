@@ -177,6 +177,29 @@ export function setupControlsDOM() {
 
 // ── Viewport / capability setup ───────────────────────────
 
+// Create a query-aware matchMedia mock.
+// coarse: whether (pointer: coarse) matches
+// width/height: used to evaluate orientation and size-based queries
+function makeMatchMedia(coarse, width, height) {
+  return vi.fn((query) => {
+    // Handle the combined compact-layout query used by isMobileLayout()
+    const isCompactQuery =
+      query.includes('pointer: coarse') &&
+      (query.includes('max-height: 480px') || query.includes('max-width: 900px'));
+    if (isCompactQuery) {
+      const isLandscape = width > height;
+      const matches = coarse && (height <= 480 || (isLandscape && width <= 900));
+      return { matches };
+    }
+    // Simple (pointer: coarse) query
+    if (query === '(pointer: coarse)') {
+      return { matches: coarse };
+    }
+    // Default: no match
+    return { matches: false };
+  });
+}
+
 export function setupMobileViewport(width = 390, height = 844) {
   Object.defineProperty(globalThis, 'screen', {
     value: { orientation: { type: 'landscape-primary', lock: mockOrientationLock } },
@@ -189,7 +212,6 @@ export function setupMobileViewport(width = 390, height = 844) {
     writable: true,
     configurable: true,
   });
-  globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: true });
   Object.defineProperty(globalThis.window, 'innerWidth', {
     value: width,
     writable: true,
@@ -200,6 +222,7 @@ export function setupMobileViewport(width = 390, height = 844) {
     writable: true,
     configurable: true,
   });
+  globalThis.window.matchMedia = makeMatchMedia(true, width, height);
 
   // Mock ResizeObserver (not available in JSDOM)
   if (!globalThis.window.ResizeObserver) {
@@ -217,7 +240,6 @@ export function setupDesktopViewport(width = 1920, height = 1080) {
     writable: true,
     configurable: true,
   });
-  globalThis.window.matchMedia = vi.fn().mockReturnValue({ matches: false });
   Object.defineProperty(globalThis.window, 'innerWidth', {
     value: width,
     writable: true,
@@ -228,6 +250,69 @@ export function setupDesktopViewport(width = 1920, height = 1080) {
     writable: true,
     configurable: true,
   });
+  globalThis.window.matchMedia = makeMatchMedia(false, width, height);
+
+  // Mock ResizeObserver (not available in JSDOM)
+  if (!globalThis.window.ResizeObserver) {
+    globalThis.window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+}
+
+// Touch-capable large screen (Steam Deck, tablet) — coarse pointer but large viewport.
+// isTouchDevice() = true, isMobilePhone() = false, isMobileLayout() = false.
+export function setupTouchDesktopViewport(width = 1280, height = 800) {
+  Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+    value: 5,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis.window, 'innerWidth', {
+    value: width,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis.window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
+  globalThis.window.matchMedia = makeMatchMedia(true, width, height);
+
+  // Mock ResizeObserver (not available in JSDOM)
+  if (!globalThis.window.ResizeObserver) {
+    globalThis.window.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+  }
+}
+
+// Hybrid-pointer device: touch-capable (maxTouchPoints > 0) but fine primary pointer.
+// isTouchDevice() = true, isCoarsePointer() = false, isMobileLayout() = false.
+// This tests that the CSS media-query path (pointer: coarse) is the gate,
+// not just maxTouchPoints.
+export function setupHybridPointerViewport(width = 800, height = 600) {
+  Object.defineProperty(globalThis.navigator, 'maxTouchPoints', {
+    value: 5,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis.window, 'innerWidth', {
+    value: width,
+    writable: true,
+    configurable: true,
+  });
+  Object.defineProperty(globalThis.window, 'innerHeight', {
+    value: height,
+    writable: true,
+    configurable: true,
+  });
+  globalThis.window.matchMedia = makeMatchMedia(false, width, height);
 
   // Mock ResizeObserver (not available in JSDOM)
   if (!globalThis.window.ResizeObserver) {

@@ -2,7 +2,7 @@
 //  3D BOARD — highlight rendering
 // ═══════════════════════════════════════════════════════════
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../../client/network.js', () => ({
   serverBoard: null,
@@ -33,9 +33,19 @@ vi.mock('../../client/highlights.js', () => ({
 }));
 
 describe('3D board — highlight rendering', () => {
+  let boardModule = null;
+
   beforeEach(() => {
     vi.resetModules();
     mockHighlights.length = 0;
+  });
+
+  afterEach(() => {
+    // Dispose the animation-frame loop from the last test
+    if (boardModule && boardModule.disposeArrows3D) {
+      boardModule.disposeArrows3D();
+    }
+    boardModule = null;
   });
 
   it('initHighlights3D creates highlight group added to scene', async () => {
@@ -143,11 +153,11 @@ describe('3D board — highlight rendering', () => {
       { from: { file: 0, rank: 0 }, to: { file: 1, rank: 1 }, color: '#fff' },
     ]);
 
-    const board = await import('../../client/board.js');
+    boardModule = await import('../../client/board.js');
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-    board.initArrows3D(scene, camera);
-    board.initHighlights3D(scene);
+    boardModule.initArrows3D(scene, camera);
+    boardModule.initHighlights3D(scene);
 
     // Trigger both renders
     arrowCallback();

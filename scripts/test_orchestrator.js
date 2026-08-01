@@ -62,23 +62,26 @@ function parseClientResults(output) {
   //   Success: "Tests  75 passed (75)"
   //   Failure (failed first): "Tests  1 failed | 74 passed (75)"
   //   Failure (passed first): "Tests  74 passed | 1 failed (75)"
+  //   Errors: "Errors  1 error"
   //
-  // Strategy: find all "N passed" / "N failed" tokens in the output and
+  // Strategy: find all "N passed" / "N failed" / "N error" tokens in the output and
   // extract the counts regardless of ordering.
   const clean = stripAnsi(output);
   let passed = 0;
   let failed = 0;
+  let errors = 0;
   let found = false;
-  // Match "N passed" or "N failed" anywhere (after stripping ANSI)
-  const tokenRe = /(\d+)\s+(passed|failed)/g;
+  // Match "N passed", "N failed", or "N error" anywhere (after stripping ANSI)
+  const tokenRe = /(\d+)\s+(passed|failed|error)/g;
   let m;
   while ((m = tokenRe.exec(clean)) !== null) {
     const n = parseInt(m[1], 10);
     if (m[2] === 'passed') passed = n;
     else if (m[2] === 'failed') failed = n;
+    else if (m[2] === 'error') errors = n;
     found = true;
   }
-  if (found) return { passed, failed };
+  if (found) return { passed, failed, errors };
   return null;
 }
 
@@ -154,7 +157,14 @@ if (runClient) {
     process.stdout.write(output);
     const result = parseClientResults(output);
     if (result) {
-      recordSuite('client', result);
+      // Any nonzero exit from Vitest is a failure, even if parsed output
+      // shows all tests passing (e.g., unhandled errors in animation frames).
+      const totalFailures = Math.max(result.failed + result.errors, 1);
+      console.log(
+        `    ${RED}✗ vitest exit ${err.status} (${result.passed} passed, ${totalFailures} failed)${NC}`
+      );
+      results.suites.push({ name: 'client', passed: result.passed, failed: totalFailures });
+      anyError = true;
     } else {
       console.log(`    ${RED}✗ vitest error (exit ${err.status})${NC}`);
       results.suites.push({ name: 'client', passed: 0, failed: -1 });

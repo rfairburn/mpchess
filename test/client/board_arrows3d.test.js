@@ -2,7 +2,7 @@
 //  3D BOARD — arrow geometry and material
 // ═══════════════════════════════════════════════════════════
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../../client/network.js', () => ({
   serverBoard: null,
@@ -25,15 +25,26 @@ vi.mock('../../client/arrows.js', () => ({
 }));
 
 describe('3D board — arrow geometry', () => {
+  let boardModule = null;
+
   beforeEach(() => {
     vi.resetModules();
     mockArrows.length = 0;
     arrowCallback = null;
   });
 
+  afterEach(() => {
+    // Dispose the animation-frame loop from the last test
+    if (boardModule && boardModule.disposeArrows3D) {
+      boardModule.disposeArrows3D();
+    }
+    boardModule = null;
+  });
+
   it('initArrows3D creates arrow group with camera', async () => {
     const THREE = await import('three');
-    const { initArrows3D } = await import('../../client/board.js');
+    boardModule = await import('../../client/board.js');
+    const { initArrows3D } = boardModule;
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
@@ -51,7 +62,8 @@ describe('3D board — arrow geometry', () => {
       { from: { file: 0, rank: 0 }, to: { file: 1, rank: 1 }, color: '#ffffff' },
     ]);
 
-    const { initArrows3D } = await import('../../client/board.js');
+    boardModule = await import('../../client/board.js');
+    const { initArrows3D } = boardModule;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     initArrows3D(scene, camera);
@@ -76,7 +88,8 @@ describe('3D board — arrow geometry', () => {
       { from: { file: 2, rank: 2 }, to: { file: 3, rank: 3 }, color: '#fff' },
     ]);
 
-    const { initArrows3D } = await import('../../client/board.js');
+    boardModule = await import('../../client/board.js');
+    const { initArrows3D } = boardModule;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     initArrows3D(scene, camera);
@@ -84,5 +97,21 @@ describe('3D board — arrow geometry', () => {
 
     const group = scene.children.find((child) => child.name === 'arrowGroup');
     expect(group.children.map((arrow) => arrow.renderOrder)).toEqual([1, 2]);
+  });
+
+  it('disposeArrows3D cancels the scheduled animation frame', async () => {
+    const THREE = await import('three');
+    boardModule = await import('../../client/board.js');
+    const { initArrows3D, disposeArrows3D } = boardModule;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    initArrows3D(scene, camera);
+
+    // disposeArrows3D should cancel the pending rAF without throwing
+    expect(() => disposeArrows3D()).not.toThrow();
+
+    // Calling disposeArrows3D again should be a no-op
+    expect(() => disposeArrows3D()).not.toThrow();
   });
 });

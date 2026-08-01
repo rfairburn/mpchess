@@ -8,6 +8,8 @@ import {
   setupUIDOM,
   setupMobileViewport,
   setupDesktopViewport,
+  setupTouchDesktopViewport,
+  setupHybridPointerViewport,
   cleanupMobileMocks,
 } from './mobile-test-helpers.js';
 
@@ -265,6 +267,109 @@ describe('board_2d toggle modes', () => {
       expect(actualFile(7)).toBe(0);
       // Display file 3 → actual file 4
       expect(actualFile(3)).toBe(4);
+    });
+  });
+
+  describe('touch-capable large screen (Steam Deck, tablet) — 3-mode cycle', () => {
+    beforeEach(() => {
+      vi.resetModules();
+      setupTouchDesktopViewport(1280, 800);
+    });
+
+    it('cycles off → small → fullscreen → off (touch + large screen = desktop behavior)', async () => {
+      const { toggle2DBoard, is2DBoardVisible } = await import('../../client/board_2d.js');
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Start: off
+      expect(is2DBoardVisible()).toBe(false);
+
+      // Toggle 1: small
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(false);
+
+      // Toggle 2: fullscreen
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      // Toggle 3: off
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(false);
+    });
+  });
+
+  describe('breakpoint-mismatch: touch 1024x600 landscape — desktop layout, 3-mode cycle', () => {
+    beforeEach(() => {
+      vi.resetModules();
+      // Touch device, landscape, width > 900px → CSS renders desktop layout
+      // isMobileLayout() should be false (width > 900, height > 480, not mobile phone)
+      setupTouchDesktopViewport(1024, 600);
+    });
+
+    it('renders desktop 3-mode cycle despite coarse pointer', async () => {
+      const { toggle2DBoard, is2DBoardVisible } = await import('../../client/board_2d.js');
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Should cycle through all 3 modes like desktop
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(false);
+
+      toggle2DBoard();
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(false);
+    });
+  });
+
+  describe('hybrid-pointer: touch-capable with fine primary pointer — desktop layout, 3-mode cycle', () => {
+    beforeEach(() => {
+      vi.resetModules();
+      // maxTouchPoints > 0 but (pointer: coarse) is false
+      // isTouchDevice() = true, isCoarsePointer() = false, isMobileLayout() = false
+      setupHybridPointerViewport(800, 600);
+    });
+
+    it('renders desktop 3-mode cycle despite maxTouchPoints > 0', async () => {
+      const { toggle2DBoard, is2DBoardVisible } = await import('../../client/board_2d.js');
+      const overlay = document.getElementById('board-2d-overlay');
+
+      // Should cycle through all 3 modes like desktop
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(false);
+
+      toggle2DBoard();
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(false);
+    });
+  });
+
+  describe('square viewport 800x800 coarse pointer — desktop layout, 3-mode cycle', () => {
+    beforeEach(() => {
+      vi.resetModules();
+      // Square viewport: CSS (orientation: landscape) requires width > height,
+      // so neither compact rule fires. isMobileLayout() must be false.
+      setupTouchDesktopViewport(800, 800);
+    });
+
+    it('renders desktop 3-mode cycle on square coarse-pointer viewport', async () => {
+      const { toggle2DBoard, is2DBoardVisible } = await import('../../client/board_2d.js');
+      const overlay = document.getElementById('board-2d-overlay');
+
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(true);
+      expect(overlay.classList.contains('fullscreen')).toBe(false);
+
+      toggle2DBoard();
+      expect(overlay.classList.contains('fullscreen')).toBe(true);
+
+      toggle2DBoard();
+      expect(is2DBoardVisible()).toBe(false);
     });
   });
 });

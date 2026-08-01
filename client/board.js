@@ -277,6 +277,8 @@ function updateAllArrowWidths() {
   }
 }
 
+let arrowRafId = null;
+
 export function initArrows3D(scene, camera) {
   arrowScene = scene;
   arrowCamera = camera;
@@ -293,9 +295,16 @@ export function initArrows3D(scene, camera) {
   };
   const loop = () => {
     animate();
-    requestAnimationFrame(loop);
+    arrowRafId = requestAnimationFrame(loop);
   };
   loop();
+}
+
+export function disposeArrows3D() {
+  if (arrowRafId !== null) {
+    cancelAnimationFrame(arrowRafId);
+    arrowRafId = null;
+  }
 }
 
 function ensureDotGeometry() {

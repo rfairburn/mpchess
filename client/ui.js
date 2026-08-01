@@ -45,7 +45,7 @@ import { setMute, isMuted } from './sound.js';
 import { reloadPage } from './navigation.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
-import { isTouchDevice, isMobilePhone, hasFullscreen } from './capabilities.js';
+import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
 import { toggle2DBoard } from './board_2d.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
@@ -297,12 +297,14 @@ document.addEventListener('click', (e) => {
 // Mirrors the CSS breakpoints:
 //   @media (pointer: coarse) and (max-height: 480px)
 //   @media (pointer: coarse) and (orientation: landscape) and (max-width: 900px)
+// Uses isCoarsePointer() to match the CSS (pointer: coarse) media query,
+// consistent with isMobileLayout() in capabilities.js.
 function isCompactLandscapeActive() {
-  if (!isTouchDevice()) return false;
+  if (!isCoarsePointer()) return false;
   // Short-height (any orientation)
   if (window.innerHeight <= 480) return true;
   // Landscape phone (max-width 900px)
-  if (window.innerWidth >= window.innerHeight && window.innerWidth <= 900) return true;
+  if (window.innerWidth > window.innerHeight && window.innerWidth <= 900) return true;
   return false;
 }
 

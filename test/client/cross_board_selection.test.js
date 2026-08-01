@@ -245,6 +245,9 @@ function isInCheck(board, color) {
 
 vi.mock('../../client/capabilities.js', () => ({
   isTouchDevice: vi.fn(() => false),
+  isCoarsePointer: vi.fn(() => false),
+  isMobilePhone: vi.fn(() => false),
+  isMobileLayout: vi.fn(() => false),
   hasPointerLock: vi.fn(() => false),
 }));
 

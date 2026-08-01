@@ -43,6 +43,9 @@ vi.mock('../../client/network.js', () => ({
 
 vi.mock('../../client/capabilities.js', () => ({
   isTouchDevice: () => false,
+  isCoarsePointer: () => false,
+  isMobilePhone: () => false,
+  isMobileLayout: () => false,
 }));
 
 vi.mock('../../client/ui.js', () => ({
