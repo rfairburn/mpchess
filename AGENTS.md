@@ -18,3 +18,8 @@
   - `npm run format:check`
   - `npm run build:chess`
 - Do not change `npm test` back to a short-circuiting chain.
+
+## Changelog
+
+- Every feature, fix, or notable change must be documented in `CHANGELOG.md` under `[Unreleased]` using [Keep a Changelog](https://keepachangelog.com/) categories (Added, Changed, Deprecated, Removed, Fixed, Security).
+- Add a one-line entry describing the change. Do not skip this step.

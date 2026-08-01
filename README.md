@@ -5,7 +5,7 @@ Multiplayer 3D chess with a Node.js server-authority backend and a browser-based
 ## Features
 
 - **Full chess rules**: castling, en passant, pawn promotion, check/checkmate/stalemate
-- **Draw rules**: insufficient material (incl. K+N vs K+N), threefold repetition (Zobrist hashing), 50-move rule (manual claim), 75-move rule (forced)
+- **Draw rules**: insufficient material (K vs K, K+B vs K, K+N vs K, K+B vs K+B same-colored bishops), threefold repetition (Zobrist hashing), 50-move rule (manual claim), 75-move rule (forced)
 - **Real-time multiplayer** over WebSockets with server-authority move validation
 - **3D rendered board** with low-poly piece models (Three.js)
 - **Spectator mode**: watch a game in progress; take a seat if a player disconnects
