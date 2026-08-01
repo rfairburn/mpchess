@@ -62,6 +62,23 @@ vi.mock('../../client/pieces.js', () => ({
   pieceMeshes: mockPieceMeshes,
 }));
 
+vi.mock('../../client/arrows.js', () => ({
+  addArrow: vi.fn(),
+  clearArrows: vi.fn(),
+  getArrowColor: vi.fn(() => '#ffffff'),
+  getArrows: vi.fn(() => []),
+  onArrowChange: vi.fn(),
+  getArrowPath: vi.fn((f, t) => [f, t]),
+}));
+
+vi.mock('../../client/highlights.js', () => ({
+  addHighlight: vi.fn(),
+  clearHighlights: vi.fn(),
+  getHighlightColor: vi.fn(() => '#ffdd00'),
+  getHighlights: vi.fn(() => []),
+  onHighlightChange: vi.fn(),
+}));
+
 // Helper to create a mock piece mesh
 function mockPieceMesh(file, rank) {
   return {
@@ -559,6 +576,66 @@ describe('controls.js', () => {
       renderer.domElement.dispatchEvent(md);
 
       expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('adds a square highlight on stationary right-click', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits a2 (file=0, rank=1)
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Right-click mousedown at (100, 100)
+      const md = new MouseEvent('mousedown', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // Right-click mouseup at same position (no drag)
+      const mu = new MouseEvent('mouseup', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      const hl = await import('../../client/highlights.js');
+      expect(hl.addHighlight).toHaveBeenCalledWith(0, 1, '#ffdd00');
+    });
+
+    it('does not add highlight on right-drag, only arrow', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits a2 (file=0, rank=1)
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Right-click mousedown at (100, 100)
+      const md = new MouseEvent('mousedown', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // Move beyond drag threshold (5px for 3D) and release at b2
+      globalThis.__mockRaycasterResult = [{ point: { x: -2.5, y: 0.041, z: 2.5 } }];
+      const mu = new MouseEvent('mouseup', {
+        button: 2,
+        clientX: 110,
+        clientY: 100,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      const hl = await import('../../client/highlights.js');
+      expect(hl.addHighlight).not.toHaveBeenCalled();
+
+      const arrows = await import('../../client/arrows.js');
+      expect(arrows.addArrow).toHaveBeenCalled();
     });
 
     it('should preserve click-to-select when drag handlers are installed', async () => {

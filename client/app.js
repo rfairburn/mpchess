@@ -13,6 +13,7 @@ import {
   setMaterials as setBoardMaterials,
   createLabels,
   initArrows3D,
+  initHighlights3D,
 } from './board.js';
 import {
   setMaterials as setPieceMaterials,
@@ -159,6 +160,7 @@ initSound();
 
 createBoard(scene, matBorder);
 initArrows3D(scene, camera);
+initHighlights3D(scene);
 updateMouseModeDisplay(mouseLookOn);
 
 loadPieceModels(scene, () => {

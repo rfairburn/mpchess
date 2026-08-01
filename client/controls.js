@@ -40,6 +40,11 @@ import { pieceColor, getValidMoves } from './chess.mjs';
 import { pieceMeshes } from './pieces.js';
 import { playMove } from './sound.js';
 import { addArrow, clearArrows, getArrowColor } from './arrows.js';
+import {
+  addHighlight,
+  clearHighlights as clearSquareHighlights,
+  getHighlightColor,
+} from './highlights.js';
 
 // ── Controls configuration (from standalone module, re-exported) ──
 
@@ -289,6 +294,7 @@ let dragTouchId = null; // touch identifier that owns the board drag gesture
 // ── Arrow drawing state (3D) ─────────────────────────────
 
 let arrowStart = null; // { file, rank } — right-click start square
+let arrowStartClient = null; // { x, y } — client coords at right-click mousedown
 
 function getBoardSquareFromRay(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -329,8 +335,9 @@ export function setClickHandler(renderer) {
     }
     if (!serverBoard) return;
 
-    // Clear arrows on left-click on the 3D board
+    // Clear arrows and highlights on left-click on the 3D board
     clearArrows();
+    clearSquareHighlights();
 
     const sq = getBoardSquareFromRay(event);
     if (!sq) return;
@@ -715,6 +722,7 @@ export function setDragHandlers(renderer) {
     const sq = getBoardSquareFromRay(event);
     if (!sq) return;
     arrowStart = sq;
+    arrowStartClient = { x: event.clientX, y: event.clientY };
   });
 
   document.addEventListener('mouseup', (event) => {
@@ -722,15 +730,25 @@ export function setDragHandlers(renderer) {
     if (mouseLookOn) return;
     if (!arrowStart) return;
 
-    const sq = getBoardSquareFromRay(event);
-    if (!sq) {
-      arrowStart = null;
-      return;
-    }
+    // Detect drag vs click: if mouse moved more than threshold, it's a drag (arrow)
+    const dx = event.clientX - arrowStartClient.x;
+    const dy = event.clientY - arrowStartClient.y;
+    const moved = Math.sqrt(dx * dx + dy * dy);
 
-    const color = getArrowColor(event);
-    addArrow(arrowStart, sq, color);
+    if (moved > DRAG_THRESHOLD) {
+      // Drag detected — draw arrow (need valid end square)
+      const sq = getBoardSquareFromRay(event);
+      if (sq) {
+        const color = getArrowColor(event);
+        addArrow(arrowStart, sq, color);
+      }
+    } else {
+      // Single click — highlight the square where mousedown occurred
+      const color = getHighlightColor(event);
+      addHighlight(arrowStart.file, arrowStart.rank, color);
+    }
     arrowStart = null;
+    arrowStartClient = null;
   });
 }
 

@@ -27,6 +27,13 @@ import {
   getArrowPath,
   getArrowColor,
 } from './arrows.js';
+import {
+  getHighlights,
+  onHighlightChange,
+  addHighlight,
+  clearHighlights as clearSquareHighlights,
+  getHighlightColor,
+} from './highlights.js';
 
 // Unicode chess pieces — all dark (filled) variants; color via CSS
 const PIECE_SYMBOLS = {
@@ -53,6 +60,7 @@ let mode = 0;
 
 let arrowSvg = null;
 let arrowStart = null; // { file, rank } — right-click start square
+let arrowStartClient = null; // { x, y } — client coords at right-click mousedown
 
 const ARROW_STROKE_RATIO = 0.25; // stroke as fraction of square size (2x)
 const ARROW_HEAD_LENGTH_RATIO = 0.25; // head length as fraction of square
@@ -256,6 +264,9 @@ function renderBoard() {
   // Create or update the arrow SVG overlay
   ensureArrowLayer2D();
   scheduleArrowRender2D();
+
+  // Render square highlights
+  renderHighlights2D();
 }
 
 // ── Arrow rendering (2D) ────────────────────────────────
@@ -384,6 +395,43 @@ function renderArrows2D() {
     arrowSvg.appendChild(group);
   }
 }
+
+// ── Highlight rendering (2D) ─────────────────────────────
+
+function renderHighlights2D() {
+  if (!gridEl) return;
+  const orientation = getOrientation();
+
+  // Remove all existing highlight overlays
+  for (const overlay of gridEl.querySelectorAll('.board2d-highlight')) {
+    overlay.remove();
+  }
+
+  // Add highlight overlays
+  for (const h of getHighlights()) {
+    const displayRank = orientation === 'flipped' ? h.rank : 7 - h.rank;
+    const displayFile = orientation === 'flipped' ? 7 - h.file : h.file;
+    const square = gridEl.children[displayRank * 8 + displayFile];
+    if (!square) continue;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'board2d-highlight';
+    overlay.style.cssText = `
+      position: absolute;
+      inset: 0;
+      background-color: ${h.color};
+      opacity: 0.55;
+      pointer-events: none;
+      z-index: 5;
+    `;
+    square.appendChild(overlay);
+  }
+}
+
+// Re-render highlights when they change
+onHighlightChange(() => {
+  renderHighlights2D();
+});
 
 // ── Interaction helpers ──────────────────────────────────
 
@@ -699,6 +747,7 @@ function onClickHandler(event) {
   const sq = event.target.closest('.board2d-square');
   if (sq) {
     clearArrows();
+    clearSquareHighlights();
     handleSquareClick(sq);
   }
 }
@@ -729,21 +778,32 @@ function onRightMouseDown(event) {
   const coords = getSquareFromPointer(event);
   if (!coords) return;
   arrowStart = coords;
+  arrowStartClient = { x: event.clientX, y: event.clientY };
 }
 
 function onRightMouseUp(event) {
   if (event.button !== 2) return;
   if (!arrowStart) return;
 
-  const coords = getSquareFromPointer(event);
-  if (!coords) {
-    arrowStart = null;
-    return;
-  }
+  // Detect drag vs click: if mouse moved more than threshold, it's a drag (arrow)
+  const dx = event.clientX - arrowStartClient.x;
+  const dy = event.clientY - arrowStartClient.y;
+  const moved = Math.sqrt(dx * dx + dy * dy);
 
-  const color = getArrowColor(event);
-  addArrow(arrowStart, coords, color);
+  if (moved > DRAG_THRESHOLD) {
+    // Drag detected — draw arrow (need valid end square)
+    const coords = getSquareFromPointer(event);
+    if (coords) {
+      const color = getArrowColor(event);
+      addArrow(arrowStart, coords, color);
+    }
+  } else {
+    // Single click — highlight the square where mousedown occurred
+    const color = getHighlightColor(event);
+    addHighlight(arrowStart.file, arrowStart.rank, color);
+  }
   arrowStart = null;
+  arrowStartClient = null;
 }
 
 function onContextMenu(event) {
@@ -817,6 +877,7 @@ onRestart(() => {
   dragTouchId = null;
   removeDragGhost();
   clearArrows();
+  clearSquareHighlights();
   if (mode > 0) renderBoard();
 });
 

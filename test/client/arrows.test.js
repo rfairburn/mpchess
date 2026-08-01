@@ -111,7 +111,7 @@ describe('arrows module', () => {
   describe('getArrowColor', () => {
     it('returns neutral white with no modifier', async () => {
       const { getArrowColor } = await import('../../client/arrows.js');
-      expect(getArrowColor({ ctrlKey: false, altKey: false, shiftKey: false })).toBe('#ffffff');
+      expect(getArrowColor({ ctrlKey: false, altKey: false, shiftKey: false })).toBe('#ffdd00');
     });
 
     it('returns red with Ctrl', async () => {

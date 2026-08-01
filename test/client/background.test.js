@@ -7,6 +7,7 @@ vi.mock('../../client/board.js', () => ({
   setMaterials: vi.fn(),
   createLabels: vi.fn(),
   initArrows3D: vi.fn(),
+  initHighlights3D: vi.fn(),
   clearHighlights: vi.fn(),
   highlightCheck: vi.fn(),
   highlightValidMoves: vi.fn(),

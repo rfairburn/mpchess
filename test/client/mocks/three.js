@@ -158,6 +158,7 @@ export class Group {
     this.children = [];
     this.position = new Vector3();
     this.rotation = new Euler();
+    this.sortObjects = true;
   }
   add(obj) {
     this.children.push(obj);
@@ -175,8 +176,22 @@ export class WebGLRenderer {
   render() {}
 }
 
-export class PlaneGeometry {}
+export class PlaneGeometry {
+  constructor(width = 1, height = 1) {
+    this.parameters = { width, height };
+  }
+}
 export class BoxGeometry {}
+
+export class MeshBasicMaterial {
+  constructor(opts = {}) {
+    this.color = opts.color ? new Color(opts.color) : new Color(0xffffff);
+    this.transparent = opts.transparent || false;
+    this.opacity = opts.opacity ?? 1;
+    this.side = opts.side || 0;
+    this.depthWrite = opts.depthWrite ?? true;
+  }
+}
 
 export class Mesh {
   constructor(geometry, material) {
@@ -184,6 +199,7 @@ export class Mesh {
     this.material = material;
     this.position = new Vector3();
     this.rotation = new Euler();
+    this.renderOrder = 0;
   }
 }
 
@@ -330,4 +346,27 @@ export class LineMaterial {
     this.linewidth = opts.linewidth || 1;
     this.resolution = opts.resolution || new Vector2(1, 1);
   }
+}
+
+// BufferGeometry and Float32BufferAttribute mocks (for arrow ribbon rendering)
+export class Float32BufferAttribute {
+  constructor(array, itemSize) {
+    this.array = array;
+    this.itemSize = itemSize;
+  }
+}
+
+export class BufferGeometry {
+  constructor() {
+    this.attributes = {};
+    this.index = null;
+  }
+  setAttribute(name, attr) {
+    this.attributes[name] = attr;
+  }
+  setIndex(index) {
+    this.index = index;
+  }
+  computeVertexNormals() {}
+  dispose() {}
 }

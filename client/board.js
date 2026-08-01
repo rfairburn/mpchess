@@ -8,6 +8,7 @@ import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 import { serverBoard, serverTurn, previousMove } from './network.js';
 import { findKing, isInCheck } from './chess.mjs';
 import { getArrows, onArrowChange, getArrowPath } from './arrows.js';
+import { getHighlights, onHighlightChange } from './highlights.js';
 
 // Materials — created in app.js, referenced here
 let matLight, matDark, matSelected, matValidMove, matCaptureMove, matCheck, matPreviousMove;
@@ -51,6 +52,8 @@ function getArrowMaterial(color) {
       new THREE.MeshBasicMaterial({
         color: new THREE.Color(color),
         side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 1,
         depthWrite: false,
       })
     );
@@ -252,7 +255,8 @@ function renderArrows3D() {
   }
 
   const arrows = getArrows();
-  for (const arrow of arrows) {
+  for (let i = 0; i < arrows.length; i++) {
+    const arrow = arrows[i];
     const path = getArrowPath(arrow.from, arrow.to);
     const color = arrow.color;
     const mat = getArrowMaterial(color);
@@ -261,6 +265,7 @@ function renderArrows3D() {
     const geo = buildPathGeometry(worldPoints, ARROW_Y);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData = { worldPoints, y: ARROW_Y };
+    mesh.renderOrder = i + 1; // newer arrows (higher index) render on top
     arrowGroup.add(mesh);
   }
 }
@@ -277,6 +282,7 @@ export function initArrows3D(scene, camera) {
   arrowCamera = camera;
   arrowGroup = new THREE.Group();
   arrowGroup.name = 'arrowGroup';
+  arrowGroup.sortObjects = false; // preserve insertion order: newest on top
   scene.add(arrowGroup);
 
   onArrowChange(renderArrows3D);
@@ -339,6 +345,74 @@ export function clearHighlights() {
       sq.material.color.copy(isLight ? matLight.color : matDark.color);
     }
   removeMoveDots();
+}
+
+// ── Square highlight overlays (3D) ──────────────────────
+
+let highlightGroup = null;
+const HIGHLIGHT_Y = 0.042; // 0.001 above square surface (0.041)
+const HIGHLIGHT_SCALE = 1.0; // full square size
+
+const highlightMaterialCache = new Map();
+// Shared geometry for all highlight planes — created once, never disposed
+let highlightGeometry = null;
+
+function getHighlightGeometry() {
+  if (!highlightGeometry) {
+    highlightGeometry = new THREE.PlaneGeometry(HIGHLIGHT_SCALE, HIGHLIGHT_SCALE);
+  }
+  return highlightGeometry;
+}
+
+function getHighlightMaterial(color) {
+  if (!highlightMaterialCache.has(color)) {
+    highlightMaterialCache.set(
+      color,
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(color),
+        transparent: true,
+        opacity: 0.55,
+        side: THREE.DoubleSide,
+        depthWrite: true,
+      })
+    );
+  }
+  return highlightMaterialCache.get(color);
+}
+
+function removeHighlightOverlays() {
+  if (!highlightGroup) return;
+  while (highlightGroup.children.length > 0) {
+    const child = highlightGroup.children[0];
+    highlightGroup.remove(child);
+    // Do NOT dispose geometry — it's shared across all highlights
+  }
+}
+
+function renderHighlights3D() {
+  if (!highlightGroup) return;
+  removeHighlightOverlays();
+
+  const hl = getHighlights();
+  const geo = getHighlightGeometry();
+
+  for (const h of hl) {
+    const mat = getHighlightMaterial(h.color);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(h.file - 3.5, HIGHLIGHT_Y, 3.5 - h.rank);
+    mesh.renderOrder = -1; // render before arrows (default 0)
+    highlightGroup.add(mesh);
+  }
+}
+
+export function initHighlights3D(scene) {
+  highlightGroup = new THREE.Group();
+  highlightGroup.name = 'highlightGroup';
+  highlightGroup.sortObjects = false; // preserve insertion order
+  scene.add(highlightGroup);
+
+  onHighlightChange(renderHighlights3D);
 }
 
 function highlightSquare(file, rank, mat) {

@@ -6,7 +6,7 @@ let arrows = [];
 let callbacks = [];
 
 const COLORS = {
-  none: '#ffffff',
+  none: '#ffdd00',
   ctrl: '#ff4444',
   alt: '#4488ff',
   shift: '#44cc44',
