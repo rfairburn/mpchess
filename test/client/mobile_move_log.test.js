@@ -120,9 +120,14 @@ describe('mobile move log', () => {
   it('should allow pointer interaction on desktop move log', async () => {
     setupDesktopViewport();
 
+    // Inject the actual CSS rule so getComputedStyle reflects it in jsdom
+    const styleEl = document.createElement('style');
+    styleEl.textContent = '#move-log { pointer-events: auto; }';
+    document.head.appendChild(styleEl);
+
     const moveLog = document.getElementById('move-log');
-    const style = window.getComputedStyle(moveLog);
-    expect(style.pointerEvents).toBe('auto');
+    const computedStyle = window.getComputedStyle(moveLog);
+    expect(computedStyle.pointerEvents).toBe('auto');
   });
 
   it('should align to white move when history has odd length on mobile', async () => {
