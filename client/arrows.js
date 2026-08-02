@@ -2,8 +2,6 @@
 //  ARROWS — shared arrow annotation state (client-side only)
 // ═══════════════════════════════════════════════════════════
 
-import { getHighlights, removeHighlight } from './highlights.js';
-
 let arrows = [];
 let callbacks = [];
 
@@ -63,21 +61,6 @@ export function addArrow(from, to, color) {
     for (const cb of callbacks) cb();
     return;
   }
-  // Check cross-type collisions with highlights at from/to squares
-  const hl = getHighlights();
-  const fromHl = hl.find((h) => h.file === from.file && h.rank === from.rank);
-  const toHl = hl.find((h) => h.file === to.file && h.rank === to.rank);
-  const sameColorHl = (fromHl && fromHl.color === color) || (toHl && toHl.color === color);
-  if (sameColorHl) {
-    // Same color collision — remove only matching-color highlights
-    if (fromHl && fromHl.color === color) removeHighlight(from.file, from.rank);
-    if (toHl && toHl.color === color) removeHighlight(to.file, to.rank);
-    for (const cb of callbacks) cb();
-    return;
-  }
-  // Different color or no collision — remove highlights, add arrow
-  if (fromHl) removeHighlight(from.file, from.rank);
-  if (toHl) removeHighlight(to.file, to.rank);
   arrows.push({ from, to, color });
   for (const cb of callbacks) cb();
 }

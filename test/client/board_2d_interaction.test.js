@@ -772,4 +772,75 @@ describe('2D board interaction', () => {
     const d6 = grid.children[2 * 8 + 3];
     expect(d6.classList.contains('capture-move')).toBe(true);
   });
+
+  // ── Right-click annotations ────────────────────────────
+
+  it('right-click on different squares draws arrow even within pixel threshold', async () => {
+    board2d.toggle2DBoard();
+    const arrows = await import('../../client/arrows.js');
+    const highlights = await import('../../client/highlights.js');
+    arrows.clearArrows();
+    highlights.clearHighlights();
+
+    const grid = gridEl();
+    const container = grid.closest('#board-2d-container');
+
+    // Mock grid bounding rect: 800x800, each square is 100x100
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 800,
+      width: 800,
+      height: 800,
+    });
+
+    // Right-click mousedown just inside display row 6 (y=601)
+    container.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, button: 2, clientX: 50, clientY: 601 })
+    );
+
+    // Right-click mouseup just inside display row 5 (y=599) — only 2px displacement, below DRAG_THRESHOLD
+    // But different square, so must be arrow
+    document.dispatchEvent(
+      new MouseEvent('mouseup', { bubbles: true, button: 2, clientX: 50, clientY: 599 })
+    );
+
+    expect(arrows.getArrows()).toHaveLength(1);
+    expect(highlights.getHighlights()).toHaveLength(0);
+  });
+
+  it('right-click release off board creates no annotation', async () => {
+    board2d.toggle2DBoard();
+    const arrows = await import('../../client/arrows.js');
+    const highlights = await import('../../client/highlights.js');
+    arrows.clearArrows();
+    highlights.clearHighlights();
+
+    const grid = gridEl();
+    const container = grid.closest('#board-2d-container');
+
+    // Mock grid bounding rect so mousedown establishes arrowStart
+    grid.getBoundingClientRect = () => ({
+      left: 0,
+      top: 0,
+      right: 800,
+      bottom: 800,
+      width: 800,
+      height: 800,
+    });
+
+    // Right-click mousedown on board
+    container.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, button: 2, clientX: 50, clientY: 650 })
+    );
+
+    // Right-click mouseup off the board (far outside)
+    document.dispatchEvent(
+      new MouseEvent('mouseup', { bubbles: true, button: 2, clientX: 9999, clientY: 9999 })
+    );
+
+    expect(arrows.getArrows()).toHaveLength(0);
+    expect(highlights.getHighlights()).toHaveLength(0);
+  });
 });

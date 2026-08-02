@@ -1061,7 +1061,7 @@ canvas {
   padding: 10px 16px;
   border-radius: 8px;
   border: 1px solid rgba(181, 136, 99, 0.25);
-  pointer-events: none;
+  pointer-events: auto;
   z-index: 10;
   max-height: 280px;
   overflow-y: auto;

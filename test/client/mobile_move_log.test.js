@@ -117,6 +117,14 @@ describe('mobile move log', () => {
     expect(rows.length).toBe(2);
   });
 
+  it('should allow pointer interaction on desktop move log', async () => {
+    setupDesktopViewport();
+
+    const moveLog = document.getElementById('move-log');
+    const style = window.getComputedStyle(moveLog);
+    expect(style.pointerEvents).toBe('auto');
+  });
+
   it('should align to white move when history has odd length on mobile', async () => {
     setupMobileViewport();
 

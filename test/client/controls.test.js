@@ -664,6 +664,70 @@ describe('controls.js', () => {
       expect(arrows.addArrow).toHaveBeenCalled();
     });
 
+    it('right-click on different squares draws arrow even within pixel threshold', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits a2 (file=0, rank=1)
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Right-click mousedown at (100, 100)
+      const md = new MouseEvent('mousedown', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // Release on adjacent square b2 — same pixel position (within threshold)
+      globalThis.__mockRaycasterResult = [{ point: { x: -2.5, y: 0.041, z: 2.5 } }];
+      const mu = new MouseEvent('mouseup', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      const hl = await import('../../client/highlights.js');
+      expect(hl.addHighlight).not.toHaveBeenCalled();
+
+      const arrows = await import('../../client/arrows.js');
+      expect(arrows.addArrow).toHaveBeenCalled();
+    });
+
+    it('right-click release off board creates no annotation', async () => {
+      const renderer = setupGame();
+
+      // Raycast hits a2 (file=0, rank=1)
+      globalThis.__mockRaycasterResult = [{ point: { x: -3.5, y: 0.041, z: 2.5 } }];
+
+      // Right-click mousedown
+      const md = new MouseEvent('mousedown', {
+        button: 2,
+        clientX: 100,
+        clientY: 100,
+        bubbles: true,
+      });
+      renderer.domElement.dispatchEvent(md);
+
+      // Release off board — raycast returns nothing
+      globalThis.__mockRaycasterResult = [];
+      const mu = new MouseEvent('mouseup', {
+        button: 2,
+        clientX: 9999,
+        clientY: 9999,
+        bubbles: true,
+      });
+      document.dispatchEvent(mu);
+
+      const hl = await import('../../client/highlights.js');
+      expect(hl.addHighlight).not.toHaveBeenCalled();
+
+      const arrows = await import('../../client/arrows.js');
+      expect(arrows.addArrow).not.toHaveBeenCalled();
+    });
+
     it('should preserve click-to-select when drag handlers are installed', async () => {
       const renderer = setupGame();
 

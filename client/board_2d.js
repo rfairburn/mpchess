@@ -52,7 +52,6 @@ let mode = 0;
 
 let arrowSvg = null;
 let arrowStart = null; // { file, rank } — right-click start square
-let arrowStartClient = null; // { x, y } — client coords at right-click mousedown
 
 const ARROW_STROKE_RATIO = 0.25; // stroke as fraction of square size (2x)
 const ARROW_HEAD_LENGTH_RATIO = 0.25; // head length as fraction of square
@@ -765,32 +764,29 @@ function onRightMouseDown(event) {
   const coords = getSquareFromPointer(event);
   if (!coords) return;
   arrowStart = coords;
-  arrowStartClient = { x: event.clientX, y: event.clientY };
 }
 
 function onRightMouseUp(event) {
   if (event.button !== 2) return;
   if (!arrowStart) return;
 
-  // Detect drag vs click: if mouse moved more than threshold, it's a drag (arrow)
-  const dx = event.clientX - arrowStartClient.x;
-  const dy = event.clientY - arrowStartClient.y;
-  const moved = Math.sqrt(dx * dx + dy * dy);
+  // Resolve the release square — off-board release cancels the annotation
+  const coords = getSquareFromPointer(event);
+  if (!coords) {
+    arrowStart = null;
+    return;
+  }
 
-  if (moved > DRAG_THRESHOLD) {
-    // Drag detected — draw arrow (need valid end square)
-    const coords = getSquareFromPointer(event);
-    if (coords) {
-      const color = getArrowColor(event);
-      addArrow(arrowStart, coords, color);
-    }
+  // If release square differs from start, always draw an arrow regardless of pixel distance
+  if (coords.file !== arrowStart.file || coords.rank !== arrowStart.rank) {
+    const color = getArrowColor(event);
+    addArrow(arrowStart, coords, color);
   } else {
-    // Single click — highlight the square where mousedown occurred
+    // Same square — highlight it
     const color = getHighlightColor(event);
     addHighlight(arrowStart.file, arrowStart.rank, color);
   }
   arrowStart = null;
-  arrowStartClient = null;
 }
 
 function onContextMenu(event) {
