@@ -10,6 +10,18 @@ import { diffBoardState } from './board_diff.js';
 import { pieceColor, pieceType } from './chess.mjs';
 import { playMove } from './sound.js';
 
+// 3D model set name — directory under files/pieces/3d/
+// Available sets: chuckamcknight, jeu, low-poly, simple-classic, afnafziger
+let _modelSet = 'simple-classic';
+export function getModelSet() {
+  return _modelSet;
+}
+// Test-only setter — Object.defineProperty on the module namespace cannot
+// update a local binding, so expose a function that can.
+export function setModelSet(value) {
+  _modelSet = value;
+}
+
 // Materials — set from app.js
 let matWhite, matBlack;
 
@@ -44,12 +56,12 @@ export function loadPieceModels(scene, onReady) {
   let loaded = 0;
   PIECE_TYPES.forEach((type) => {
     loader.load(
-      `files/pieces/3d/chuckamcknight/${type}.stl`,
+      `files/pieces/3d/${_modelSet}/${type}.stl`,
       (geometry) => {
-        geometry.rotateX(-Math.PI / 2);
         geometry.computeBoundingBox();
         const size = geometry.boundingBox.getSize(new THREE.Vector3());
-        const baseScale = 0.7 / Math.max(size.x, size.z);
+        const targetSize = type === 'pawn' ? 0.55 : 0.7;
+        const baseScale = targetSize / Math.max(size.x, size.z);
         geometry.scale(baseScale, baseScale, baseScale);
         geometry.computeBoundingBox();
         const cx = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;

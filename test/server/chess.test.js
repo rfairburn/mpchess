@@ -767,6 +767,36 @@ describe('Static file server — requestHandler', () => {
     assert.strictEqual(res.headers['Content-Type'], MIME['.stl']);
   });
 
+  // ── 3D model set integrity ──
+
+  const EXPECTED_3D_SETS = ['afnafziger', 'chuckamcknight', 'jeu', 'low-poly', 'simple-classic'];
+  const PIECE_3D_NAMES = ['bishop', 'king', 'knight', 'pawn', 'queen', 'rook'];
+  const PIECES3D_DIR = path.join(__dirname, '../../client/files/pieces/3d');
+
+  test('3D model sets: expected sets present', () => {
+    const actual = fs
+      .readdirSync(PIECES3D_DIR)
+      .filter((d) => fs.statSync(path.join(PIECES3D_DIR, d)).isDirectory())
+      .sort();
+    assert.deepStrictEqual(
+      actual,
+      EXPECTED_3D_SETS,
+      '3D model set directories should match expected manifest'
+    );
+  });
+
+  test('all 3D model sets contain valid files', () => {
+    for (const set of EXPECTED_3D_SETS) {
+      const dir = path.join(PIECES3D_DIR, set);
+      const files = fs
+        .readdirSync(dir)
+        .filter((f) => f.endsWith('.stl'))
+        .map((f) => f.replace('.stl', ''))
+        .sort();
+      assert.deepStrictEqual(files, PIECE_3D_NAMES, `3D set ${set} should have all 6 piece files`);
+    }
+  });
+
   test('serves .svg piece files from client/files/', () => {
     const res = mockRes();
     requestHandler(mockReq('/client/files/pieces/2d/cburnett/wK.svg'), res);
@@ -785,21 +815,61 @@ describe('Static file server — requestHandler', () => {
 
   const PIECE_NAMES = ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP'];
   const EXPECTED_SETS = [
-    'alpha', 'anarcandy', 'caliente', 'california', 'cardinal', 'cburnett',
-    'celtic', 'chess7', 'chessnut', 'companion', 'cooke', 'disguised',
-    'dubrovny', 'fantasy', 'firi', 'fresca', 'gioco', 'governor', 'horsey',
-    'icpieces', 'kiwen-suwi', 'kosal', 'leipzig', 'letter', 'maestro',
-    'merida', 'monarchy', 'mono', 'mpchess', 'papercut', 'pirouetti',
-    'pixel', 'reillycraig', 'rhosgfx', 'riohacha', 'shahi-ivory-brown',
-    'shapes', 'spatial', 'staunty', 'tatiana', 'totoy', 'xkcd'
+    'alpha',
+    'anarcandy',
+    'caliente',
+    'california',
+    'cardinal',
+    'cburnett',
+    'celtic',
+    'chess7',
+    'chessnut',
+    'companion',
+    'cooke',
+    'disguised',
+    'dubrovny',
+    'fantasy',
+    'firi',
+    'fresca',
+    'gioco',
+    'governor',
+    'horsey',
+    'icpieces',
+    'kiwen-suwi',
+    'kosal',
+    'leipzig',
+    'letter',
+    'maestro',
+    'merida',
+    'monarchy',
+    'mono',
+    'mpchess',
+    'papercut',
+    'pirouetti',
+    'pixel',
+    'reillycraig',
+    'rhosgfx',
+    'riohacha',
+    'shahi-ivory-brown',
+    'shapes',
+    'spatial',
+    'staunty',
+    'tatiana',
+    'totoy',
+    'xkcd',
   ];
   const PIECES2D_DIR = path.join(__dirname, '../../client/files/pieces/2d');
 
   test('2D piece sets: expected sets present', () => {
-    const actual = fs.readdirSync(PIECES2D_DIR)
+    const actual = fs
+      .readdirSync(PIECES2D_DIR)
       .filter((d) => fs.statSync(path.join(PIECES2D_DIR, d)).isDirectory())
       .sort();
-    assert.deepStrictEqual(actual, EXPECTED_SETS, '2D piece set directories should match expected manifest');
+    assert.deepStrictEqual(
+      actual,
+      EXPECTED_SETS,
+      '2D piece set directories should match expected manifest'
+    );
   });
 
   test('all 2D piece sets contain valid files', () => {
@@ -808,21 +878,32 @@ describe('Static file server — requestHandler', () => {
       const ext = set === 'monarchy' ? 'webp' : 'svg';
       const expectedFiles = PIECE_NAMES.map((n) => `${n}.${ext}`).sort();
       const actualFiles = fs.readdirSync(dir).sort();
-      assert.deepStrictEqual(actualFiles, expectedFiles,
-        `Set ${set} should have exactly ${expectedFiles.length} files`);
+      assert.deepStrictEqual(
+        actualFiles,
+        expectedFiles,
+        `Set ${set} should have exactly ${expectedFiles.length} files`
+      );
       for (const f of actualFiles) {
         const fp = path.join(dir, f);
         if (ext === 'svg') {
           const content = fs.readFileSync(fp, 'utf8');
-          assert.ok(content.startsWith('<svg') || content.startsWith('<?xml'),
-            `${set}/${f} should be valid SVG`);
+          assert.ok(
+            content.startsWith('<svg') || content.startsWith('<?xml'),
+            `${set}/${f} should be valid SVG`
+          );
         } else {
           const buf = fs.readFileSync(fp);
           assert.ok(buf.length > 100, `${set}/${f} should be a valid WebP file`);
-          assert.strictEqual(buf.toString('ascii', 0, 4), 'RIFF',
-            `${set}/${f} should have RIFF header`);
-          assert.strictEqual(buf.toString('ascii', 8, 12), 'WEBP',
-            `${set}/${f} should have WEBP header`);
+          assert.strictEqual(
+            buf.toString('ascii', 0, 4),
+            'RIFF',
+            `${set}/${f} should have RIFF header`
+          );
+          assert.strictEqual(
+            buf.toString('ascii', 8, 12),
+            'WEBP',
+            `${set}/${f} should have WEBP header`
+          );
         }
       }
     }

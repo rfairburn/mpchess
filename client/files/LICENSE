@@ -28,6 +28,35 @@ License: CC BY-NC-SA 4.0
 You should have received a copy of the license along with this work. If not,
 see <https://creativecommons.org/licenses/by-nc-sa/4.0/>.
 
+pieces/3d/jeu/
+---------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: angedemon888 (Thingiverse)
+Source: https://www.thingiverse.com/thing:3058901
+License: CC0 1.0 (Public Domain Dedication)
+
+You should have received a copy of the license along with this work. If not,
+see <https://creativecommons.org/publicdomain/zero/1.0/>.
+
+pieces/3d/low-poly/
+-------------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: BenevolentHedgedog73 (Thingiverse)
+Source: https://www.thingiverse.com/thing:2371830
+License: CC0 1.0 (Public Domain Dedication)
+
+You should have received a copy of the license along with this work. If not,
+see <https://creativecommons.org/publicdomain/zero/1.0/>.
+
+pieces/3d/simple-classic/
+-------------------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: Energybolter (Thingiverse)
+Source: https://www.thingiverse.com/thing:3018153
+License: CC0 1.0 (Public Domain Dedication)
+
+You should have received a copy of the license along with this work. If not,
+see <https://creativecommons.org/publicdomain/zero/1.0/>.
 
 2D Piece Sets (pieces/2d/)
 ==========================
@@ -167,6 +196,9 @@ Summary
 | background.png                      | MIT (original)    | Yes         |
 | pickup.wav                          | MIT (original)    | Yes         |
 | pieces/3d/chuckamcknight/*.stl      | CC BY-NC-SA 4.0   | No          |
+| pieces/3d/jeu/*.stl                 | CC0 1.0           | Yes         |
+| pieces/3d/low-poly/*.stl            | CC0 1.0           | Yes         |
+| pieces/3d/simple-classic/*.stl      | CC0 1.0           | Yes         |
 | pieces/2d/rhosgfx/*.svg             | CC0 1.0           | Yes         |
 | pieces/2d/fantasy/*.svg             | MIT               | Yes         |
 | pieces/2d/spatial/*.svg             | MIT               | Yes         |
