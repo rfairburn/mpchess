@@ -769,7 +769,14 @@ describe('Static file server — requestHandler', () => {
 
   // ── 3D model set integrity ──
 
-  const EXPECTED_3D_SETS = ['afnafziger', 'chuckamcknight', 'jeu', 'low-poly', 'simple-classic'];
+  const EXPECTED_3D_SETS = [
+    'afnafziger',
+    'chuckamcknight',
+    'jeu',
+    'low-poly',
+    'samurai',
+    'simple-classic',
+  ];
   const PIECE_3D_NAMES = ['bishop', 'king', 'knight', 'pawn', 'queen', 'rook'];
   const PIECES3D_DIR = path.join(__dirname, '../../client/files/pieces/3d');
 

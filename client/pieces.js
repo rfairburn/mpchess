@@ -11,7 +11,14 @@ import { pieceColor, pieceType } from './chess.mjs';
 import { playMove } from './sound.js';
 
 // 3D model set name — directory under files/pieces/3d/
-export const MODEL_SETS = ['afnafziger', 'chuckamcknight', 'jeu', 'low-poly', 'simple-classic'];
+export const MODEL_SETS = [
+  'afnafziger',
+  'chuckamcknight',
+  'jeu',
+  'low-poly',
+  'samurai',
+  'simple-classic',
+];
 let _modelSet = 'simple-classic';
 export function getModelSet() {
   return _modelSet;
