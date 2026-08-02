@@ -22,6 +22,46 @@ export function setModelSet(value) {
   _modelSet = value;
 }
 
+// ── 2D SVG piece set ─────────────────────────────────────
+
+// 2D SVG piece set name — directory under files/pieces/2d/
+// Available sets: mpchess, maestro, dubrovny, rhosgfx, tatiana, etc.
+let _svgPieceSet = 'mpchess';
+export function getSvgPieceSet() {
+  return _svgPieceSet;
+}
+export function setSvgPieceSet(value) {
+  _svgPieceSet = value;
+}
+
+// Maps piece IDs (1-12) to SVG file names
+// 1-6 = white (pawn..king), 7-12 = black (pawn..king)
+const PIECE_ID_TO_FILE = {
+  1: 'wP',
+  2: 'wN',
+  3: 'wB',
+  4: 'wR',
+  5: 'wQ',
+  6: 'wK',
+  7: 'bP',
+  8: 'bN',
+  9: 'bB',
+  10: 'bR',
+  11: 'bQ',
+  12: 'bK',
+};
+
+/**
+ * Get the SVG URL for a given piece ID.
+ * @param {number} pieceId
+ * @returns {string}
+ */
+export function getPieceSvgUrl(pieceId) {
+  const fileName = PIECE_ID_TO_FILE[pieceId];
+  if (!fileName) return '';
+  return `files/pieces/2d/${_svgPieceSet}/${fileName}.svg`;
+}
+
 // Materials — set from app.js
 let matWhite, matBlack;
 

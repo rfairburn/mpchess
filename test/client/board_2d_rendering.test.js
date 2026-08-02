@@ -95,11 +95,11 @@ describe('board_2d black perspective rendering', () => {
 
     // Bottom-left (display file 0) = h1 = black rook
     const bottomLeftPiece = bottomRow[0].querySelector('.board2d-piece');
-    expect(bottomLeftPiece?.classList.contains('black-piece')).toBe(true);
+    expect(bottomLeftPiece?.src).toContain('bR.svg');
 
     // Bottom-right (display file 7) = a1 = white rook
     const bottomRightPiece = bottomRow[7].querySelector('.board2d-piece');
-    expect(bottomRightPiece?.classList.contains('white-piece')).toBe(true);
+    expect(bottomRightPiece?.src).toContain('wR.svg');
 
     // White-on-right: bottom-right square must be light
     expect(bottomRow[7].classList.contains('light')).toBe(true);

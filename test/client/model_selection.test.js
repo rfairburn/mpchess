@@ -147,3 +147,46 @@ describe('loadPieceModels — model set selection', () => {
     }
   });
 });
+
+describe('SVG piece set — configuration', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  it('defaults to mpchess set', async () => {
+    const pieces = await import('../../client/pieces.js');
+    expect(pieces.getSvgPieceSet()).toBe('mpchess');
+  });
+
+  it('maps all 12 piece IDs to correct SVG filenames', async () => {
+    const pieces = await import('../../client/pieces.js');
+
+    const expected = {
+      1: 'wP.svg',
+      2: 'wN.svg',
+      3: 'wB.svg',
+      4: 'wR.svg',
+      5: 'wQ.svg',
+      6: 'wK.svg',
+      7: 'bP.svg',
+      8: 'bN.svg',
+      9: 'bB.svg',
+      10: 'bR.svg',
+      11: 'bQ.svg',
+      12: 'bK.svg',
+    };
+    for (const [id, fileName] of Object.entries(expected)) {
+      const url = pieces.getPieceSvgUrl(Number(id));
+      expect(url).toBe(`files/pieces/2d/mpchess/${fileName}`);
+    }
+  });
+
+  it('setSvgPieceSet changes the directory in generated URLs', async () => {
+    const pieces = await import('../../client/pieces.js');
+    pieces.setSvgPieceSet('maestro');
+    expect(pieces.getSvgPieceSet()).toBe('maestro');
+    expect(pieces.getPieceSvgUrl(1)).toBe('files/pieces/2d/maestro/wP.svg');
+    expect(pieces.getPieceSvgUrl(12)).toBe('files/pieces/2d/maestro/bK.svg');
+  });
+});

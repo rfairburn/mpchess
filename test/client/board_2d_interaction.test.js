@@ -276,6 +276,26 @@ vi.mock('../../client/capabilities.js', () => ({
   isMobileLayout: vi.fn(() => false),
 }));
 
+vi.mock('../../client/pieces.js', () => ({
+  getPieceSvgUrl(pieceId) {
+    const files = {
+      1: 'wP',
+      2: 'wN',
+      3: 'wB',
+      4: 'wR',
+      5: 'wQ',
+      6: 'wK',
+      7: 'bP',
+      8: 'bN',
+      9: 'bB',
+      10: 'bR',
+      11: 'bQ',
+      12: 'bK',
+    };
+    return `files/pieces/2d/mpchess/${files[pieceId]}.svg`;
+  },
+}));
+
 vi.mock('../../client/sound.js', () => ({
   playMove: vi.fn(),
 }));
@@ -304,12 +324,14 @@ vi.mock('../../client/network.js', () => ({
   enPassantTarget: null,
   previousMove: null,
   sendMove: vi.fn(),
+  debugEnabled: false,
   onStateUpdate(fn) {
     stateListeners.push(fn);
   },
   onRestart(fn) {
     restartListeners.push(fn);
   },
+  onPromotion() {},
 }));
 
 // ── Setup ────────────────────────────────────────────────
@@ -564,11 +586,12 @@ describe('2D board interaction', () => {
     expect(document.querySelector('.board2d-drag-ghost')).toBeNull();
   });
 
-  it('ghost piece preserves the computed font-size of the original', () => {
+  it('ghost piece preserves the computed size of the original', () => {
     board2d.toggle2DBoard();
     const a2 = gridEl().children[6 * 8 + 0];
     const pieceEl = a2.querySelector('.board2d-piece');
-    const originalSize = getComputedStyle(pieceEl).fontSize;
+    const originalW = getComputedStyle(pieceEl).width;
+    const originalH = getComputedStyle(pieceEl).height;
 
     a2.dispatchEvent(
       new MouseEvent('mousedown', { bubbles: true, clientX: 100, clientY: 100, button: 0 })
@@ -578,7 +601,8 @@ describe('2D board interaction', () => {
     );
 
     const ghost = document.querySelector('.board2d-drag-ghost');
-    expect(ghost.style.fontSize).toBe(originalSize);
+    expect(ghost.style.width).toBe(originalW);
+    expect(ghost.style.height).toBe(originalH);
 
     document.dispatchEvent(
       new MouseEvent('mouseup', { bubbles: true, clientX: 120, clientY: 120 })

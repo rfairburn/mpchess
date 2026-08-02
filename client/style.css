@@ -281,18 +281,10 @@ canvas {
 }
 #drawer-captured-white,
 #drawer-captured-black {
-  color: #f0d9b5;
-  font:
-    18px/1.4 'Segoe UI',
-    Tahoma,
-    Geneva,
-    Verdana,
-    sans-serif;
   background: rgba(40, 30, 20, 0.6);
   padding: 6px 12px;
   border-radius: 6px;
   border: 1px solid rgba(181, 136, 99, 0.2);
-  letter-spacing: 1px;
 }
 #drawer-captured-white .cap-label,
 #drawer-captured-black .cap-label {
@@ -572,13 +564,6 @@ canvas {
   position: fixed;
   top: 120px;
   left: 20px;
-  color: #f0e6d0;
-  font:
-    20px/1.4 'Segoe UI',
-    Tahoma,
-    Geneva,
-    Verdana,
-    sans-serif;
   background: rgba(20, 14, 8, 0.85);
   padding: 6px 12px;
   border-radius: 6px;
@@ -587,7 +572,6 @@ canvas {
   z-index: 10;
   min-width: 40px;
   min-height: 28px;
-  letter-spacing: 1px;
 }
 #captured-white .cap-label {
   display: block;
@@ -606,13 +590,6 @@ canvas {
   position: fixed;
   top: 190px;
   left: 20px;
-  color: #ccc;
-  font:
-    20px/1.4 'Segoe UI',
-    Tahoma,
-    Geneva,
-    Verdana,
-    sans-serif;
   background: rgba(20, 14, 8, 0.85);
   padding: 6px 12px;
   border-radius: 6px;
@@ -621,7 +598,6 @@ canvas {
   z-index: 10;
   min-width: 40px;
   min-height: 28px;
-  letter-spacing: 1px;
 }
 #captured-black .cap-label {
   display: block;
@@ -636,6 +612,23 @@ canvas {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Captured piece SVG images — light inner box for visibility */
+.cap-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  background: #f0d9b5;
+  padding: 3px;
+  border-radius: 4px;
+}
+.cap-piece {
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
 #menu-overlay {
   position: fixed;
   inset: 0;
@@ -1910,7 +1903,8 @@ body.portrait-mobile #vertical-joystick {
   height: min(75vw, 75vh);
 }
 #board-2d-overlay.fullscreen .board2d-piece {
-  font-size: min(8vw, 8vh);
+  width: min(8vw, 8vh);
+  height: min(8vw, 8vh);
 }
 
 #board-2d-container {
@@ -1945,27 +1939,14 @@ body.portrait-mobile #vertical-joystick {
 }
 
 .board2d-piece {
-  font-size: min(30px, calc((100vw - 60px) / 8));
-  line-height: 1;
+  width: min(30px, calc((100vw - 60px) / 8));
+  height: min(30px, calc((100vw - 60px) / 8));
   user-select: none;
   -webkit-user-select: none;
-  /* Thin stroke for all pieces */
-  -webkit-text-stroke: 0.5px;
+  pointer-events: none;
   /* Stay above highlight overlays (z-index: 5) */
   position: relative;
   z-index: 10;
-}
-
-/* White pieces: white fill, dark stroke */
-.board2d-piece.white-piece {
-  color: #ffffff;
-  -webkit-text-stroke-color: #1a1a1a;
-}
-
-/* Black pieces: dark fill, light stroke */
-.board2d-piece.black-piece {
-  color: #1a1a1a;
-  -webkit-text-stroke-color: #f0d9b5;
 }
 
 /* ── 2D Board Highlights ── */
@@ -2010,10 +1991,8 @@ body.portrait-mobile #vertical-joystick {
   position: fixed;
   z-index: 1000;
   pointer-events: none;
-  line-height: 1;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-text-stroke: 0.5px;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
 }
 
@@ -2060,7 +2039,8 @@ body.portrait-mobile #vertical-joystick {
   }
 
   .board2d-piece {
-    font-size: min(8vw, 8vh);
+    width: min(8vw, 8vh);
+    height: min(8vw, 8vh);
   }
 
   #btn-board-2d-desktop {
@@ -2079,7 +2059,8 @@ body.portrait-mobile .board2d-grid {
   height: min(90vw, calc(90dvh - 44px));
 }
 body.portrait-mobile .board2d-piece {
-  font-size: min(8vw, 8vh);
+  width: min(8vw, 8vh);
+  height: min(8vw, 8vh);
 }
 body.portrait-mobile #btn-board-2d-desktop {
   display: none !important;

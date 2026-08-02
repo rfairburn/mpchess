@@ -23,6 +23,37 @@ vi.mock('../../client/controls.js', () => ({
   },
 }));
 
+// Mock pieces.js to avoid 3D board dependencies
+vi.mock('../../client/pieces.js', () => ({
+  pieceMeshes: [],
+  animations: [],
+  modelsLoaded: false,
+  setModelsLoaded: vi.fn(),
+  setScene: vi.fn(),
+  setMaterials: vi.fn(),
+  rebuildPieces: vi.fn(),
+  loadPieceModels: vi.fn(),
+  animateMove: vi.fn(),
+  getSvgPieceSet: () => 'mpchess',
+  getPieceSvgUrl(pieceId) {
+    const files = {
+      1: 'wP',
+      2: 'wN',
+      3: 'wB',
+      4: 'wR',
+      5: 'wQ',
+      6: 'wK',
+      7: 'bP',
+      8: 'bN',
+      9: 'bB',
+      10: 'bR',
+      11: 'bQ',
+      12: 'bK',
+    };
+    return `files/pieces/2d/mpchess/${files[pieceId]}.svg`;
+  },
+}));
+
 // -- DOM fixture -------------------------------------------
 // Must include every element ui.js accesses at module load time.
 

@@ -47,6 +47,7 @@ import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
 import { toggle2DBoard } from './board_2d.js';
+import { getSvgPieceSet } from './pieces.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -533,38 +534,72 @@ function updateClaimDrawButton() {
   }
 }
 
-const CAPTURE_SYMBOLS = {
-  queen: { white: '♕', black: '♛' },
-  rook: { white: '♖', black: '♜' },
-  bishop: { white: '♗', black: '♝' },
-  knight: { white: '♘', black: '♞' },
-  pawn: { white: '♙', black: '♟' },
-};
 const CAPTURE_ORDER = { queen: 0, rook: 1, bishop: 2, knight: 3, pawn: 4 };
 
-function updateCapturedPieces(captured) {
+const CAPTURE_TYPE_TO_LETTER = {
+  pawn: 'P',
+  knight: 'N',
+  bishop: 'B',
+  rook: 'R',
+  queen: 'Q',
+};
+
+/**
+ * Get the SVG URL for a captured piece by type and color.
+ * @param {string} type - pawn, knight, bishop, rook, queen
+ * @param {string} color - white, black
+ * @returns {string}
+ */
+function capturePieceSvg(type, color) {
+  const letter = CAPTURE_TYPE_TO_LETTER[type];
+  if (!letter) return '';
+  const file = `${color[0]}${letter}`;
+  return `files/pieces/2d/${getSvgPieceSet()}/${file}.svg`;
+}
+
+/**
+ * Render captured pieces as SVG images into a container element.
+ * @param {HTMLElement} container
+ * @param {string[]} pieceTypes - array of piece types (queen, rook, etc.)
+ */
+function renderCaptureImages(container, pieceTypes) {
+  container.innerHTML = '';
+  for (const type of [...pieceTypes].sort(
+    (a, b) => (CAPTURE_ORDER[a] ?? 99) - (CAPTURE_ORDER[b] ?? 99)
+  )) {
+    const img = document.createElement('img');
+    img.className = 'cap-piece';
+    img.src = capturePieceSvg(type, colorForContainer(container));
+    img.alt = type;
+    img.draggable = false;
+    container.appendChild(img);
+  }
+}
+
+/**
+ * Determine the piece color to display based on which container is being rendered.
+ * capturedWhitePieces shows black pieces (captured BY white), and vice versa.
+ * @param {HTMLElement} container
+ * @returns {string}
+ */
+function colorForContainer(container) {
+  return container === capturedBlackPieces || container === drawerCapturedBlackPieces
+    ? 'white'
+    : 'black';
+}
+
+export function updateCapturedPieces(captured) {
   if (!captured) {
-    capturedWhitePieces.textContent = '';
-    capturedBlackPieces.textContent = '';
-    if (drawerCapturedWhitePieces) drawerCapturedWhitePieces.textContent = '';
-    if (drawerCapturedBlackPieces) drawerCapturedBlackPieces.textContent = '';
+    capturedWhitePieces.innerHTML = '';
+    capturedBlackPieces.innerHTML = '';
+    if (drawerCapturedWhitePieces) drawerCapturedWhitePieces.innerHTML = '';
+    if (drawerCapturedBlackPieces) drawerCapturedBlackPieces.innerHTML = '';
     return;
   }
-  const sortFn = (a, b) => (CAPTURE_ORDER[a] ?? 99) - (CAPTURE_ORDER[b] ?? 99);
-  const whiteText = captured.white
-    .slice()
-    .sort(sortFn)
-    .map((t) => CAPTURE_SYMBOLS[t]?.black || '')
-    .join(' ');
-  const blackText = captured.black
-    .slice()
-    .sort(sortFn)
-    .map((t) => CAPTURE_SYMBOLS[t]?.white || '')
-    .join(' ');
-  capturedWhitePieces.textContent = whiteText;
-  capturedBlackPieces.textContent = blackText;
-  if (drawerCapturedWhitePieces) drawerCapturedWhitePieces.textContent = whiteText;
-  if (drawerCapturedBlackPieces) drawerCapturedBlackPieces.textContent = blackText;
+  renderCaptureImages(capturedWhitePieces, captured.white);
+  renderCaptureImages(capturedBlackPieces, captured.black);
+  if (drawerCapturedWhitePieces) renderCaptureImages(drawerCapturedWhitePieces, captured.white);
+  if (drawerCapturedBlackPieces) renderCaptureImages(drawerCapturedBlackPieces, captured.black);
 }
 
 // ── Menu ─────────────────────────────────────────────────

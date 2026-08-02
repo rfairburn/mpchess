@@ -8,10 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Replaced Unicode 2D board pieces and captured-piece indicators with configurable SVG assets, defaulting to the `mpchess` set. Controlled via `getSvgPieceSet()`/`setSvgPieceSet()` in `client/pieces.js`.
 - Added contributor guidance (`CONTRIBUTING.md`) and per-change changelog requirements (`AGENTS.md`).
 - Added all 42 2D piece sets from Lichess (`client/files/pieces/2d/`) with consolidated license attribution in `client/files/LICENSE`.
 - Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Added `jeu`, `low-poly`, `simple-classic`, and `afnafziger` 3D model sets (`client/files/pieces/3d/`) with CC0/public domain license, and made the 3D model set selectable via `getModelSet()`/`setModelSet()` in `client/pieces.js`. Default is `simple-classic`.
+
+### Changed
+
+- Improved captured-piece visibility on desktop and mobile with a light-square-colored inner background.
 
 ### Fixed
 

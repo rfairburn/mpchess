@@ -32,6 +32,28 @@ vi.mock('../../client/network.js', () => ({
   onDrawOfferCancelled: vi.fn(),
   onPlayerLeft: vi.fn(),
   onFenImportWarning: vi.fn(),
+  onPromotion: vi.fn(),
+}));
+
+vi.mock('../../client/pieces.js', () => ({
+  getSvgPieceSet: () => 'mpchess',
+  getPieceSvgUrl(pieceId) {
+    const files = {
+      1: 'wP',
+      2: 'wN',
+      3: 'wB',
+      4: 'wR',
+      5: 'wQ',
+      6: 'wK',
+      7: 'bP',
+      8: 'bN',
+      9: 'bB',
+      10: 'bR',
+      11: 'bQ',
+      12: 'bK',
+    };
+    return `files/pieces/2d/mpchess/${files[pieceId]}.svg`;
+  },
 }));
 
 vi.mock('../../client/controls.js', () => ({
@@ -294,5 +316,66 @@ describe('ui.js — mobile tap targets', () => {
     ui.showMenu();
     document.getElementById('menu-box')?.click();
     expect(ui.menuOpen).toBe(true);
+  });
+});
+
+describe('ui.js — captured pieces SVG rendering', () => {
+  let ui;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    createMinimalDOM();
+    ui = await import('../../client/ui.js');
+  });
+
+  it('renders captured pieces as SVG images with correct filenames and ordering', () => {
+    const capWhite = document.querySelector('#captured-white .cap-pieces');
+    const capBlack = document.querySelector('#captured-black .cap-pieces');
+
+    ui.updateCapturedPieces({
+      white: ['knight', 'pawn', 'queen'],
+      black: ['rook', 'bishop'],
+    });
+
+    // White captured black pieces (3 images, ordered queen, knight, pawn)
+    const whiteImgs = capWhite.querySelectorAll('img.cap-piece');
+    expect(whiteImgs.length).toBe(3);
+    expect(whiteImgs[0].src).toContain('bQ.svg');
+    expect(whiteImgs[1].src).toContain('bN.svg');
+    expect(whiteImgs[2].src).toContain('bP.svg');
+
+    // Black captured white pieces (2 images, ordered rook, bishop)
+    const blackImgs = capBlack.querySelectorAll('img.cap-piece');
+    expect(blackImgs.length).toBe(2);
+    expect(blackImgs[0].src).toContain('wR.svg');
+    expect(blackImgs[1].src).toContain('wB.svg');
+  });
+
+  it('clears captured pieces when passed null', () => {
+    const capWhite = document.querySelector('#captured-white .cap-pieces');
+    const capBlack = document.querySelector('#captured-black .cap-pieces');
+
+    ui.updateCapturedPieces({ white: ['pawn'], black: ['rook'] });
+    expect(capWhite.querySelectorAll('img').length).toBe(1);
+    expect(capBlack.querySelectorAll('img').length).toBe(1);
+
+    ui.updateCapturedPieces(null);
+    expect(capWhite.innerHTML).toBe('');
+    expect(capBlack.innerHTML).toBe('');
+  });
+
+  it('does not mutate the input arrays', () => {
+    const captured = {
+      white: ['pawn', 'queen', 'knight'],
+      black: ['bishop', 'rook'],
+    };
+    const whiteCopy = [...captured.white];
+    const blackCopy = [...captured.black];
+
+    ui.updateCapturedPieces(captured);
+
+    expect(captured.white).toEqual(whiteCopy);
+    expect(captured.black).toEqual(blackCopy);
   });
 });

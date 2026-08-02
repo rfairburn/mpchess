@@ -20,8 +20,30 @@ vi.mock('../../client/network.js', () => ({
   enPassantTarget: null,
   previousMove: null,
   sendMove: vi.fn(),
+  debugEnabled: false,
   onStateUpdate: vi.fn(),
   onRestart: vi.fn(),
+  onPromotion: vi.fn(),
+}));
+
+vi.mock('../../client/pieces.js', () => ({
+  getPieceSvgUrl(pieceId) {
+    const files = {
+      1: 'wP',
+      2: 'wN',
+      3: 'wB',
+      4: 'wR',
+      5: 'wQ',
+      6: 'wK',
+      7: 'bP',
+      8: 'bN',
+      9: 'bB',
+      10: 'bR',
+      11: 'bQ',
+      12: 'bK',
+    };
+    return `files/pieces/2d/mpchess/${files[pieceId]}.svg`;
+  },
 }));
 
 vi.mock('../../client/capabilities.js', () => ({

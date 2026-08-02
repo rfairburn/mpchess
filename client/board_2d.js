@@ -17,6 +17,7 @@ import {
 } from './network.js';
 import { isMobileLayout } from './capabilities.js';
 import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
+import { getPieceSvgUrl } from './pieces.js';
 import { playMove } from './sound.js';
 import { showError } from './ui.js';
 import {
@@ -41,22 +42,6 @@ import {
   getValidMovesList,
   onSelectionChange,
 } from './selection.js';
-
-// Unicode chess pieces — all dark (filled) variants; color via CSS
-const PIECE_SYMBOLS = {
-  1: '\u265F', // W_PAWN  ♟
-  2: '\u265E', // W_KNIGHT ♞
-  3: '\u265D', // W_BISHOP ♝
-  4: '\u265C', // W_ROOK  ♜
-  5: '\u265B', // W_QUEEN ♛
-  6: '\u265A', // W_KING  ♚
-  7: '\u265F', // B_PAWN  ♟
-  8: '\u265E', // B_KNIGHT ♞
-  9: '\u265D', // B_BISHOP ♝
-  10: '\u265C', // B_ROOK  ♜
-  11: '\u265B', // B_QUEEN ♛
-  12: '\u265A', // B_KING  ♚
-};
 
 let boardEl = null;
 let gridEl = null;
@@ -234,17 +219,12 @@ function renderBoard() {
 
       const piece = serverBoard?.[actualRank]?.[actualFile];
       if (piece && piece !== 0) {
-        const symbol = document.createElement('span');
-        symbol.className = 'board2d-piece';
-        symbol.textContent = PIECE_SYMBOLS[piece];
-
-        if (piece <= 6) {
-          symbol.classList.add('white-piece');
-        } else {
-          symbol.classList.add('black-piece');
-        }
-
-        square.appendChild(symbol);
+        const img = document.createElement('img');
+        img.className = 'board2d-piece';
+        img.src = getPieceSvgUrl(piece);
+        img.alt = '';
+        img.draggable = false;
+        square.appendChild(img);
       }
 
       gridEl.appendChild(square);
@@ -602,9 +582,11 @@ function commitDrag() {
     dragGhost = pieceEl.cloneNode(true);
     dragGhost.classList.add('board2d-drag-ghost');
     dragGhost.style.visibility = 'visible';
-    // Preserve the computed font-size so the ghost matches the original
-    const computedSize = getComputedStyle(pieceEl).fontSize;
-    dragGhost.style.fontSize = computedSize;
+    // Preserve the computed size so the ghost matches the original
+    const computedW = getComputedStyle(pieceEl).width;
+    const computedH = getComputedStyle(pieceEl).height;
+    dragGhost.style.width = computedW;
+    dragGhost.style.height = computedH;
     document.body.appendChild(dragGhost);
     // Position ghost at current cursor
     positionDragGhost(dragStartX, dragStartY);

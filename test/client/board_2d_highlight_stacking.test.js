@@ -48,9 +48,9 @@ describe('2D board highlight stacking', () => {
     square.style.width = '60px';
     square.style.height = '60px';
 
-    const piece = document.createElement('span');
-    piece.className = 'board2d-piece white-piece';
-    piece.textContent = '♔';
+    const piece = document.createElement('img');
+    piece.className = 'board2d-piece';
+    piece.src = 'files/pieces/2d/mpchess/wK.svg';
 
     const highlight = document.createElement('div');
     highlight.className = 'board2d-highlight';
@@ -72,5 +72,48 @@ describe('2D board highlight stacking', () => {
 
     expect(pieceStyle.position).toBe('relative');
     expect(parseInt(pieceStyle.zIndex, 10)).toBeGreaterThan(parseInt(highlightStyle.zIndex, 10));
+  });
+});
+
+describe('captured pieces — light inner box styling', () => {
+  beforeEach(() => {
+    clearDOM();
+    loadCSS();
+  });
+
+  it('.cap-pieces has light background matching white board squares', () => {
+    expect(cssText).toMatch(/\.cap-pieces\s*\{[^}]*background:\s*#f0d9b5/);
+  });
+
+  it('.cap-pieces uses flex layout with padding and border-radius', () => {
+    expect(cssText).toMatch(/\.cap-pieces\s*\{[^}]*display:\s*flex/);
+    expect(cssText).toMatch(/\.cap-pieces\s*\{[^}]*padding:\s*3px/);
+    expect(cssText).toMatch(/\.cap-pieces\s*\{[^}]*border-radius:\s*4px/);
+  });
+
+  it('desktop captured container applies light background to .cap-pieces', () => {
+    const container = document.createElement('div');
+    container.id = 'captured-white';
+    container.innerHTML = '<span class="cap-label">White</span><span class="cap-pieces"></span>';
+    document.body.appendChild(container);
+
+    const capPieces = container.querySelector('.cap-pieces');
+    const style = getComputedStyle(capPieces);
+    expect(style.display).toBe('flex');
+    expect(style.backgroundColor).toBe('rgb(240, 217, 181)');
+    expect(style.padding).toBe('3px');
+  });
+
+  it('drawer captured container applies light background to .cap-pieces', () => {
+    const container = document.createElement('div');
+    container.id = 'drawer-captured-white';
+    container.innerHTML = '<span class="cap-label">White</span><span class="cap-pieces"></span>';
+    document.body.appendChild(container);
+
+    const capPieces = container.querySelector('.cap-pieces');
+    const style = getComputedStyle(capPieces);
+    expect(style.display).toBe('flex');
+    expect(style.backgroundColor).toBe('rgb(240, 217, 181)');
+    expect(style.padding).toBe('3px');
   });
 });
