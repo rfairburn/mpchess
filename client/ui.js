@@ -42,12 +42,20 @@ import {
   clearHeldKeys,
 } from './controls.js';
 import { setMute, isMuted } from './sound.js';
-import { reloadPage } from './navigation.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
-import { toggle2DBoard } from './board_2d.js';
-import { getSvgPieceSet } from './pieces.js';
+import { toggle2DBoard, renderBoard2D } from './board_2d.js';
+import {
+  getSvgPieceSet,
+  setSvgPieceSet,
+  getPieceAssetUrl,
+  getModelSet,
+  setModelSet,
+  SVG_PIECE_SETS,
+  MODEL_SETS,
+  reloadPieceModels,
+} from './pieces.js';
 
 // ── Sub-modules (initialize their own callbacks) ─────────
 
@@ -62,6 +70,9 @@ import './ui/connection.js';
 // Help overlay
 import { showHelp, hideHelp, helpOpen, closeHelpForMenu } from './ui/help.js';
 export { helpOpen, hideHelp };
+
+// Settings overlay
+import { reloadPage } from './navigation.js';
 
 // Re-export toast functions for use by other modules
 export { showError, showInfo, showWarning };
@@ -196,6 +207,9 @@ export let menuOpen = false;
 
 // Track previous role so we can reposition the camera on join/reconnect
 let prevRole = null;
+
+// Store last captured pieces for re-rendering when piece set changes
+let lastCapturedPieces = null;
 
 // ── Mobile detection (from capabilities.js) ──────────────
 
@@ -346,21 +360,18 @@ function updatePortraitMobileClass() {
 window.addEventListener('resize', updatePortraitMobileClass);
 updatePortraitMobileClass();
 
-// ── Mouse sensitivity ────────────────────────────────────
+// ── Mouse sensitivity (persisted, used by controls.js) ──
 // Logarithmic scale: slider 1–100 maps to ~0.0002–~0.004.
 // Linear mapping (v * 0.0001) gave 0.0001–0.01, where the upper end was
 // too fast for most users.  The exponential curve keeps low values precise
 // and caps the top at a comfortable speed.
 // Constants are defined in CONTROLS_CONFIG (controls.js).
 
-const sensitivitySlider = domRef('sensitivity-slider');
-const sensitivityValue = domRef('sensitivity-value');
 export let mouseSensitivity = parseFloat(
   localStorage.getItem('mouseSensitivity') || String(CONTROLS_CONFIG.defaultMouseSensitivity)
 );
 
 function sliderToSens(v) {
-  // Exponential: sliderMin → sensitivityMin, sliderMax → sensitivityMax
   const { sensitivityMin, sensitivitySliderMin, sensitivitySliderMax, sensitivitySliderBase } =
     CONTROLS_CONFIG;
   return (
@@ -372,7 +383,6 @@ function sliderToSens(v) {
   );
 }
 function sensToSlider(s) {
-  // Inverse of sliderToSens
   const { sensitivityMin, sensitivitySliderMin, sensitivitySliderMax, sensitivitySliderBase } =
     CONTROLS_CONFIG;
   return Math.round(
@@ -381,30 +391,211 @@ function sensToSlider(s) {
         Math.log(sensitivitySliderBase)
   );
 }
-sensitivitySlider.value = sensToSlider(mouseSensitivity);
-sensitivityValue.textContent = sensitivitySlider.value;
 
-sensitivitySlider.addEventListener('input', () => {
-  const v = parseInt(sensitivitySlider.value, 10);
-  mouseSensitivity = sliderToSens(v);
-  sensitivityValue.textContent = v;
-  localStorage.setItem('mouseSensitivity', String(mouseSensitivity));
-});
+// ── Settings overlay ─────────────────────────────────────
 
-// ── M4.0 — Virtual joystick toggle ──────────────────────
-
+const settingsOverlay = document.getElementById('settings-overlay');
+const btnSettings = document.getElementById('btn-settings');
+const btnSettingsClose = document.getElementById('btn-settings-close');
+const sensitivitySlider = document.getElementById('sensitivity-slider');
+const sensitivityValue = document.getElementById('sensitivity-value');
 const joystickToggle = document.getElementById('joystick-toggle');
-if (joystickToggle) {
+const select2dSet = document.getElementById('select-2d-set');
+const select3dSet = document.getElementById('select-3d-set');
+
+export let settingsOpen = false;
+
+// Three.js scene reference — set by app.js for in-place model reload
+let _threeScene = null;
+export function setThreeScene(scene) {
+  _threeScene = scene;
+}
+
+// Focus management for settings overlay
+let _settingsPreviousFocus = null;
+let _settingsCloseCallback = null;
+
+function isActuallyVisible(element) {
+  if (!element?.isConnected || element.disabled) return false;
+  const style = window.getComputedStyle(element);
+  return (
+    style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0
+  );
+}
+
+function settingsTrapHandler(event) {
+  if (event.key !== 'Tab') return;
+  if (!settingsOverlay) return;
+  const allFocusable = settingsOverlay.querySelectorAll(
+    'button, [href], input, select, [tabindex]:not([tabindex="-1"])'
+  );
+  const focusable = Array.from(allFocusable).filter(isActuallyVisible);
+  if (focusable.length === 0) return;
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  } else if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  }
+}
+
+// Populate model set dropdowns
+if (select2dSet) {
+  for (const setName of SVG_PIECE_SETS) {
+    const opt = document.createElement('option');
+    opt.value = setName;
+    opt.textContent = setName;
+    select2dSet.appendChild(opt);
+  }
+}
+if (select3dSet) {
+  for (const setName of MODEL_SETS) {
+    const opt = document.createElement('option');
+    opt.value = setName;
+    opt.textContent = setName;
+    select3dSet.appendChild(opt);
+  }
+}
+
+// Initialize sensitivity slider from saved value
+if (sensitivitySlider && sensitivityValue) {
+  sensitivitySlider.value = sensToSlider(mouseSensitivity);
+  sensitivityValue.textContent = sensitivitySlider.value;
+}
+
+// Initialize joystick toggle
+{
   const saved = localStorage.getItem('virtualJoystick');
   const isMobile = navigator.maxTouchPoints > 0;
   const enabled = saved ? saved === 'true' : isMobile;
-  joystickToggle.checked = enabled;
+  if (joystickToggle) joystickToggle.checked = enabled;
   setJoystickEnabled(enabled);
+}
 
+// Initialize model set dropdowns from saved values
+{
+  const saved2d = localStorage.getItem('svgPieceSet');
+  if (saved2d && SVG_PIECE_SETS.includes(saved2d)) {
+    setSvgPieceSet(saved2d);
+    if (select2dSet) select2dSet.value = saved2d;
+  } else if (select2dSet) {
+    select2dSet.value = getSvgPieceSet();
+  }
+  const saved3d = localStorage.getItem('modelSet');
+  if (saved3d && MODEL_SETS.includes(saved3d)) {
+    setModelSet(saved3d);
+    if (select3dSet) select3dSet.value = saved3d;
+  } else if (select3dSet) {
+    select3dSet.value = getModelSet();
+  }
+}
+
+// Sensitivity slider handler
+if (sensitivitySlider && sensitivityValue) {
+  sensitivitySlider.addEventListener('input', () => {
+    const v = parseInt(sensitivitySlider.value, 10);
+    mouseSensitivity = sliderToSens(v);
+    sensitivityValue.textContent = v;
+    localStorage.setItem('mouseSensitivity', String(mouseSensitivity));
+  });
+}
+
+// Joystick toggle handler
+if (joystickToggle) {
   joystickToggle.addEventListener('change', () => {
     const state = joystickToggle.checked;
     localStorage.setItem('virtualJoystick', String(state));
     setJoystickEnabled(state);
+  });
+}
+
+// 2D piece set change handler
+if (select2dSet) {
+  select2dSet.addEventListener('change', () => {
+    const val = select2dSet.value;
+    setSvgPieceSet(val);
+    localStorage.setItem('svgPieceSet', val);
+    // Re-render captured pieces with new set
+    if (lastCapturedPieces) updateCapturedPieces(lastCapturedPieces);
+    // Re-render 2D board if visible
+    renderBoard2D();
+  });
+}
+
+// 3D model set change handler
+if (select3dSet) {
+  select3dSet.addEventListener('change', () => {
+    const val = select3dSet.value;
+    setModelSet(val);
+    localStorage.setItem('modelSet', val);
+    // Reload 3D models in-place
+    if (_threeScene) {
+      reloadPieceModels(_threeScene, () => {});
+    }
+  });
+}
+
+export function showSettings(onClose) {
+  if (!settingsOverlay) return;
+  _settingsPreviousFocus = document.activeElement;
+  _settingsCloseCallback = onClose || null;
+  settingsOpen = true;
+  settingsOverlay.classList.add('visible');
+  settingsOverlay.addEventListener('keydown', settingsTrapHandler);
+  // Clear held movement keys so WASD doesn't affect the game
+  clearHeldKeys();
+  // Focus the close button for keyboard accessibility
+  if (btnSettingsClose) btnSettingsClose.focus();
+}
+
+export function hideSettings() {
+  if (!settingsOverlay || !settingsOpen) return;
+
+  const focusTarget = _settingsPreviousFocus;
+  const restoreUi = _settingsCloseCallback;
+  _settingsPreviousFocus = null;
+  _settingsCloseCallback = null;
+  settingsOpen = false;
+  settingsOverlay.classList.remove('visible');
+  settingsOverlay.removeEventListener('keydown', settingsTrapHandler);
+
+  // Restore UI state first (e.g. show menu), then restore focus
+  if (restoreUi) restoreUi();
+
+  // Focus the previously focused element if visible, otherwise fall back
+  if (focusTarget && isActuallyVisible(focusTarget)) {
+    focusTarget.focus();
+  } else if (btnSettings && isActuallyVisible(btnSettings)) {
+    btnSettings.focus();
+  }
+}
+
+// Settings button click handler
+if (btnSettings) {
+  btnSettings.addEventListener('click', () => {
+    hideMenu();
+    showSettings(showMenu);
+  });
+}
+
+// Settings close button
+if (btnSettingsClose) {
+  btnSettingsClose.addEventListener('click', () => {
+    hideSettings();
+  });
+}
+
+// Close settings when clicking outside the box
+if (settingsOverlay) {
+  settingsOverlay.addEventListener('click', (e) => {
+    if (e.target === settingsOverlay && settingsOpen) {
+      hideSettings();
+    }
   });
 }
 
@@ -545,7 +736,7 @@ const CAPTURE_TYPE_TO_LETTER = {
 };
 
 /**
- * Get the SVG URL for a captured piece by type and color.
+ * Get the asset URL for a captured piece by type and color.
  * @param {string} type - pawn, knight, bishop, rook, queen
  * @param {string} color - white, black
  * @returns {string}
@@ -554,7 +745,7 @@ function capturePieceSvg(type, color) {
   const letter = CAPTURE_TYPE_TO_LETTER[type];
   if (!letter) return '';
   const file = `${color[0]}${letter}`;
-  return `files/pieces/2d/${getSvgPieceSet()}/${file}.svg`;
+  return getPieceAssetUrl(file);
 }
 
 /**
@@ -608,9 +799,10 @@ export function showMenu() {
   menuOpen = true;
   menuOverlay.classList.add('visible');
   if (document.pointerLockElement) document.exitPointerLock();
-  // Close status drawer and help overlay when menu is opened
+  // Close status drawer, help overlay, and settings when menu is opened
   closeStatusDrawer();
   closeHelpForMenu();
+  hideSettings();
   finishShowMenu();
 }
 
@@ -853,6 +1045,7 @@ onStateUpdate((msg) => {
   updateDrawInfo();
   updateClaimDrawButton();
   updateCapturedPieces(msg.capturedPieces);
+  lastCapturedPieces = msg.capturedPieces;
   hideConcedeConfirm();
   hideGiveUpSpotConfirm();
 

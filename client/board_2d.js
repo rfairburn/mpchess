@@ -951,3 +951,11 @@ export function restore2DBoard() {
   savedMode = 0;
   applyMode();
 }
+
+/**
+ * Re-render the 2D board with current piece set.
+ * Call this when the SVG piece set changes.
+ */
+export function renderBoard2D() {
+  if (mode > 0) renderBoard();
+}

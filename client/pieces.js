@@ -11,7 +11,7 @@ import { pieceColor, pieceType } from './chess.mjs';
 import { playMove } from './sound.js';
 
 // 3D model set name — directory under files/pieces/3d/
-// Available sets: chuckamcknight, jeu, low-poly, simple-classic, afnafziger
+export const MODEL_SETS = ['afnafziger', 'chuckamcknight', 'jeu', 'low-poly', 'simple-classic'];
 let _modelSet = 'simple-classic';
 export function getModelSet() {
   return _modelSet;
@@ -25,7 +25,50 @@ export function setModelSet(value) {
 // ── 2D SVG piece set ─────────────────────────────────────
 
 // 2D SVG piece set name — directory under files/pieces/2d/
-// Available sets: mpchess, maestro, dubrovny, rhosgfx, tatiana, etc.
+export const SVG_PIECE_SETS = [
+  'alpha',
+  'anarcandy',
+  'caliente',
+  'california',
+  'cardinal',
+  'cburnett',
+  'celtic',
+  'chess7',
+  'chessnut',
+  'companion',
+  'cooke',
+  'disguised',
+  'dubrovny',
+  'fantasy',
+  'firi',
+  'fresca',
+  'gioco',
+  'governor',
+  'horsey',
+  'icpieces',
+  'kiwen-suwi',
+  'kosal',
+  'leipzig',
+  'letter',
+  'maestro',
+  'merida',
+  'monarchy',
+  'mono',
+  'mpchess',
+  'papercut',
+  'pirouetti',
+  'pixel',
+  'reillycraig',
+  'rhosgfx',
+  'riohacha',
+  'shahi-ivory-brown',
+  'shapes',
+  'spatial',
+  'staunty',
+  'tatiana',
+  'totoy',
+  'xkcd',
+];
 let _svgPieceSet = 'mpchess';
 export function getSvgPieceSet() {
   return _svgPieceSet;
@@ -34,7 +77,7 @@ export function setSvgPieceSet(value) {
   _svgPieceSet = value;
 }
 
-// Maps piece IDs (1-12) to SVG file names
+// Maps piece IDs (1-12) to file names (without extension)
 // 1-6 = white (pawn..king), 7-12 = black (pawn..king)
 const PIECE_ID_TO_FILE = {
   1: 'wP',
@@ -51,6 +94,29 @@ const PIECE_ID_TO_FILE = {
   12: 'bK',
 };
 
+// Piece sets that use WebP instead of SVG
+const PIECE_SET_EXTENSIONS = {
+  monarchy: 'webp',
+};
+
+/**
+ * Get the file extension for the current SVG piece set.
+ * @returns {string}
+ */
+export function getPieceSetExtension() {
+  return PIECE_SET_EXTENSIONS[_svgPieceSet] ?? 'svg';
+}
+
+/**
+ * Get the asset URL for a given piece file name (without extension).
+ * @param {string} fileName
+ * @returns {string}
+ */
+export function getPieceAssetUrl(fileName) {
+  const ext = getPieceSetExtension();
+  return `files/pieces/2d/${_svgPieceSet}/${fileName}.${ext}`;
+}
+
 /**
  * Get the SVG URL for a given piece ID.
  * @param {number} pieceId
@@ -59,7 +125,7 @@ const PIECE_ID_TO_FILE = {
 export function getPieceSvgUrl(pieceId) {
   const fileName = PIECE_ID_TO_FILE[pieceId];
   if (!fileName) return '';
-  return `files/pieces/2d/${_svgPieceSet}/${fileName}.svg`;
+  return getPieceAssetUrl(fileName);
 }
 
 // Materials — set from app.js
@@ -79,6 +145,10 @@ const PIECE_TYPES = ['pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
 const PIECE_CACHE = {};
 export const pieceMeshes = [];
 export let modelsLoaded = false;
+// Monotonically increasing generation counter for atomic model loads.
+// Both loadPieceModels and reloadPieceModels increment it; stale callbacks
+// are discarded so only the latest successful load installs its geometries.
+let _modelLoadGeneration = 0;
 
 // Test-only setter — Object.defineProperty on the module namespace cannot
 // update a local `export let` binding, so expose a function that can.
@@ -87,39 +157,145 @@ export function setModelsLoaded(value) {
 }
 
 /**
+ * Process a loaded STL geometry: normalize scale, center, compute normals.
+ * @param {import('three').BufferGeometry} geometry
+ * @param {string} type
+ * @returns {import('three').BufferGeometry}
+ */
+function processGeometry(geometry, type) {
+  geometry.computeBoundingBox();
+  const size = geometry.boundingBox.getSize(new THREE.Vector3());
+  const targetSize = type === 'pawn' ? 0.55 : 0.7;
+  const baseScale = targetSize / Math.max(size.x, size.z);
+  geometry.scale(baseScale, baseScale, baseScale);
+  geometry.computeBoundingBox();
+  const cx = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
+  const cz = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
+  geometry.translate(-cx, -geometry.boundingBox.min.y, -cz);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/**
+ * Install a fully-loaded temporary cache into the live PIECE_CACHE.
+ * Removes current meshes, disposes old cache, installs new geometries,
+ * sets modelsLoaded, and rebuilds pieces.
+ * @param {import('three').Scene} scene
+ * @param {Object<string, import('three').BufferGeometry>} tempCache
+ */
+function installCache(scene, tempCache) {
+  // Remove all existing piece meshes from the scene
+  while (pieceMeshes.length > 0) {
+    const pm = pieceMeshes.pop();
+    scene.remove(pm.mesh);
+    const child = pm.mesh.children[0];
+    if (child) {
+      // Geometry is shared (PIECE_CACHE) — never dispose here.
+      // Material is shared (matWhite/matBlack) except when animateCapture
+      // cloned it — check by identity before disposing.
+      if (child.material && child.material !== matWhite && child.material !== matBlack) {
+        child.material.dispose();
+      }
+    }
+  }
+
+  // Dispose old cache
+  for (const key of Object.keys(PIECE_CACHE)) {
+    PIECE_CACHE[key].dispose();
+    delete PIECE_CACHE[key];
+  }
+
+  // Install new cache
+  for (const key of Object.keys(tempCache)) PIECE_CACHE[key] = tempCache[key];
+  modelsLoaded = true;
+
+  // Cancel any in-flight animations
+  animations.length = 0;
+  animatingPieces.clear();
+
+  // Rebuild pieces if we have board state
+  if (serverBoard) rebuildPieces(scene);
+}
+
+/**
+ * Shared generation-aware loader used by both loadPieceModels and
+ * reloadPieceModels. Loads into a temporary cache; only the latest
+ * generation installs its geometries.
+ * @param {import('three').Scene} scene
+ * @param {string} modelSet
+ * @param {() => void} onReady
+ * @param {(type: string) => void} onError
+ */
+function loadModelsInternal(scene, modelSet, onReady, onError) {
+  const generation = ++_modelLoadGeneration;
+  const tempCache = {};
+  let loaded = 0;
+  let failed = false;
+  const loader = new STLLoader();
+
+  PIECE_TYPES.forEach((type) => {
+    loader.load(
+      `files/pieces/3d/${modelSet}/${type}.stl`,
+      (geometry) => {
+        if (failed) {
+          geometry.dispose();
+          return;
+        }
+        tempCache[type] = processGeometry(geometry, type);
+        loaded++;
+        if (loaded === PIECE_TYPES.length) {
+          // Discard if a newer load was started while we were loading
+          if (generation !== _modelLoadGeneration) {
+            for (const key of Object.keys(tempCache)) tempCache[key].dispose();
+            onReady();
+            return;
+          }
+          // Install the new cache atomically
+          installCache(scene, tempCache);
+          onReady();
+        }
+      },
+      undefined,
+      (_err) => {
+        if (failed) return;
+        failed = true;
+        onError(type);
+        // Discard if a newer load was started while we were loading
+        if (generation !== _modelLoadGeneration) {
+          for (const key of Object.keys(tempCache)) tempCache[key].dispose();
+          onReady();
+          return;
+        }
+        // Dispose any partially loaded temp geometries
+        for (const key of Object.keys(tempCache)) tempCache[key].dispose();
+        onReady();
+      }
+    );
+  });
+}
+
+/**
  * Load all piece STL models. Calls onReady when all are loaded.
  * @param {import('three').Scene} scene
  * @param {() => void} onReady
  */
 export function loadPieceModels(scene, onReady) {
-  const loader = new STLLoader();
-  let loaded = 0;
-  PIECE_TYPES.forEach((type) => {
-    loader.load(
-      `files/pieces/3d/${_modelSet}/${type}.stl`,
-      (geometry) => {
-        geometry.computeBoundingBox();
-        const size = geometry.boundingBox.getSize(new THREE.Vector3());
-        const targetSize = type === 'pawn' ? 0.55 : 0.7;
-        const baseScale = targetSize / Math.max(size.x, size.z);
-        geometry.scale(baseScale, baseScale, baseScale);
-        geometry.computeBoundingBox();
-        const cx = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
-        const cz = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
-        geometry.translate(-cx, -geometry.boundingBox.min.y, -cz);
-        geometry.computeVertexNormals();
-        PIECE_CACHE[type] = geometry;
-        loaded++;
-        if (loaded === PIECE_TYPES.length) {
-          modelsLoaded = true;
-          onReady();
-          // If we already have board state, rebuild pieces now that models are ready
-          if (serverBoard) rebuildPieces(scene);
-        }
-      },
-      undefined,
-      (err) => console.error(`Failed to load ${type}.stl`, err)
-    );
+  loadModelsInternal(scene, _modelSet, onReady, (type) => {
+    console.error(`Failed to load ${type}.stl`);
+  });
+}
+
+/**
+ * Reload all piece STL models for the current model set.
+ * Atomic, generation-aware: loads into a temporary cache, discards stale
+ * callbacks, and only swaps the cache/meshes after the latest request
+ * completes successfully. Preserves existing pieces on failure.
+ * @param {import('three').Scene} scene
+ * @param {() => void} onReady
+ */
+export function reloadPieceModels(scene, onReady) {
+  loadModelsInternal(scene, _modelSet, onReady, (type) => {
+    console.error(`Failed to reload ${type}.stl`);
   });
 }
 

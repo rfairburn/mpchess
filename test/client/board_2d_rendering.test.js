@@ -50,6 +50,7 @@ vi.mock('../../client/capabilities.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   showError: vi.fn(),
+  setThreeScene: vi.fn(),
 }));
 
 vi.mock('../../client/sound.js', () => ({

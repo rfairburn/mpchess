@@ -257,15 +257,18 @@ vi.mock('../../client/sound.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
+  settingsOpen: false,
   helpOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
   hideHelp: vi.fn(),
+  hideSettings: vi.fn(),
   updateMouseModeDisplay: vi.fn(),
   hidePromotionPicker: vi.fn(),
   hideConcedeConfirm: vi.fn(),
   mouseSensitivity: 0.002,
   showError: vi.fn(),
+  setThreeScene: vi.fn(),
 }));
 
 vi.mock('../../client/board.js', () => ({
@@ -286,6 +289,11 @@ vi.mock('../../client/chess.mjs', () => ({
 
 const mockPieceMeshes = [];
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   pieceMeshes: mockPieceMeshes,
   getPieceSvgUrl(pieceId) {
     const files = {

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 
 import { onMove } from './network.js';
-import { updateMouseModeDisplay } from './ui.js';
+import { updateMouseModeDisplay, setThreeScene } from './ui.js';
 import { init as initSound } from './sound.js';
 import {
   createBoard,
@@ -105,6 +105,7 @@ setPieceMaterials(matWhite, matBlack);
 // ── Scene / Camera / Renderer ────────────────────────────
 
 const scene = new THREE.Scene();
+setThreeScene(scene);
 const bgTexture = new THREE.TextureLoader().load('./files/background.png');
 bgTexture.mapping = THREE.EquirectangularReflectionMapping;
 scene.background = bgTexture;

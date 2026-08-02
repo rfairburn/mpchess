@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
+  settingsOpen: false,
   helpOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock('../../client/ui.js', () => ({
   hideConcedeConfirm: vi.fn(),
   mouseSensitivity: 0.002,
   showError: vi.fn(),
+  setThreeScene: vi.fn(),
   showInfo: vi.fn(),
 }));
 

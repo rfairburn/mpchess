@@ -103,6 +103,19 @@
           </select>
           <button id="btn-menu-change-skill">Change Skill</button>
         </div>
+        <button id="btn-settings">Settings</button>
+        <button id="btn-help">Help</button>
+        <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
+      </div>
+    </div>
+
+    <!-- Settings overlay -->
+    <div id="settings-overlay">
+      <div id="settings-box">
+        <div id="settings-header">
+          <h2>Settings</h2>
+          <button id="btn-settings-close" aria-label="Close">✕</button>
+        </div>
         <div id="sensitivity-row">
           <label for="sensitivity-slider">Mouse Sensitivity</label>
           <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
@@ -115,8 +128,14 @@
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <button id="btn-help">Help</button>
-        <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
+        <div class="model-select-row">
+          <label for="select-2d-set">2D Piece Set</label>
+          <select id="select-2d-set"></select>
+        </div>
+        <div class="model-select-row">
+          <label for="select-3d-set">3D Model Set</label>
+          <select id="select-3d-set"></select>
+        </div>
       </div>
     </div>
 

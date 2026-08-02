@@ -18,9 +18,11 @@ import {
 import {
   menuOpen,
   helpOpen,
+  settingsOpen,
   showMenu,
   hideMenu,
   hideHelp,
+  hideSettings,
   updateMouseModeDisplay,
   hidePromotionPicker,
   hideConcedeConfirm,
@@ -89,7 +91,7 @@ function updateJoystickVisibility() {
   const joystickEl = document.getElementById('virtual-joystick');
   const lookAreaEl = document.getElementById('virtual-look-area');
   const vJoyEl = document.getElementById('vertical-joystick');
-  const show = mouseLookOn && joystickEnabled && !menuOpen && !helpOpen;
+  const show = mouseLookOn && joystickEnabled && !menuOpen && !helpOpen && !settingsOpen;
 
   if (joystickEl) joystickEl.classList.toggle('visible', show);
   if (lookAreaEl) lookAreaEl.classList.toggle('visible', show);
@@ -207,6 +209,14 @@ export function clearHeldKeys() {
 }
 
 document.addEventListener('keydown', (e) => {
+  // When settings is open, only Escape closes it; all other game shortcuts
+  // and movement keys are suppressed. Tab navigates the form naturally.
+  if (settingsOpen) {
+    if (e.code === 'Escape') {
+      hideSettings();
+    }
+    return;
+  }
   // When help is open, only Escape is allowed (to close it); all other
   // game shortcuts and movement keys are suppressed.
   if (helpOpen) {
@@ -336,7 +346,7 @@ function getBoardSquareFromRay(event) {
 export function setClickHandler(renderer) {
   _renderer = renderer;
   renderer.domElement.addEventListener('click', (event) => {
-    if (menuOpen || helpOpen) return;
+    if (menuOpen || helpOpen || settingsOpen) return;
     if (serverPromotingPiece) return;
     if (serverGameOver) return;
     if (dragCompleted) {
@@ -561,7 +571,8 @@ function onDragEnd(event) {
 // the drag threshold is crossed.
 
 function touchStartHandler(event) {
-  if (menuOpen || helpOpen || serverPromotingPiece || serverGameOver || mouseLookOn) return;
+  if (menuOpen || helpOpen || settingsOpen || serverPromotingPiece || serverGameOver || mouseLookOn)
+    return;
   if (!serverBoard) return;
 
   // Ignore secondary touchstart while a gesture is already active.
@@ -695,7 +706,15 @@ export function setDragHandlers(renderer) {
 
   renderer.domElement.addEventListener('mousedown', (event) => {
     if (event.button !== 0) return; // only left button
-    if (menuOpen || helpOpen || serverPromotingPiece || serverGameOver || mouseLookOn) return;
+    if (
+      menuOpen ||
+      helpOpen ||
+      settingsOpen ||
+      serverPromotingPiece ||
+      serverGameOver ||
+      mouseLookOn
+    )
+      return;
     if (!serverBoard) return;
 
     dragStartX = event.clientX;

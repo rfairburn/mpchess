@@ -20,6 +20,7 @@ vi.mock('../../client/network.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   menuOpen: false,
+  settingsOpen: false,
   helpOpen: false,
   showMenu: vi.fn(),
   hideMenu: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock('../../client/ui.js', () => ({
   hideConcedeConfirm: vi.fn(),
   mouseSensitivity: 0.002,
   showError: vi.fn(),
+  setThreeScene: vi.fn(),
 }));
 
 vi.mock('../../client/board.js', () => ({
@@ -45,6 +47,11 @@ vi.mock('../../client/chess.mjs', () => ({
 }));
 
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   getPieceSvgUrl(pieceId) {
     const f = {
       1: 'wP',

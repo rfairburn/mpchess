@@ -36,7 +36,17 @@ vi.mock('../../client/network.js', () => ({
 }));
 
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   getSvgPieceSet: () => 'mpchess',
+  getPieceSetExtension: () => 'svg',
+  getPieceAssetUrl(fileName) {
+    return `files/pieces/2d/mpchess/${fileName}.svg`;
+  },
+  reloadPieceModels: vi.fn(),
   getPieceSvgUrl(pieceId) {
     const files = {
       1: 'wP',
@@ -59,6 +69,7 @@ vi.mock('../../client/pieces.js', () => ({
 vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
   toggleMouseMode: vi.fn(),
+  setJoystickEnabled: vi.fn(),
   CONTROLS_CONFIG: {
     defaultMouseSensitivity: 0.002,
     sensitivityMin: 0.0002,

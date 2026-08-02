@@ -16,6 +16,11 @@ vi.mock('../../client/board.js', () => ({
 }));
 
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   setMaterials: vi.fn(),
   loadPieceModels: vi.fn((_scene, cb) => cb && cb()),
   animations: [],
@@ -42,6 +47,7 @@ vi.mock('../../client/pieces.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   updateMouseModeDisplay: vi.fn(),
+  setThreeScene: vi.fn(),
 }));
 
 vi.mock('../../client/controls.js', () => ({

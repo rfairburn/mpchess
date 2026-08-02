@@ -27,6 +27,11 @@ vi.mock('../../client/network.js', () => ({
 }));
 
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   getPieceSvgUrl(pieceId) {
     const files = {
       1: 'wP',
@@ -69,6 +74,7 @@ vi.mock('../../client/sound.js', () => ({
 
 vi.mock('../../client/ui.js', () => ({
   showError: vi.fn(),
+  setThreeScene: vi.fn(),
 }));
 
 // ═══════════════════════════════════════════════════════════

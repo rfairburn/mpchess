@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 // Mock controls.js -- we only need setCameraForRole (no-op)
 vi.mock('../../client/controls.js', () => ({
   setCameraForRole: vi.fn(),
+  setJoystickEnabled: vi.fn(),
   CONTROLS_CONFIG: {
     defaultMouseSensitivity: 0.002,
     sensitivityMin: 0.0002,
@@ -25,6 +26,11 @@ vi.mock('../../client/controls.js', () => ({
 
 // Mock pieces.js to avoid 3D board dependencies
 vi.mock('../../client/pieces.js', () => ({
+  setSvgPieceSet: vi.fn(),
+  getModelSet: () => 'simple-classic',
+  setModelSet: vi.fn(),
+  SVG_PIECE_SETS: ['mpchess', 'maestro', 'dubrovny'],
+  MODEL_SETS: ['simple-classic', 'low-poly', 'jeu'],
   pieceMeshes: [],
   animations: [],
   modelsLoaded: false,
@@ -33,6 +39,7 @@ vi.mock('../../client/pieces.js', () => ({
   setMaterials: vi.fn(),
   rebuildPieces: vi.fn(),
   loadPieceModels: vi.fn(),
+  reloadPieceModels: vi.fn(),
   animateMove: vi.fn(),
   getSvgPieceSet: () => 'mpchess',
   getPieceSvgUrl(pieceId) {
