@@ -23,6 +23,8 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
   '.wav': 'audio/wav',
+  '.svg': 'image/svg+xml',
+  '.webp': 'image/webp',
 };
 
 const CLIENT_ROOT = path.resolve(__dirname, 'client');

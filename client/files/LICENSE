@@ -1,13 +1,195 @@
-The 3D model files in this directory (bishop.step, bishop.stl, king.step,
-king.stl, knight.step, knight.stl, pawn.step, pawn.stl, queen.step,
-queen.stl, rook.step, rook.stl) were created by Thingiverse user
-chuckamcknight and are licensed under the Creative Commons
-Attribution-NonCommercial-ShareAlike 4.0 International License.
+mpchess Asset Licenses
+======================
 
+This file documents the licenses for all bundled assets. The mpchess code
+itself is licensed under MIT. See the project LICENSE file for details.
+
+
+Original Project Assets (MIT)
+=============================
+
+The following assets are original to the mpchess project and distributed
+under the project MIT License:
+
+- background.png — AI-generated via ChatGPT (OpenAI image generation)
+- pickup.wav — AI-generated using SoundCloud
+
+
+3D Models (pieces/3d/)
+======================
+
+pieces/3d/chuckamcknight/
+--------------------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: chuckamcknight (Thingiverse)
 Source: https://www.thingiverse.com/thing:4168753
+License: CC BY-NC-SA 4.0
 
 You should have received a copy of the license along with this work. If not,
 see <https://creativecommons.org/licenses/by-nc-sa/4.0/>.
 
-Attribution: chuckamcknight (Thingiverse)
-License: CC BY-NC-SA 4.0
+
+2D Piece Sets (pieces/2d/)
+==========================
+
+All 2D piece sets were downloaded from the Lichess project at commit
+2762d8147ef1 (2024). Source directory:
+https://github.com/lichess-org/lila/tree/2762d8147ef1/public/piece
+
+License provenance from Lichess COPYING.md:
+https://github.com/lichess-org/lila/blob/2762d8147ef1/COPYING.md
+
+Most sets contain 12 SVG files (wK, wQ, wR, wB, wN, wP, bK, bQ, bR, bB, bN, bP).
+Exceptions:
+- **disguised**: 2 SVGs (w.svg, b.svg) shared via copies for all 12 piece names
+- **mono**: 6 SVGs (B, K, N, P, Q, R) shared across white/black via copies
+- **monarchy**: 12 .webp files (not SVG)
+
+
+CC0 1.0 (Public Domain)
+-----------------------
+
+- rhosgfx — RhosGFX
+
+
+MIT
+---
+
+- fantasy — Maurizio Monge
+- spatial — Maurizio Monge
+- celtic — Maurizio Monge
+
+
+Apache 2.0
+----------
+
+- chessnut — Alexis Luengas
+
+
+GPLv2+
+------
+
+- cburnett — Colin M.L. Burnett
+- mono — Thibault Duplessis and Colin M.L. Burnett
+- merida — Armando Hernandez Marroquin
+
+
+GPLv3+
+------
+
+- mpchess — Maxime Chupin
+
+
+AGPLv3+
+-------
+
+- letter — usolando
+- pirouetti — pirouetti
+- pixel — therealqtpi
+- governor — lila authors
+- riohacha — unknown author
+
+
+CC BY 4.0
+---------
+
+- kiwen-suwi — neverRare
+- firi — James Faure
+- kosal — Kosal Sen
+- totoy — Kosal Sen
+- papercut — Nikolay Anzarov
+
+
+CC BY-SA 4.0
+------------
+
+- shapes — flugsio
+
+
+CC BY-NC-SA 4.0 (Non-Commercial)
+--------------------------------
+
+These sets may not be used in commercial products.
+
+- anarcandy — caderek
+- caliente — avi
+- california — Jerry S.
+- cardinal — sadsnake1
+- cooke — fejfar
+- disguised — danegraphics
+- dubrovny — sadsnake1
+- fresca — sadsnake1
+- gioco — sadsnake1
+- icpieces — sadsnake1
+- maestro — sadsnake1
+- monarchy — slither77
+- staunty — sadsnake1
+- tatiana — sadsnake1
+- horsey — cham, michael1241
+
+
+CC BY-NC-SA 2.5 (Non-Commercial)
+--------------------------------
+
+- xkcd — Randall Munroe
+
+
+Freeware / Restricted Use
+-------------------------
+
+These sets have informal or non-standard licenses.
+
+- alpha — Eric Bentzen
+  License: "free for personal non commercial use" (see zip)
+
+- chess7 — Style-7
+  License: "freeware"
+
+- companion — David L. Brown
+  License: "freeware"
+
+- leipzig — Armando Hernandez Marroquin
+  License: "freeware"
+
+- reillycraig — Reilly Craig
+  License: none stated
+
+- shahi-ivory-brown — Tamer Karatekin
+  License: Şahî Chess & Shatranj Font License v1.0
+  Limitations: non-derivative; no modifications or derivative works permitted
+
+
+Summary
+=======
+
+| Path                                | License           | Commercial? |
+| ----------------------------------- | ----------------- | ----------- |
+| background.png                      | MIT (original)    | Yes         |
+| pickup.wav                          | MIT (original)    | Yes         |
+| pieces/3d/chuckamcknight/*.stl      | CC BY-NC-SA 4.0   | No          |
+| pieces/2d/rhosgfx/*.svg             | CC0 1.0           | Yes         |
+| pieces/2d/fantasy/*.svg             | MIT               | Yes         |
+| pieces/2d/spatial/*.svg             | MIT               | Yes         |
+| pieces/2d/celtic/*.svg              | MIT               | Yes         |
+| pieces/2d/chessnut/*.svg            | Apache 2.0        | Yes         |
+| pieces/2d/cburnett/*.svg            | GPLv2+            | Yes*        |
+| pieces/2d/mono/*.svg                | GPLv2+            | Yes*        |
+| pieces/2d/merida/*.svg              | GPLv2+            | Yes*        |
+| pieces/2d/mpchess/*.svg             | GPLv3+            | Yes*        |
+| pieces/2d/letter/*.svg              | AGPLv3+           | Yes*        |
+| pieces/2d/pirouetti/*.svg           | AGPLv3+           | Yes*        |
+| pieces/2d/pixel/*.svg               | AGPLv3+           | Yes*        |
+| pieces/2d/governor/*.svg            | AGPLv3+           | Yes*        |
+| pieces/2d/riohacha/*.svg            | AGPLv3+           | Yes*        |
+| pieces/2d/kiwen-suwi/*.svg          | CC BY 4.0         | Yes         |
+| pieces/2d/firi/*.svg                | CC BY 4.0         | Yes         |
+| pieces/2d/kosal/*.svg               | CC BY 4.0         | Yes         |
+| pieces/2d/totoy/*.svg               | CC BY 4.0         | Yes         |
+| pieces/2d/papercut/*.svg            | CC BY 4.0         | Yes         |
+| pieces/2d/shapes/*.svg              | CC BY-SA 4.0      | Yes         |
+| pieces/2d/{anarcandy,caliente,...}  | CC BY-NC-SA 4.0   | No          |
+| pieces/2d/xkcd/*.svg                | CC BY-NC-SA 2.5   | No          |
+| pieces/2d/{alpha,chess7,...}        | Freeware/restricted | Varies    |
+| pieces/2d/monarchy/*.webp           | CC BY-NC-SA 4.0   | No          |
+
+* Copyleft: derivatives must use the same license.

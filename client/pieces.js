@@ -44,7 +44,7 @@ export function loadPieceModels(scene, onReady) {
   let loaded = 0;
   PIECE_TYPES.forEach((type) => {
     loader.load(
-      `files/${type}.stl`,
+      `files/pieces/3d/chuckamcknight/${type}.stl`,
       (geometry) => {
         geometry.rotateX(-Math.PI / 2);
         geometry.computeBoundingBox();

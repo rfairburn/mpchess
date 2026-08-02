@@ -762,9 +762,70 @@ describe('Static file server — requestHandler', () => {
 
   test('serves .stl model files from client/files/', () => {
     const res = mockRes();
-    requestHandler(mockReq('/client/files/king.stl'), res);
+    requestHandler(mockReq('/client/files/pieces/3d/chuckamcknight/king.stl'), res);
     assert.strictEqual(res.statusCode, 200);
     assert.strictEqual(res.headers['Content-Type'], MIME['.stl']);
+  });
+
+  test('serves .svg piece files from client/files/', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/files/pieces/2d/cburnett/wK.svg'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.svg']);
+  });
+
+  test('serves .webp piece files from client/files/', () => {
+    const res = mockRes();
+    requestHandler(mockReq('/client/files/pieces/2d/monarchy/wK.webp'), res);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.headers['Content-Type'], MIME['.webp']);
+  });
+
+  // ── 2D piece set integrity ──
+
+  const PIECE_NAMES = ['wK', 'wQ', 'wR', 'wB', 'wN', 'wP', 'bK', 'bQ', 'bR', 'bB', 'bN', 'bP'];
+  const EXPECTED_SETS = [
+    'alpha', 'anarcandy', 'caliente', 'california', 'cardinal', 'cburnett',
+    'celtic', 'chess7', 'chessnut', 'companion', 'cooke', 'disguised',
+    'dubrovny', 'fantasy', 'firi', 'fresca', 'gioco', 'governor', 'horsey',
+    'icpieces', 'kiwen-suwi', 'kosal', 'leipzig', 'letter', 'maestro',
+    'merida', 'monarchy', 'mono', 'mpchess', 'papercut', 'pirouetti',
+    'pixel', 'reillycraig', 'rhosgfx', 'riohacha', 'shahi-ivory-brown',
+    'shapes', 'spatial', 'staunty', 'tatiana', 'totoy', 'xkcd'
+  ];
+  const PIECES2D_DIR = path.join(__dirname, '../../client/files/pieces/2d');
+
+  test('2D piece sets: expected sets present', () => {
+    const actual = fs.readdirSync(PIECES2D_DIR)
+      .filter((d) => fs.statSync(path.join(PIECES2D_DIR, d)).isDirectory())
+      .sort();
+    assert.deepStrictEqual(actual, EXPECTED_SETS, '2D piece set directories should match expected manifest');
+  });
+
+  test('all 2D piece sets contain valid files', () => {
+    for (const set of EXPECTED_SETS) {
+      const dir = path.join(PIECES2D_DIR, set);
+      const ext = set === 'monarchy' ? 'webp' : 'svg';
+      const expectedFiles = PIECE_NAMES.map((n) => `${n}.${ext}`).sort();
+      const actualFiles = fs.readdirSync(dir).sort();
+      assert.deepStrictEqual(actualFiles, expectedFiles,
+        `Set ${set} should have exactly ${expectedFiles.length} files`);
+      for (const f of actualFiles) {
+        const fp = path.join(dir, f);
+        if (ext === 'svg') {
+          const content = fs.readFileSync(fp, 'utf8');
+          assert.ok(content.startsWith('<svg') || content.startsWith('<?xml'),
+            `${set}/${f} should be valid SVG`);
+        } else {
+          const buf = fs.readFileSync(fp);
+          assert.ok(buf.length > 100, `${set}/${f} should be a valid WebP file`);
+          assert.strictEqual(buf.toString('ascii', 0, 4), 'RIFF',
+            `${set}/${f} should have RIFF header`);
+          assert.strictEqual(buf.toString('ascii', 8, 12), 'WEBP',
+            `${set}/${f} should have WEBP header`);
+        }
+      }
+    }
   });
 
   // ── Forbidden: outside client/ ──
