@@ -2,12 +2,9 @@
 //  Shared client constants
 // ═══════════════════════════════════════════════════════════
 
-// Skill labels (must stay in sync with server)
-export const SKILL_LABELS = {
-  beginner: 'Beginner',
-  novice: 'Novice',
-  intermediate: 'Intermediate',
-  advanced: 'Advanced',
-  master: 'Master',
-  grandmaster: 'Grandmaster',
-};
+import { t } from './i18n.js';
+
+// Skill labels — resolved via i18n
+export function getSkillLabel(skill) {
+  return t(`ui.skill_${skill}`);
+}

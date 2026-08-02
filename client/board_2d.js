@@ -20,6 +20,7 @@ import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
 import { getPieceSvgUrl } from './pieces.js';
 import { playMove } from './sound.js';
 import { showError } from './ui.js';
+import { t } from './i18n.js';
 import {
   getArrows,
   onArrowChange,
@@ -452,7 +453,7 @@ function handleSquareClick(sq) {
   // Enforce turn guard before any interaction
   if (myRole && myRole !== serverTurn) {
     deselect();
-    showError('Not your turn');
+    showError(t('error.not_your_turn'));
     return;
   }
 

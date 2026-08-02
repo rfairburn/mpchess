@@ -8,11 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Added client-side localization framework (`shared/i18n.js`, `client/i18n.js`, `shared/locales/en-US.js`). All ~150 user-facing strings are now resolved via `t(key, params?)` lookups. The server sends machine-readable keys (e.g., `game.checkmate_white`, `error.not_your_turn`) instead of display strings, keeping it locale-agnostic. Static HTML strings use `data-i18n` attributes resolved on page load.
 - Added Settings menu (accessible from the main menu) with mouse sensitivity slider, virtual joystick toggle, and dropdown selectors for 2D piece set and 3D model set. Selections persist in `localStorage` and apply in-place without a page reload.
-- Replaced Unicode 2D board pieces and captured-piece indicators with configurable SVG assets, defaulting to the `mpchess` set. Controlled via `getSvgPieceSet()`/`setSvgPieceSet()` in `client/pieces.js`.
 - Added contributor guidance (`CONTRIBUTING.md`) and per-change changelog requirements (`AGENTS.md`).
 - Added all 42 2D piece sets from Lichess (`client/files/pieces/2d/`) with consolidated license attribution in `client/files/LICENSE`.
-- Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Added `jeu`, `low-poly`, `simple-classic`, and `afnafziger` 3D model sets (`client/files/pieces/3d/`) with CC0/public domain license, and made the 3D model set selectable via `getModelSet()`/`setModelSet()` in `client/pieces.js`. Default is `simple-classic`.
 - Added `samurai` 3D model set (`client/files/pieces/3d/samurai/`) converted from FBX source ("Samurai chess" by 3DWorkbench, CC BY 4.0), decimated to ~712 KB total.
 - Added `ornate` 3D model set (`client/files/pieces/3d/ornate/`) extracted from GLB source ("Ornate Golden Chess Pieces" by iGauravRajput, CC BY 4.0), decimated to ~986 KB total.
@@ -20,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- Replaced Unicode 2D board pieces and captured-piece indicators with configurable SVG assets, defaulting to the `mpchess` set. Controlled via `getSvgPieceSet()`/`setSvgPieceSet()` in `client/pieces.js`.
+- Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Reduced 3D model file sizes for `afnafziger`, `simple-classic`, and `jeu` sets via mesh decimation (quadric edge collapse), bringing each set from 3–16 MB down to ~892 KB (3,000 triangles per piece). Total 3D folder reduced from 24 MB to 2 MB.
 - Improved captured-piece visibility on desktop and mobile with a light-square-colored inner background.
 

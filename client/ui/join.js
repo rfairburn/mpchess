@@ -11,7 +11,8 @@ import {
   onReconnectFailed,
   onLeft,
 } from '../network.js';
-import { SKILL_LABELS } from '../constants.js';
+import { getSkillLabel } from '../constants.js';
+import { t } from '../i18n.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -51,20 +52,20 @@ function setJoinButton(btn, seat, colorName) {
 
   if (canReconnect && seat && (seat.status === 'held' || seat.status === 'occupied')) {
     btn.disabled = false;
-    statusEl.textContent = 'Reconnect';
+    statusEl.textContent = t('ui.seat_held');
   } else if (!seat || seat.status === 'unknown') {
     btn.disabled = true;
-    statusEl.textContent = 'Loading...';
+    statusEl.textContent = t('ui.seat_loading');
   } else if (seat.status === 'free') {
     btn.disabled = false;
-    statusEl.textContent = 'Available';
+    statusEl.textContent = t('ui.seat_free');
   } else if (seat.status === 'occupied') {
     btn.disabled = true;
-    statusEl.textContent = 'Occupied';
+    statusEl.textContent = t('ui.seat_occupied');
   } else if (seat.status === 'computer') {
     btn.disabled = true;
-    const skillLabel = SKILL_LABELS[seat.skill] || seat.skill;
-    statusEl.textContent = `Computer (${skillLabel})`;
+    const skillLabel = getSkillLabel(seat.skill);
+    statusEl.textContent = t('ui.seat_computer', { skill: skillLabel });
   } else if (seat.status === 'held') {
     btn.disabled = true;
     updateSeatCountdown(btn, seat.freesAt, colorName);
@@ -80,9 +81,9 @@ function updateSeatCountdown(btn, freesAt, colorName) {
     if (remaining <= 0) {
       clearInterval(joinCountdownTimer);
       joinCountdownTimer = null;
-      statusEl.textContent = 'Opening...';
+      statusEl.textContent = t('ui.seat_opening');
     } else {
-      statusEl.textContent = `${colorName} returns in ${remaining}s`;
+      statusEl.textContent = t('ui.seat_returning', { colorName, remaining });
     }
   }
 

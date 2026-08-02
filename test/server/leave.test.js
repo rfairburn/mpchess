@@ -277,7 +277,7 @@ describe('Leave — draw offer cleanup', () => {
     ws2.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
     const errors = ws2.getSent('error');
     assert.strictEqual(errors.length, 1);
-    assert.ok(errors[0].reason.includes('No draw offer'));
+    assert.strictEqual(errors[0].reason, 'error.no_draw_pending');
   });
 
   test('draw offer cleared when responder leaves', () => {

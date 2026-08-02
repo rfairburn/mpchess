@@ -29,6 +29,7 @@ import {
   mouseSensitivity,
   showError,
 } from './ui.js';
+import { t } from './i18n.js';
 import { saveAndHide2DBoard, restore2DBoard } from './board_2d.js';
 import {
   squares,
@@ -434,7 +435,7 @@ export function setClickHandler(renderer) {
       highlightCheck();
       // Immediate local feedback when clicking on own piece but it's not your turn
       if (myRole && piece !== 0 && pieceColor(piece) === myRole && myRole !== serverTurn) {
-        showError('Not your turn');
+        showError(t('error.not_your_turn'));
       }
     }
   });

@@ -740,7 +740,7 @@ describe('Join rejected when seat taken — no spectator fallback', () => {
     ws3.emit('message', JSON.stringify({ type: 'join', color: 'white' }));
     assert.strictEqual(ws3.getSent('joined').length, 0);
     assert.strictEqual(ws3.getSent('error').length, 1);
-    assert.ok(safeGet(ws3.getSent('error')[0], 'reason').includes('white'));
+    assert.strictEqual(safeGet(ws3.getSent('error')[0], 'reason'), 'error.seat_not_available');
     const stateMsgs = ws3.getSent('state');
     const lastState = stateMsgs[stateMsgs.length - 1];
     assert.strictEqual(lastState.role, null);
@@ -927,7 +927,7 @@ describe('Import FEN — invalid FEN rejected', () => {
     joinAs(wss, 'black');
     ws1.emit('message', JSON.stringify({ type: 'importFen', fen: '' }));
     assert.strictEqual(ws1.getSent('error').length, 1);
-    assert.ok(ws1.getSent('error')[0].reason.includes('Invalid FEN'));
+    assert.strictEqual(ws1.getSent('error')[0].reason, 'error.invalid_fen');
   });
 
   test('whitespace-only string rejected', () => {
@@ -944,7 +944,7 @@ describe('Import FEN — invalid FEN rejected', () => {
     joinAs(wss, 'black');
     ws1.emit('message', JSON.stringify({ type: 'importFen', fen: 'not-a-fen-string' }));
     assert.strictEqual(ws1.getSent('error').length, 1);
-    assert.ok(ws1.getSent('error')[0].reason.includes('Invalid FEN'));
+    assert.strictEqual(ws1.getSent('error')[0].reason, 'error.invalid_fen_detail');
   });
 
   test('non-string fen rejected', () => {
@@ -1335,7 +1335,7 @@ describe('Malformed JSON handling', () => {
     });
     assert.strictEqual(errors.length, 1);
     const err = JSON.parse(errors[0]);
-    assert.strictEqual(err.reason, 'Malformed message');
+    assert.strictEqual(err.reason, 'error.malformed_message');
   });
 
   test('sends error frame for broken JSON', () => {
@@ -1557,7 +1557,7 @@ describe('Draw offer — basic flow', () => {
     assert.strictEqual(ws2Results[ws2Results.length - 1].accepted, true);
     // Game should be over
     assert.strictEqual(game.gameOver, true);
-    assert.strictEqual(game.gameResult, 'Draw by agreement');
+    assert.strictEqual(game.gameResult, 'game.draw_agreement');
   });
 
   test('opponent declines draw — offerer notified', () => {
@@ -1643,7 +1643,7 @@ describe('Draw offer — basic flow', () => {
     ws1.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
     const errors = ws1.getSent('error');
     assert.strictEqual(errors.length, 1);
-    assert.ok(errors[0].reason.includes('receive'));
+    assert.strictEqual(errors[0].reason, 'error.draw_not_yours');
     // Game should NOT be over
     assert.strictEqual(game.gameOver, false);
   });
@@ -1658,7 +1658,7 @@ describe('Draw offer — basic flow', () => {
     ws3.emit('message', JSON.stringify({ type: 'drawResponse', accepted: true }));
     const errors = ws3.getSent('error');
     assert.strictEqual(errors.length, 1);
-    assert.ok(errors[0].reason.includes('receive'));
+    assert.strictEqual(errors[0].reason, 'error.draw_not_yours');
     // Game should NOT be over
     assert.strictEqual(game.gameOver, false);
   });

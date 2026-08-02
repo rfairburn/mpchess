@@ -1,0 +1,213 @@
+// ═══════════════════════════════════════════════════════════
+//  client/i18n.js — browser-side translation lookup
+//  Embeds the en-US catalog directly (no dynamic loading).
+//  For additional locales, the catalog can be extended at runtime.
+// ═══════════════════════════════════════════════════════════
+
+const CATALOG = {
+  // ── Game results ──────────────────────────────────────
+  'game.checkmate_white': 'Checkmate! White wins!',
+  'game.checkmate_black': 'Checkmate! Black wins!',
+  'game.stalemate': 'Stalemate! Draw.',
+  'game.draw_threefold': 'Draw — threefold repetition.',
+  'game.draw_75move': 'Draw — 75-move rule.',
+  'game.draw_insufficient': 'Draw — insufficient material.',
+  'game.draw_50move_claimed': 'Draw — 50-move rule claimed.',
+  'game.draw_agreement': 'Draw by agreement',
+  'game.concede_white': 'White conceded. Black wins!',
+  'game.concede_black': 'Black conceded. White wins!',
+
+  // ── Errors ────────────────────────────────────────────
+  'error.invalid_move': 'Invalid move',
+  'error.no_piece': 'No piece there',
+  'error.not_your_turn': 'Not your turn',
+  'error.game_over': 'Game over',
+  'error.game_over_restart': 'Game is over. Restart first.',
+  'error.promotion_in_progress': 'Promotion in progress',
+  'error.seat_unavailable': 'Seat no longer available',
+  'error.seat_reserved': 'Seat is still reserved for reconnect',
+  'error.computer_disabled': 'Computer player is disabled',
+  'error.must_be_seated_computer': 'You must be seated to activate the computer player',
+  'error.computer_color': 'Computer must play {color}',
+  'error.invalid_skill': 'Invalid skill level. Choose: {skills}',
+  'error.seat_not_available': '{color} seat is not available',
+  'error.failed_computer': 'Failed to start computer player',
+  'error.engine_start': 'Engine failed to start',
+  'error.engine_invalid_move': 'Engine returned an invalid move',
+  'error.engine_no_move': 'Engine could not find a legal move',
+  'error.engine_not_found': 'Engine not found',
+  'error.engine_crashed': 'Engine crashed',
+  'error.only_players_fen': 'Only players can import FEN',
+  'error.invalid_fen': 'Invalid FEN string',
+  'error.invalid_fen_detail': 'Invalid FEN: {msg}',
+  'error.no_computer': 'No computer player active',
+  'error.only_human_skill': 'Only the human player can change skill level',
+  'error.skill_change_failed': 'Skill change failed: {msg}',
+  'error.only_seated_draw_offer': 'Only seated players can offer a draw',
+  'error.game_already_over': 'Game is already over',
+  'error.no_opponent_draw': 'No opponent to offer a draw to',
+  'error.no_draw_pending': 'No draw offer pending',
+  'error.draw_not_yours': 'You did not receive this draw offer',
+  'error.only_seated_draw_response': 'Only seated players can respond to draw offers',
+  'error.malformed_message': 'Malformed message',
+  'error.draw_50move_not_met':
+    '50-move rule not met (need 100 half-moves without pawn move or capture)',
+  'error.only_seated_draw_claim': 'Only seated players can claim a draw',
+
+  // ── Messages (toasts, banners) ────────────────────────
+  'msg.draw_offer': '{color} offers a draw.',
+  'msg.draw_accepted': 'Draw accepted — game ended in a draw.',
+  'msg.draw_declined': 'Draw offer declined.',
+  'msg.draw_cancelled': 'Draw offer was cancelled.',
+  'msg.player_left': '{color} has left — their seat is now available',
+  'msg.computer_draw_declined': 'Computer declined the draw offer',
+  'msg.computer_draw_accepted': 'Computer accepted the draw offer',
+  'msg.opponent_draw_declined': 'Opponent declined the draw offer',
+  'msg.you_declined_draw': 'You declined the draw offer',
+  'msg.fen_warning': 'FEN warning: {msg}',
+  'msg.reconnecting': 'Attempting to reconnect…',
+  'msg.connection_lost': 'Connection lost. Click Give Up to rejoin.',
+  'msg.seat_gone': 'Your seat was no longer available. Rejoining…',
+  'msg.unreachable': 'Unable to reach the server. Check your connection and try again.',
+  'msg.connection_refused':
+    'Connection to the server was refused. The server may be down or your origin is not allowed.',
+
+  // ── UI ────────────────────────────────────────────────
+  'ui.white_role': '♔ White',
+  'ui.black_role': '♚ Black',
+  'ui.spectator_role': '👁 Spectator',
+  'ui.white_turn': "⬤ White's Turn",
+  'ui.black_turn': "⬤ Black's Turn",
+  'ui.players_spectators': 'Players: {players} · Spectators: {spectators}',
+  'ui.camera_mode': '🖱 Camera Mode',
+  'ui.camera_help':
+    'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu',
+  'ui.piece_mode': '♟ Piece Mode',
+  'ui.piece_help': 'Click to move pieces · TAB toggle mouse-look · ESC menu',
+  'ui.fullscreen_enter': 'Toggle fullscreen',
+  'ui.fullscreen_exit': 'Exit fullscreen',
+  'ui.sound_on': 'Mute sound',
+  'ui.sound_off': 'Enable sound',
+  'ui.join_white': 'Join as White',
+  'ui.join_black': 'Join as Black',
+  'ui.join_spectate': 'Spectate',
+  'ui.back': 'Back',
+  'ui.give_up': 'Give Up',
+  'ui.drop_player': 'Drop Player',
+  'ui.drop_player_countdown': 'Drop Player ({remaining}s)',
+  'ui.disconnected': '⚠ {icon} {color} disconnected',
+  'ui.disconnected_returning': '{disconnected_text} — returns in {remaining}s',
+  'ui.promotion_title': 'Promote Pawn',
+  'ui.concede_title': 'Concede Game?',
+  'ui.concede_confirm': 'Concede',
+  'ui.draw_offer_button': 'Offer Draw',
+  'ui.accept_draw': 'Accept',
+  'ui.decline_draw': 'Decline',
+  'ui.fen_import_title': 'Import FEN',
+  'ui.fen_import_button': 'Import',
+  'ui.restart': 'New Game',
+  'ui.activate_computer': 'Start Game',
+  'ui.computer_skill': 'Change Computer Skill',
+  'ui.help_title': 'Help',
+  'ui.concede_button': 'Concede Game',
+  'ui.seat_free': 'Available',
+  'ui.seat_occupied': 'Occupied',
+  'ui.seat_held': 'Reconnect',
+  'ui.seat_computer': 'Computer ({skill})',
+  'ui.seat_loading': 'Loading...',
+  'ui.seat_opening': 'Opening...',
+  'ui.seat_returning': '{colorName} returns in {remaining}s',
+  'ui.computer_thinking': '🤖 {color} is thinking...',
+  'ui.computer_activated': 'Computer player activated ({skill})',
+  'ui.skill_changed': 'Skill changed to {skill}',
+  'ui.computer_unavailable': 'Computer player unavailable',
+  'ui.fen_copied': 'FEN copied to clipboard',
+  'ui.fen_downloaded': 'FEN downloaded',
+  'ui.pgn_copied': 'PGN copied to clipboard',
+  'ui.pgn_downloaded': 'PGN downloaded',
+  'ui.skill_beginner': 'Beginner',
+  'ui.skill_novice': 'Novice',
+  'ui.skill_intermediate': 'Intermediate',
+  'ui.skill_advanced': 'Advanced',
+  'ui.skill_master': 'Master',
+  'ui.skill_grandmaster': 'Grandmaster',
+  'ui.resume_game': 'Resume Game',
+  'ui.reconnect_player': 'Reconnect as Player',
+  'ui.export_fen': 'Export FEN',
+  'ui.export_pgn': 'Export PGN',
+  'ui.play_vs_computer': 'Play vs Computer',
+  'ui.change_skill': 'Change Skill',
+  'ui.settings': 'Settings',
+  'ui.help': 'Help',
+  'ui.mouse_sensitivity': 'Mouse Sensitivity',
+  'ui.virtual_joystick': 'Virtual Joystick',
+  'ui.piece_set_2d': '2D Piece Set',
+  'ui.piece_set_3d': '3D Model Set',
+  'ui.close': 'Close',
+  'ui.give_up_spot': 'Give Up Spot',
+  'ui.give_up_spot_title': 'Give Up Spot?',
+  'ui.title': '♔ 3D Chess ♚',
+  'ui.join_subtitle': 'Choose how to join',
+  'ui.game_over': 'Game Over',
+  'ui.draw_offer': 'Draw Offer',
+  'ui.connection_failed': 'Connection Failed',
+  'ui.connection_error_msg': 'Unable to reach the server.',
+  'ui.reconnecting': 'Reconnecting…',
+  'ui.reconnecting_status': 'Attempting to reconnect…',
+  'ui.concede_confirm_text': 'Are you sure you want to concede? This cannot be undone.',
+  'ui.give_up_spot_confirm_text':
+    'Are you sure you want to give up your spot? Your seat will be freed immediately.',
+  'ui.cancel': 'Cancel',
+  'ui.retry': 'Retry',
+  'ui.join_game': 'Join Game',
+  'ui.fen_import_placeholder': 'Paste a FEN string to load a position',
+  'ui.game_available': 'Game available — both players disconnected',
+  'ui.settings_title': 'Settings',
+  'ui.settings_and_export': 'Settings & Export',
+  'ui.fen_import_desc': 'Paste a FEN string to load any position. Requires player role.',
+  'ui.reconnecting_desc':
+    'Full-screen overlay with spinner when connection is lost. "Give Up" button to abort.',
+  'ui.reconnecting_label': 'Reconnecting',
+  'ui.captured_pieces': 'Captured pieces',
+  'ui.draw_rep_label': 'Repetition: {count}/3',
+  'ui.draw_50move_label': '50-move: {count}/100',
+  'ui.draw_75move_label': '75-move: {count}/150',
+
+  // ── FEN errors ────────────────────────────────────────
+  'fen.invalid_parts': 'Invalid FEN: must have exactly 6 parts',
+  'fen.invalid_ranks': 'Invalid FEN: must have 8 ranks',
+  'fen.rank_too_long': 'Invalid FEN: rank too long',
+  'fen.invalid_character': 'Invalid FEN character: {ch}',
+  'fen.rank_squares': 'Invalid FEN: rank must have 8 squares',
+  'fen.invalid_turn': 'Invalid FEN: turn must be w or b',
+  'fen.kings_adjacent': 'Kings are adjacent',
+  'fen.wrong_turn_check': "{enemy} is in check but it is {turn}'s turn",
+  'fen.both_kings_check': 'Both kings are in check',
+};
+
+let locale = 'en-US';
+
+/**
+ * Translate a key with optional parameter interpolation.
+ * @param {string} key
+ * @param {object} [params]
+ * @returns {string}
+ */
+export function t(key, params) {
+  if (!key) return '';
+  const str = CATALOG[key];
+  if (str === undefined) return key;
+  if (!params) return str;
+  return str.replace(/\{(\w+)\}/g, (_, p) => (params[p] !== undefined ? params[p] : `{${p}}`));
+}
+
+/**
+ * @param {string} loc
+ */
+export function setLocale(loc) {
+  locale = loc;
+}
+
+export function getLocale() {
+  return locale;
+}

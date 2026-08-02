@@ -11,6 +11,7 @@ import {
   retryConnection,
 } from '../network.js';
 import { showError } from './toast.js';
+import { t } from '../i18n.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -25,7 +26,7 @@ const btnRetryConnection = document.getElementById('btn-retry-connection');
 // ── Reconnecting overlay ─────────────────────────────────
 
 function showReconnectingOverlay(status) {
-  reconnectingStatus.textContent = status || 'Attempting to reconnect…';
+  reconnectingStatus.textContent = status || t('msg.reconnecting');
   reconnectingOverlay.classList.add('visible');
 }
 
@@ -35,16 +36,16 @@ function hideReconnectingOverlay() {
 
 onReconnecting((data) => {
   if (data.maxAttemptsReached) {
-    showReconnectingOverlay('Connection lost. Click Give Up to rejoin.');
+    showReconnectingOverlay(t('msg.connection_lost'));
   } else {
-    showReconnectingOverlay('Attempting to reconnect…');
+    showReconnectingOverlay(t('msg.reconnecting'));
   }
 });
 
 onReconnected((data) => {
   hideReconnectingOverlay();
   if (data.rejoinAsNewPlayer) {
-    showError('Your seat was no longer available. Rejoining…');
+    showError(t('msg.seat_gone'));
   }
 });
 
@@ -74,10 +75,9 @@ btnRetryConnection.addEventListener('click', () => {
 
 onConnectionError((data) => {
   const code = data.event?.target?.readyState;
-  let message = 'Unable to reach the server. Check your connection and try again.';
+  let message = t('msg.unreachable');
   if (code === 3) {
-    message =
-      'Connection to the server was refused. The server may be down or your origin is not allowed.';
+    message = t('msg.connection_refused');
   }
   showConnectionError(message);
 });

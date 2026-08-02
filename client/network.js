@@ -344,15 +344,15 @@ export function handleServerMessage(event) {
         navigator.clipboard
           .writeText(msg.fen)
           .then(() => {
-            emitter.emit('info', { reason: 'FEN copied to clipboard' });
+            emitter.emit('info', { reason: 'ui.fen_copied' });
           })
           .catch(() => {
             downloadText(msg.fen, 'position.fen', 'text/plain');
-            emitter.emit('info', { reason: 'FEN downloaded' });
+            emitter.emit('info', { reason: 'ui.fen_downloaded' });
           });
       } else {
         downloadText(msg.fen, 'position.fen', 'text/plain');
-        emitter.emit('info', { reason: 'FEN downloaded' });
+        emitter.emit('info', { reason: 'ui.fen_downloaded' });
       }
       break;
     }
@@ -361,15 +361,15 @@ export function handleServerMessage(event) {
         navigator.clipboard
           .writeText(msg.pgn)
           .then(() => {
-            emitter.emit('info', { reason: 'PGN copied to clipboard' });
+            emitter.emit('info', { reason: 'ui.pgn_copied' });
           })
           .catch(() => {
             downloadText(msg.pgn, 'game.pgn', 'text/plain');
-            emitter.emit('info', { reason: 'PGN downloaded' });
+            emitter.emit('info', { reason: 'ui.pgn_downloaded' });
           });
       } else {
         downloadText(msg.pgn, 'game.pgn', 'text/plain');
-        emitter.emit('info', { reason: 'PGN downloaded' });
+        emitter.emit('info', { reason: 'ui.pgn_downloaded' });
       }
       break;
     }

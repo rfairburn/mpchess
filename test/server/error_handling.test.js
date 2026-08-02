@@ -496,7 +496,7 @@ describe('ws-handlers — async IIFE error handling', () => {
     // Verify: error sent to client
     const errors = ws.getSent('error');
     assert.ok(
-      errors.some((e) => e.reason && e.reason.includes('Skill change failed')),
+      errors.some((e) => e.reason === 'error.skill_change_failed'),
       `Should send skill change error, got: ${errors.map((e) => e.reason).join(', ')}`
     );
 

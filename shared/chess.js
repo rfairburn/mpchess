@@ -711,30 +711,19 @@ class Game {
 
   _pgnResult() {
     if (!this.gameResult) return '*';
-    if (
-      this.gameResult.includes('Draw') ||
-      this.gameResult.includes('stalemate') ||
-      this.gameResult.includes('insufficient')
-    )
+    // Key-based checks for PGN result codes
+    if (this.gameResult.startsWith('game.draw_') || this.gameResult === 'game.stalemate')
       return '1/2-1/2';
-    if (
-      this.gameResult.includes('White wins') ||
-      this.gameResult.includes('white wins') ||
-      this.gameResult.includes('Black conceded')
-    )
+    if (this.gameResult === 'game.checkmate_white' || this.gameResult === 'game.concede_black')
       return '1-0';
-    if (
-      this.gameResult.includes('Black wins') ||
-      this.gameResult.includes('black wins') ||
-      this.gameResult.includes('White conceded')
-    )
+    if (this.gameResult === 'game.checkmate_black' || this.gameResult === 'game.concede_white')
       return '0-1';
     return '*';
   }
 
   // Append check (+) or checkmate (#) suffix to the last move in history
   _appendMoveSuffix() {
-    if (this.gameOver && this.gameResult.includes('Checkmate')) {
+    if (this.gameOver && this.gameResult.startsWith('game.checkmate')) {
       this.moveHistory[this.moveHistory.length - 1] += '#';
     } else if (!this.gameOver && isInCheck(this.board, this.turn)) {
       this.moveHistory[this.moveHistory.length - 1] += '+';
@@ -776,21 +765,21 @@ class Game {
     // Validate coordinates are integers in [0, 7]
     for (const v of [fromFile, fromRank, toFile, toRank]) {
       if (!Number.isInteger(v) || v < 0 || v > 7) {
-        return { ok: false, reason: 'Invalid move' };
+        return { ok: false, reason: 'error.invalid_move' };
       }
     }
 
     const piece = this.board[fromRank][fromFile];
-    if (piece === 0) return { ok: false, reason: 'No piece there' };
+    if (piece === 0) return { ok: false, reason: 'error.no_piece' };
     const color = pieceColor(piece);
     const type = pieceType(piece);
 
     // Check if this player is authorized and it's their turn
     if (this.players.get(ws) !== color || this.turn !== color) {
-      return { ok: false, reason: `Not your turn` };
+      return { ok: false, reason: 'error.not_your_turn' };
     }
-    if (this.gameOver) return { ok: false, reason: 'Game over' };
-    if (this.promotingPiece) return { ok: false, reason: 'Promotion in progress' };
+    if (this.gameOver) return { ok: false, reason: 'error.game_over' };
+    if (this.promotingPiece) return { ok: false, reason: 'error.promotion_in_progress' };
 
     const moves = getValidMoves(
       this.board,
@@ -800,7 +789,7 @@ class Game {
       this.enPassantTarget
     );
     const move = moves.find((m) => m.file === toFile && m.rank === toRank);
-    if (!move) return { ok: false, reason: 'Invalid move' };
+    if (!move) return { ok: false, reason: 'error.invalid_move' };
 
     const captured = this.board[toRank][toFile];
     const isEnPassant = move.enPassant === true;
@@ -1019,10 +1008,9 @@ class Game {
     if (!hasMoves) {
       this.gameOver = true;
       if (inCheck) {
-        const winner = this.turn === 'white' ? 'black' : 'white';
-        this.gameResult = `Checkmate! ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
+        this.gameResult = this.turn === 'white' ? 'game.checkmate_black' : 'game.checkmate_white';
       } else {
-        this.gameResult = 'Stalemate! Draw.';
+        this.gameResult = 'game.stalemate';
       }
       return;
     }
@@ -1030,21 +1018,21 @@ class Game {
     // Threefold repetition — draw
     if (this.isThreefoldRepetition()) {
       this.gameOver = true;
-      this.gameResult = 'Draw — threefold repetition.';
+      this.gameResult = 'game.draw_threefold';
       return;
     }
 
     // Seventy-five-move rule — forced draw (no manual claim needed)
     if (this.isSeventyFiveMoveRule()) {
       this.gameOver = true;
-      this.gameResult = 'Draw — 75-move rule.';
+      this.gameResult = 'game.draw_75move';
       return;
     }
 
     // Insufficient material — draw
     if (isInsufficientMaterial(this.board)) {
       this.gameOver = true;
-      this.gameResult = 'Draw — insufficient material.';
+      this.gameResult = 'game.draw_insufficient';
       return;
     }
   }
@@ -1058,8 +1046,7 @@ class Game {
     const color = this.players.get(ws);
     if (!color) return false;
     this.gameOver = true;
-    const winner = color === 'white' ? 'black' : 'white';
-    this.gameResult = `${color.charAt(0).toUpperCase() + color.slice(1)} conceded. ${winner.charAt(0).toUpperCase() + winner.slice(1)} wins!`;
+    this.gameResult = color === 'white' ? 'game.concede_white' : 'game.concede_black';
     return true;
   }
 
@@ -1070,18 +1057,18 @@ class Game {
    * @returns {{ok: boolean, reason?: string}}
    */
   claimDraw(ws) {
-    if (this.gameOver) return { ok: false, reason: 'Game is already over' };
+    if (this.gameOver) return { ok: false, reason: 'error.game_already_over' };
     const color = this.players.get(ws);
-    if (!color) return { ok: false, reason: 'Only seated players can claim a draw' };
-    if (this.turn !== color) return { ok: false, reason: 'Not your turn' };
+    if (!color) return { ok: false, reason: 'error.only_seated_draw_claim' };
+    if (this.turn !== color) return { ok: false, reason: 'error.not_your_turn' };
     if (!this.canClaimDrawByFiftyMoves()) {
       return {
         ok: false,
-        reason: '50-move rule not met (need 100 half-moves without pawn move or capture)',
+        reason: 'error.draw_50move_not_met',
       };
     }
     this.gameOver = true;
-    this.gameResult = 'Draw — 50-move rule claimed.';
+    this.gameResult = 'game.draw_50move_claimed';
     return { ok: true };
   }
 

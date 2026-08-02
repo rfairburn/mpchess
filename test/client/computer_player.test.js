@@ -226,14 +226,14 @@ describe('network.js -- computer player state and callbacks', () => {
       sendMessage({
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine crashed',
+        reason: 'error.engine_crashed',
       });
 
       expect(cb).toHaveBeenCalledTimes(1);
       expect(cb).toHaveBeenCalledWith({
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine crashed',
+        reason: 'error.engine_crashed',
       });
     });
 
@@ -244,11 +244,11 @@ describe('network.js -- computer player state and callbacks', () => {
       sendMessage({
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine could not find a legal move',
+        reason: 'error.engine_no_move',
       });
 
       expect(cb).toHaveBeenCalledTimes(1);
-      expect(cb.mock.calls[0][0].reason).toContain('could not find');
+      expect(cb.mock.calls[0][0].reason).toBe('error.engine_no_move');
     });
   });
 

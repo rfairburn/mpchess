@@ -213,8 +213,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = spec.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('seated'),
-      `expected "seated" in reason, got: ${errors[0].reason}`
+      errors[0].reason === 'error.must_be_seated_computer',
+      `expected "must_be_seated_computer" in reason, got: ${errors[0].reason}`
     );
   });
 
@@ -241,8 +241,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('Computer must play'),
-      `expected "Computer must play", got: ${errors[0].reason}`
+      errors[0].reason === 'error.computer_color',
+      `expected "computer_color", got: ${errors[0].reason}`
     );
   });
 
@@ -256,8 +256,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('Invalid skill'),
-      `expected "Invalid skill", got: ${errors[0].reason}`
+      errors[0].reason === 'error.invalid_skill',
+      `expected "invalid_skill", got: ${errors[0].reason}`
     );
   });
 
@@ -272,8 +272,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = ws1.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('not available'),
-      `expected "not available", got: ${errors[0].reason}`
+      errors[0].reason === 'error.seat_not_available',
+      `expected "seat_not_available", got: ${errors[0].reason}`
     );
   });
 
@@ -289,8 +289,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('Game is over'),
-      `expected "Game is over", got: ${errors[0].reason}`
+      errors[0].reason === 'error.game_over_restart',
+      `expected "game_over_restart", got: ${errors[0].reason}`
     );
   });
 
@@ -304,8 +304,8 @@ describe('activateComputer -- validation rules', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
     assert.ok(
-      errors[0].reason.includes('disabled'),
-      `expected "disabled", got: ${errors[0].reason}`
+      errors[0].reason === 'error.computer_disabled',
+      `expected "computer_disabled", got: ${errors[0].reason}`
     );
   });
 
@@ -541,8 +541,8 @@ describe('engine unavailable -- computerUnavailable broadcast', () => {
     assert.strictEqual(unavailable.length, 1, 'should have computerUnavailable message');
     assert.strictEqual(unavailable[0].color, 'black');
     assert.ok(
-      unavailable[0].reason.includes('invalid move') || unavailable[0].reason.includes('Invalid'),
-      `reason should mention invalid move, got: ${unavailable[0].reason}`
+      unavailable[0].reason === 'error.engine_invalid_move',
+      `reason should be engine_invalid_move, got: ${unavailable[0].reason}`
     );
   });
 
@@ -589,8 +589,8 @@ describe('engine unavailable -- computerUnavailable broadcast', () => {
     const unavailable = ws.getSent('computerUnavailable');
     assert.ok(unavailable.length >= 1, 'should have computerUnavailable after all retries fail');
     assert.ok(
-      unavailable[0].reason.includes('could not find'),
-      `reason should mention "could not find", got: ${unavailable[0].reason}`
+      unavailable[0].reason === 'error.engine_no_move',
+      `reason should be engine_no_move, got: ${unavailable[0].reason}`
     );
   });
 
@@ -618,8 +618,8 @@ describe('engine unavailable -- computerUnavailable broadcast', () => {
     const unavailable = ws.getSent('computerUnavailable');
     assert.ok(unavailable.length >= 1, 'should have computerUnavailable');
     assert.ok(
-      unavailable[0].reason.includes('not found'),
-      `reason should mention "not found", got: ${unavailable[0].reason}`
+      unavailable[0].reason === 'error.engine_not_found',
+      `reason should be engine_not_found, got: ${unavailable[0].reason}`
     );
   });
 });
@@ -665,7 +665,7 @@ describe('changeSkill -- while computer is active', () => {
     ws.emit('message', JSON.stringify({ type: 'changeSkill', skill: 'supergrandmaster' }));
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
-    assert.ok(errors[0].reason.includes('Invalid skill'));
+    assert.strictEqual(errors[0].reason, 'error.invalid_skill');
   });
 
   test('no computer active -> error', () => {
@@ -674,7 +674,7 @@ describe('changeSkill -- while computer is active', () => {
     ws.emit('message', JSON.stringify({ type: 'changeSkill', skill: 'master' }));
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
-    assert.ok(errors[0].reason.includes('No computer player'));
+    assert.strictEqual(errors[0].reason, 'error.no_computer');
   });
 
   test('computer-color player cannot change skill (only human)', async () => {
@@ -693,7 +693,7 @@ describe('changeSkill -- while computer is active', () => {
     spec.emit('message', JSON.stringify({ type: 'changeSkill', skill: 'master' }));
     const errors = spec.getSent('error');
     assert.ok(errors.length > 0, 'spectator should receive an error');
-    assert.ok(errors[0].reason.includes('Only the human player'));
+    assert.strictEqual(errors[0].reason, 'error.only_human_skill');
   });
 
   test('skill change rolls back and sends error when setSkill throws', async () => {
@@ -727,8 +727,8 @@ describe('changeSkill -- while computer is active', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error message');
     assert.ok(
-      errors[0].reason.includes('Skill change failed'),
-      `expected "Skill change failed" in reason, got: ${errors[0].reason}`
+      errors[0].reason === 'error.skill_change_failed',
+      `expected "skill_change_failed" in reason, got: ${errors[0].reason}`
     );
 
     // State should still show the original skill (rolled back)
@@ -770,7 +770,7 @@ describe('draw offer -- against computer', () => {
     const accepted = drawResults.find((r) => r.accepted === true);
     assert.ok(accepted, 'should have an accepted draw result');
     assert.strictEqual(game.gameOver, true);
-    assert.ok(game.gameResult.includes('Draw'));
+    assert.strictEqual(game.gameResult, 'game.draw_agreement');
   });
 
   test('computer declines draw when evaluation is outside threshold', async () => {
@@ -792,8 +792,8 @@ describe('draw offer -- against computer', () => {
     const declined = drawResults.find((r) => r.accepted === false);
     assert.ok(declined, 'should have a declined draw result');
     assert.ok(
-      declined.reason.includes('declined'),
-      `reason should mention "declined", got: ${declined.reason}`
+      declined.reason === 'msg.computer_draw_declined',
+      `reason should be computer_draw_declined, got: ${declined.reason}`
     );
     assert.strictEqual(game.gameOver, false, 'game should not be over');
   });
@@ -805,7 +805,7 @@ describe('draw offer -- against computer', () => {
     ws.emit('message', JSON.stringify({ type: 'offerDraw' }));
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
-    assert.ok(errors[0].reason.includes('No opponent'));
+    assert.strictEqual(errors[0].reason, 'error.no_opponent_draw');
   });
 
   test('draw offer when game is over -> error', async () => {
@@ -816,7 +816,7 @@ describe('draw offer -- against computer', () => {
     ws.emit('message', JSON.stringify({ type: 'offerDraw' }));
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error');
-    assert.ok(errors[0].reason.includes('already over'));
+    assert.strictEqual(errors[0].reason, 'error.game_already_over');
   });
 
   test('draw offer discarded when game ends during async evaluation', async () => {
@@ -1183,8 +1183,8 @@ describe('handleActivateComputer -- state reset on setSkill failure', () => {
     const errors = ws.getSent('error');
     assert.ok(errors.length > 0, 'should receive an error message');
     assert.ok(
-      errors[0].reason.includes('Failed to start'),
-      `expected "Failed to start" error, got: ${errors[0].reason}`
+      errors[0].reason === 'error.failed_computer',
+      `expected "failed_computer" error, got: ${errors[0].reason}`
     );
   });
 

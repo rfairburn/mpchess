@@ -8,14 +8,16 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <div id="hud">Click to move pieces · TAB toggle mouse-look · ESC menu</div>
+    <div id="hud" data-i18n="ui.piece_help">
+      Click to move pieces · TAB toggle mouse-look · ESC menu
+    </div>
 
     <!-- Compact top bar (mobile landscape / short-height) -->
     <div id="top-bar">
       <button id="btn-menu-toggle" aria-label="Menu"></button>
       <div id="top-bar-status">
-        <span id="top-bar-role">Connecting...</span>
-        <span id="top-bar-turn">⬤ White's Turn</span>
+        <span id="top-bar-role" data-i18n="ui.spectator_role">Connecting...</span>
+        <span id="top-bar-turn" data-i18n="ui.white_turn">⬤ White's Turn</span>
       </div>
       <div id="top-bar-controls">
         <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
@@ -29,14 +31,14 @@
     <!-- Desktop HUD elements (hidden on mobile landscape) -->
     <div id="desktop-hud">
       <div id="computer-thinking"></div>
-      <div id="turn-indicator" class="white-turn">⬤ White's Turn</div>
-      <div id="mouse-mode">♟ Piece Mode</div>
+      <div id="turn-indicator" class="white-turn" data-i18n="ui.white_turn">⬤ White's Turn</div>
+      <div id="mouse-mode" data-i18n="ui.piece_mode">♟ Piece Mode</div>
       <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
       <button id="btn-sound-desktop" aria-label="Toggle sound">🔊</button>
       <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
       <button id="btn-board-2d-desktop" aria-label="Toggle 2D board">⬜</button>
       <button id="btn-claim-draw" class="hidden">Claim Draw (50-move)</button>
-      <div id="role-badge">Connecting...</div>
+      <div id="role-badge" data-i18n="ui.spectator_role">Connecting...</div>
       <div id="player-count"></div>
       <div id="captured-white">
         <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
@@ -65,46 +67,54 @@
 
     <div id="menu-overlay">
       <div id="menu-box">
-        <h2>♔ 3D Chess ♚</h2>
-        <button id="btn-resume">Resume Game</button>
-        <button id="btn-give-up-spot" class="danger">Give Up Spot</button>
-        <button id="btn-reconnect-as-player">Reconnect as Player</button>
-        <button id="btn-restart">New Game</button>
-        <button id="btn-offer-draw">Offer Draw</button>
-        <button id="btn-concede">Concede Game</button>
+        <h2 data-i18n="ui.title">♔ 3D Chess ♚</h2>
+        <button id="btn-resume" data-i18n="ui.resume_game">Resume Game</button>
+        <button id="btn-give-up-spot" class="danger" data-i18n="ui.give_up_spot">
+          Give Up Spot
+        </button>
+        <button id="btn-reconnect-as-player" data-i18n="ui.reconnect_player">
+          Reconnect as Player
+        </button>
+        <button id="btn-restart" data-i18n="ui.restart">New Game</button>
+        <button id="btn-offer-draw" data-i18n="ui.draw_offer_button">Offer Draw</button>
+        <button id="btn-concede" data-i18n="ui.concede_button">Concede Game</button>
         <div id="export-row">
-          <button id="btn-export-fen">Export FEN</button>
-          <button id="btn-export-pgn">Export PGN</button>
+          <button id="btn-export-fen" data-i18n="ui.export_fen">Export FEN</button>
+          <button id="btn-export-pgn" data-i18n="ui.export_pgn">Export PGN</button>
         </div>
-        <button id="btn-import-fen">Import FEN</button>
+        <button id="btn-import-fen" data-i18n="ui.fen_import_button">Import FEN</button>
         <!-- Computer player section — shown when no computer opponent active -->
         <div id="menu-computer-section" class="hidden">
-          <div id="menu-computer-label">Play vs Computer</div>
+          <div id="menu-computer-label" data-i18n="ui.play_vs_computer">Play vs Computer</div>
           <select id="menu-computer-skill-dropdown">
-            <option value="beginner">Beginner</option>
-            <option value="novice">Novice</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="master" selected>Master</option>
-            <option value="grandmaster">Grandmaster</option>
+            <option value="beginner" data-i18n="ui.skill_beginner">Beginner</option>
+            <option value="novice" data-i18n="ui.skill_novice">Novice</option>
+            <option value="intermediate" data-i18n="ui.skill_intermediate">Intermediate</option>
+            <option value="advanced" data-i18n="ui.skill_advanced">Advanced</option>
+            <option value="master" selected data-i18n="ui.skill_master">Master</option>
+            <option value="grandmaster" data-i18n="ui.skill_grandmaster">Grandmaster</option>
           </select>
-          <button id="btn-menu-activate-computer">Start Game</button>
+          <button id="btn-menu-activate-computer" data-i18n="ui.activate_computer">
+            Start Game
+          </button>
         </div>
         <!-- Skill change section — shown when computer opponent is active -->
         <div id="menu-skill-change-section" class="hidden">
-          <div id="menu-skill-change-label">Change Computer Skill</div>
+          <div id="menu-skill-change-label" data-i18n="ui.computer_skill">
+            Change Computer Skill
+          </div>
           <select id="menu-skill-change-dropdown">
-            <option value="beginner">Beginner</option>
-            <option value="novice">Novice</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-            <option value="master" selected>Master</option>
-            <option value="grandmaster">Grandmaster</option>
+            <option value="beginner" data-i18n="ui.skill_beginner">Beginner</option>
+            <option value="novice" data-i18n="ui.skill_novice">Novice</option>
+            <option value="intermediate" data-i18n="ui.skill_intermediate">Intermediate</option>
+            <option value="advanced" data-i18n="ui.skill_advanced">Advanced</option>
+            <option value="master" selected data-i18n="ui.skill_master">Master</option>
+            <option value="grandmaster" data-i18n="ui.skill_grandmaster">Grandmaster</option>
           </select>
-          <button id="btn-menu-change-skill">Change Skill</button>
+          <button id="btn-menu-change-skill" data-i18n="ui.change_skill">Change Skill</button>
         </div>
-        <button id="btn-settings">Settings</button>
-        <button id="btn-help">Help</button>
+        <button id="btn-settings" data-i18n="ui.settings">Settings</button>
+        <button id="btn-help" data-i18n="ui.help">Help</button>
         <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
       </div>
     </div>
@@ -113,27 +123,27 @@
     <div id="settings-overlay">
       <div id="settings-box">
         <div id="settings-header">
-          <h2>Settings</h2>
+          <h2 data-i18n="ui.settings_title">Settings</h2>
           <button id="btn-settings-close" aria-label="Close">✕</button>
         </div>
         <div id="sensitivity-row">
-          <label for="sensitivity-slider">Mouse Sensitivity</label>
+          <label for="sensitivity-slider" data-i18n="ui.mouse_sensitivity">Mouse Sensitivity</label>
           <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
           <span id="sensitivity-value">20</span>
         </div>
         <div id="joystick-toggle-row">
-          <label for="joystick-toggle">Virtual Joystick</label>
+          <label for="joystick-toggle" data-i18n="ui.virtual_joystick">Virtual Joystick</label>
           <label class="toggle-switch">
             <input type="checkbox" id="joystick-toggle" />
             <span class="toggle-slider"></span>
           </label>
         </div>
         <div class="model-select-row">
-          <label for="select-2d-set">2D Piece Set</label>
+          <label for="select-2d-set" data-i18n="ui.piece_set_2d">2D Piece Set</label>
           <select id="select-2d-set"></select>
         </div>
         <div class="model-select-row">
-          <label for="select-3d-set">3D Model Set</label>
+          <label for="select-3d-set" data-i18n="ui.piece_set_3d">3D Model Set</label>
           <select id="select-3d-set"></select>
         </div>
       </div>
@@ -143,7 +153,7 @@
     <div id="help-overlay" role="dialog" aria-modal="true">
       <div id="help-box">
         <div id="help-header">
-          <h2>Help</h2>
+          <h2 data-i18n="ui.help_title">Help</h2>
           <button id="btn-help-close" aria-label="Close">✕</button>
         </div>
         <div id="help-content">
@@ -321,7 +331,7 @@
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Captured pieces</span>
+              <span class="help-label" data-i18n="ui.captured_pieces">Captured pieces</span>
               <span class="help-desc"
                 >Unicode symbols of pieces each side has captured, sorted by value (Queen &gt; Rook
                 &gt; Bishop &gt; Knight &gt; Pawn).</span
@@ -344,7 +354,7 @@
           </details>
 
           <details class="help-section">
-            <summary>Settings &amp; Export</summary>
+            <summary data-i18n="ui.settings_and_export">Settings &amp; Export</summary>
             <div class="help-row">
               <span class="help-label">Sound</span>
               <span class="help-desc"
@@ -365,7 +375,7 @@
             </div>
             <div class="help-row">
               <span class="help-label">Import FEN</span>
-              <span class="help-desc"
+              <span class="help-desc" data-i18n="ui.fen_import_desc"
                 >Paste a FEN string to load any position. Requires player role.</span
               >
             </div>
@@ -394,8 +404,8 @@
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Reconnecting</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="ui.reconnecting_label">Reconnecting</span>
+              <span class="help-desc" data-i18n="ui.reconnecting_desc"
                 >Full-screen overlay with spinner when connection is lost. "Give Up" button to
                 abort.</span
               >
@@ -419,7 +429,7 @@
 
     <div id="promo-overlay">
       <div id="promo-box">
-        <h3>Promote Pawn</h3>
+        <h3 data-i18n="ui.promotion_title">Promote Pawn</h3>
         <div id="promo-choices">
           <button data-type="queen">♕</button>
           <button data-type="rook">♖</button>
@@ -431,11 +441,13 @@
 
     <div id="concede-overlay">
       <div id="concede-box">
-        <h3>Concede Game?</h3>
-        <p>Are you sure you want to concede? This cannot be undone.</p>
+        <h3 data-i18n="ui.concede_title">Concede Game?</h3>
+        <p data-i18n="ui.concede_confirm_text">
+          Are you sure you want to concede? This cannot be undone.
+        </p>
         <div id="concede-actions">
-          <button id="btn-concede-cancel" class="cancel">Cancel</button>
-          <button id="btn-concede-confirm">Concede</button>
+          <button id="btn-concede-cancel" class="cancel" data-i18n="ui.cancel">Cancel</button>
+          <button id="btn-concede-confirm" data-i18n="ui.concede_confirm">Concede</button>
         </div>
       </div>
     </div>
@@ -443,11 +455,13 @@
     <!-- Give up spot confirmation overlay -->
     <div id="give-up-spot-overlay">
       <div id="give-up-spot-box">
-        <h3>Give Up Spot?</h3>
-        <p>Are you sure you want to give up your spot? Your seat will be freed immediately.</p>
+        <h3 data-i18n="ui.give_up_spot_title">Give Up Spot?</h3>
+        <p data-i18n="ui.give_up_spot_confirm_text">
+          Are you sure you want to give up your spot? Your seat will be freed immediately.
+        </p>
         <div id="give-up-spot-actions">
-          <button id="btn-give-up-spot-cancel" class="cancel">Cancel</button>
-          <button id="btn-give-up-spot-confirm">Give Up</button>
+          <button id="btn-give-up-spot-cancel" class="cancel" data-i18n="ui.cancel">Cancel</button>
+          <button id="btn-give-up-spot-confirm" data-i18n="ui.give_up">Give Up</button>
         </div>
       </div>
     </div>
@@ -455,36 +469,36 @@
     <!-- Draw offer received overlay -->
     <div id="draw-offer-overlay">
       <div id="draw-offer-box">
-        <h3>Draw Offer</h3>
+        <h3 data-i18n="ui.draw_offer">Draw Offer</h3>
         <p id="draw-offer-text">Your opponent offers a draw.</p>
         <div id="draw-offer-actions">
-          <button id="btn-draw-decline" class="cancel">Decline</button>
-          <button id="btn-draw-accept">Accept</button>
+          <button id="btn-draw-decline" class="cancel" data-i18n="ui.decline_draw">Decline</button>
+          <button id="btn-draw-accept" data-i18n="ui.accept_draw">Accept</button>
         </div>
       </div>
     </div>
 
     <div id="import-fen-overlay">
       <div id="import-fen-box">
-        <h3>Import FEN</h3>
-        <p>Paste a FEN string to load a position</p>
+        <h3 data-i18n="ui.fen_import_title">Import FEN</h3>
+        <p data-i18n="ui.fen_import_placeholder">Paste a FEN string to load a position</p>
         <textarea
           id="fen-input"
           placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
           rows="3"
         ></textarea>
         <div id="import-fen-actions">
-          <button id="btn-import-fen-cancel" class="cancel">Cancel</button>
-          <button id="btn-import-fen-confirm">Import</button>
+          <button id="btn-import-fen-cancel" class="cancel" data-i18n="ui.cancel">Cancel</button>
+          <button id="btn-import-fen-confirm" data-i18n="ui.fen_import_button">Import</button>
         </div>
       </div>
     </div>
 
     <div id="game-over-overlay">
       <div id="game-over-box">
-        <h2>Game Over</h2>
+        <h2 data-i18n="ui.game_over">Game Over</h2>
         <p id="game-over-text"></p>
-        <button id="btn-new-game">New Game</button>
+        <button id="btn-new-game" data-i18n="ui.restart">New Game</button>
       </div>
     </div>
 
@@ -493,8 +507,8 @@
     <!-- Join selection overlay -->
     <div id="join-overlay">
       <div id="join-box">
-        <h2>♔ 3D Chess ♚</h2>
-        <p id="join-subtitle">Choose how to join</p>
+        <h2 data-i18n="ui.title">♔ 3D Chess ♚</h2>
+        <p id="join-subtitle" data-i18n="ui.join_subtitle">Choose how to join</p>
         <div id="join-buttons">
           <button id="btn-join-white" disabled>
             <span class="join-icon">♔</span>
@@ -518,26 +532,28 @@
     <!-- Reconnecting overlay -->
     <div id="reconnecting-overlay">
       <div id="reconnecting-box">
-        <h3>Reconnecting…</h3>
+        <h3 data-i18n="ui.reconnecting">Reconnecting…</h3>
         <div class="spinner"></div>
-        <p id="reconnecting-status">Attempting to reconnect…</p>
-        <button id="btn-give-up">Give Up</button>
+        <p id="reconnecting-status" data-i18n="ui.reconnecting_status">Attempting to reconnect…</p>
+        <button id="btn-give-up" data-i18n="ui.give_up">Give Up</button>
       </div>
     </div>
 
     <!-- Connection error overlay -->
     <div id="connection-error-overlay">
       <div id="connection-error-box">
-        <h3>Connection Failed</h3>
-        <p id="connection-error-message">Unable to reach the server.</p>
-        <button id="btn-retry-connection">Retry</button>
+        <h3 data-i18n="ui.connection_failed">Connection Failed</h3>
+        <p id="connection-error-message" data-i18n="ui.connection_error_msg">
+          Unable to reach the server.
+        </p>
+        <button id="btn-retry-connection" data-i18n="ui.retry">Retry</button>
       </div>
     </div>
 
     <!-- Opponent disconnected banner -->
     <div id="opponent-disconnected-banner">
       <span id="opponent-disconnected-text"></span>
-      <button id="btn-drop-player" disabled>Drop Player</button>
+      <button id="btn-drop-player" disabled data-i18n="ui.drop_player">Drop Player</button>
     </div>
     <!-- Second disconnected player banner (spectators) -->
     <div id="second-disconnected-banner">
@@ -546,8 +562,8 @@
 
     <!-- Game available banner (for spectators) -->
     <div id="game-available-banner">
-      <span>Game available — both players disconnected</span>
-      <button id="btn-join-game">Join Game</button>
+      <span data-i18n="ui.game_available">Game available — both players disconnected</span>
+      <button id="btn-join-game" data-i18n="ui.join_game">Join Game</button>
     </div>
 
     <!-- Virtual joystick for camera control (M4.1) -->

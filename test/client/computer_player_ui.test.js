@@ -615,7 +615,7 @@ describe('computer player UI -- DOM rendering via real network + ui modules', ()
       sendMessage(ws, {
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine crashed',
+        reason: 'error.engine_crashed',
       });
 
       const errorToast = document.getElementById('error-toast');
@@ -638,7 +638,7 @@ describe('computer player UI -- DOM rendering via real network + ui modules', ()
       sendMessage(ws, {
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine could not find a legal move',
+        reason: 'error.engine_no_move',
       });
 
       const errorToast = document.getElementById('error-toast');
@@ -667,7 +667,7 @@ describe('computer player UI -- DOM rendering via real network + ui modules', ()
       sendMessage(ws, {
         type: 'computerUnavailable',
         color: 'black',
-        reason: 'Engine crashed',
+        reason: 'error.engine_crashed',
       });
       expect(indicator.classList.contains('visible')).toBe(false);
     });

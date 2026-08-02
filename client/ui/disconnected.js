@@ -10,6 +10,7 @@ import {
   onPlayerDropped,
   onGameAvailable,
 } from '../network.js';
+import { t } from '../i18n.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -48,7 +49,10 @@ function startSpectatorCountdown(textEl, timerRef, setTimerRef, color, disconnec
         setTimerRef(null);
       }
     } else {
-      textEl.textContent = `${buildDisconnectedText(color)} — returns in ${remaining}s`;
+      textEl.textContent = t('ui.disconnected_returning', {
+        disconnected_text: buildDisconnectedText(color),
+        remaining,
+      });
     }
   }
 
@@ -83,7 +87,8 @@ function setSecondTimer(v) {
 
 function buildDisconnectedText(color) {
   const icon = color === 'white' ? '♔' : '♚';
-  return `⚠ ${icon} ${color.charAt(0).toUpperCase() + color.slice(1)} disconnected`;
+  const colorName = color.charAt(0).toUpperCase() + color.slice(1);
+  return t('ui.disconnected', { icon, color: colorName });
 }
 
 // ── Drop player countdown (players only) ─────────────────
@@ -100,14 +105,14 @@ function startDropButtonCountdown(disconnectedAt) {
     const remaining = Math.ceil((enableTime - Date.now()) / 1000);
     if (remaining <= 0) {
       btnDropPlayer.disabled = false;
-      btnDropPlayer.textContent = 'Drop Player';
+      btnDropPlayer.textContent = t('ui.drop_player');
       if (dropButtonTimer) {
         clearInterval(dropButtonTimer);
         dropButtonTimer = null;
       }
     } else {
       btnDropPlayer.disabled = true;
-      btnDropPlayer.textContent = `Drop Player (${remaining}s)`;
+      btnDropPlayer.textContent = t('ui.drop_player_countdown', { remaining });
     }
   }
 

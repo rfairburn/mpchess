@@ -17,7 +17,8 @@ import {
   onComputerUnavailable,
 } from '../network.js';
 import { showInfo, showError } from './toast.js';
-import { SKILL_LABELS } from '../constants.js';
+import { getSkillLabel } from '../constants.js';
+import { t } from '../i18n.js';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -85,13 +86,13 @@ export function initComputerMenu(closeMenu) {
 // ── Callbacks ─────────────────────────────────────────────
 
 onComputerActivated((msg) => {
-  showInfo(`Computer player activated (${SKILL_LABELS[msg.skill] || msg.skill})`);
+  showInfo(t('ui.computer_activated', { skill: getSkillLabel(msg.skill) }));
 });
 
 onComputerThinking((msg) => {
   if (computerThinkingIndicator) {
     const color = msg.color === 'white' ? 'White' : 'Black';
-    computerThinkingIndicator.textContent = `🤖 ${color} is thinking...`;
+    computerThinkingIndicator.textContent = t('ui.computer_thinking', { color });
     computerThinkingIndicator.classList.add('visible');
   }
 });
@@ -103,11 +104,11 @@ onMove(() => {
 });
 
 onComputerSkillChanged((msg) => {
-  showInfo(`Skill changed to ${SKILL_LABELS[msg.skill] || msg.skill}`);
+  showInfo(t('ui.skill_changed', { skill: getSkillLabel(msg.skill) }));
 });
 
 onComputerUnavailable((msg) => {
-  showError(msg.reason || 'Computer player unavailable');
+  showError(t(msg.reason) || t('ui.computer_unavailable'));
   if (computerThinkingIndicator) {
     computerThinkingIndicator.classList.remove('visible');
   }

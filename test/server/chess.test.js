@@ -590,7 +590,7 @@ describe('Checkmate and stalemate', () => {
     const result = g.tryMove(ws2, 4, 7, 4, 1); // Qe2#
     assert.strictEqual(result.ok, true);
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('Checkmate'));
+    assert.ok(g.gameResult.startsWith('game.checkmate'));
   });
 
   test('stalemate is detected', () => {
@@ -618,7 +618,7 @@ describe('Checkmate and stalemate', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true, `should be game over`);
-    assert.ok(g.gameResult.includes('Stalemate'), `should be stalemate: ${g.gameResult}`);
+    assert.strictEqual(g.gameResult, 'game.stalemate', `should be stalemate: ${g.gameResult}`);
   });
 });
 
@@ -660,7 +660,7 @@ describe('Game state management', () => {
     const { game, white } = makeGame();
     assert.strictEqual(game.concede(white), true);
     assert.strictEqual(game.gameOver, true);
-    assert.ok(game.gameResult.includes('conceded'));
+    assert.ok(game.gameResult.startsWith('game.concede'));
   });
 
   test('cannot move after game over', () => {
@@ -668,7 +668,7 @@ describe('Game state management', () => {
     game.concede(white);
     const result = game.tryMove(white, 4, 1, 4, 2);
     assert.strictEqual(result.ok, false);
-    assert.strictEqual(result.reason, 'Game over');
+    assert.strictEqual(result.reason, 'error.game_over');
   });
 
   test('completePromotion rejected after game over', () => {
@@ -1662,7 +1662,10 @@ describe('Algebraic notation disambiguation', () => {
     // Ng6# — discovered checkmate from bishop on a3
     assert.strictEqual(g.moveHistory[0], 'Ng6#', `expected Ng6#: ${g.moveHistory[0]}`);
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate result: ${g.gameResult}`);
+    assert.ok(
+      g.gameResult.startsWith('game.checkmate'),
+      `expected checkmate result: ${g.gameResult}`
+    );
   });
 
   test('promotion capture — notation includes capture x and promotion suffix', () => {
@@ -1749,7 +1752,7 @@ describe('Algebraic notation disambiguation', () => {
     // exd8=Q# — pawn capture + promotion + checkmate (queen defended by knight)
     assert.strictEqual(g.moveHistory[0], 'exd8=Q#', `expected exd8=Q#: ${g.moveHistory[0]}`);
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate: ${g.gameResult}`);
+    assert.ok(g.gameResult.startsWith('game.checkmate'), `expected checkmate: ${g.gameResult}`);
   });
 });
 
@@ -1859,8 +1862,9 @@ describe('Insufficient material — draw detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(
-      g.gameResult.includes('insufficient material'),
+    assert.strictEqual(
+      g.gameResult,
+      'game.draw_insufficient',
       `expected insufficient material draw: ${g.gameResult}`
     );
   });
@@ -1880,8 +1884,9 @@ describe('Insufficient material — draw detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(
-      g.gameResult.includes('insufficient material'),
+    assert.strictEqual(
+      g.gameResult,
+      'game.draw_insufficient',
       `expected insufficient material draw: ${g.gameResult}`
     );
   });
@@ -2129,7 +2134,11 @@ describe('Threefold repetition detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('threefold'), `expected threefold draw: ${g.gameResult}`);
+    assert.strictEqual(
+      g.gameResult,
+      'game.draw_threefold',
+      `expected threefold draw: ${g.gameResult}`
+    );
   });
 
   test('threefold detected via manual position replay', () => {
@@ -2174,7 +2183,11 @@ describe('Threefold repetition detection', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('threefold'), `expected threefold draw: ${g.gameResult}`);
+    assert.strictEqual(
+      g.gameResult,
+      'game.draw_threefold',
+      `expected threefold draw: ${g.gameResult}`
+    );
   });
 
   test('getCurrentRepetitionCount returns correct value', () => {
@@ -2262,7 +2275,7 @@ describe('Fifty-move rule', () => {
 
     g.checkGameEnd();
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('75-move'), `expected 75-move draw: ${g.gameResult}`);
+    assert.strictEqual(g.gameResult, 'game.draw_75move', `expected 75-move draw: ${g.gameResult}`);
   });
 
   test("claimDraw succeeds when halfmoveClock >= 100 and it is the player's turn", () => {
@@ -2282,7 +2295,11 @@ describe('Fifty-move rule', () => {
     const result = g.claimDraw(ws1);
     assert.strictEqual(result.ok, true);
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('50-move'), `expected 50-move claimed: ${g.gameResult}`);
+    assert.strictEqual(
+      g.gameResult,
+      'game.draw_50move_claimed',
+      `expected 50-move claimed: ${g.gameResult}`
+    );
   });
 
   test('claimDraw fails when halfmoveClock < 100', () => {
@@ -2301,7 +2318,7 @@ describe('Fifty-move rule', () => {
 
     const result = g.claimDraw(ws1);
     assert.strictEqual(result.ok, false);
-    assert.ok(result.reason.includes('50-move'));
+    assert.strictEqual(result.reason, 'error.draw_50move_not_met');
   });
 
   test("claimDraw fails when it is not the player's turn", () => {
@@ -2320,7 +2337,7 @@ describe('Fifty-move rule', () => {
 
     const result = g.claimDraw(ws1); // white tries to claim
     assert.strictEqual(result.ok, false);
-    assert.ok(result.reason.includes('Not your turn'));
+    assert.strictEqual(result.reason, 'error.not_your_turn');
   });
 
   test('claimDraw fails when game is already over', () => {
@@ -2340,7 +2357,7 @@ describe('Fifty-move rule', () => {
 
     const result = g.claimDraw(ws1);
     assert.strictEqual(result.ok, false);
-    assert.ok(result.reason.includes('already over'));
+    assert.strictEqual(result.reason, 'error.game_already_over');
   });
 
   test('pawn move resets clock below 100', () => {
@@ -2377,9 +2394,12 @@ describe('Fifty-move rule', () => {
     const result = g.tryMove(ws2, 4, 7, 4, 1); // Qe2#
     assert.strictEqual(result.ok, true);
     assert.strictEqual(g.gameOver, true);
-    assert.ok(g.gameResult.includes('Checkmate'), `expected checkmate, got: ${g.gameResult}`);
     assert.ok(
-      !g.gameResult.includes('75-move'),
+      g.gameResult.startsWith('game.checkmate'),
+      `expected checkmate, got: ${g.gameResult}`
+    );
+    assert.ok(
+      !g.gameResult.startsWith('game.draw_75move'),
       `75-move rule must not override checkmate: ${g.gameResult}`
     );
   });
@@ -2536,7 +2556,7 @@ describe('PGN export', () => {
   test('PGN result after checkmate', () => {
     const g = new Game();
     g.gameOver = true;
-    g.gameResult = 'Checkmate! White wins!';
+    g.gameResult = 'game.checkmate_white';
     const pgn = g.exportPgn();
     assert.ok(pgn.includes('[Result "1-0"]'));
   });
@@ -2544,7 +2564,7 @@ describe('PGN export', () => {
   test('PGN result after draw', () => {
     const g = new Game();
     g.gameOver = true;
-    g.gameResult = 'Draw — threefold repetition.';
+    g.gameResult = 'game.draw_threefold';
     const pgn = g.exportPgn();
     assert.ok(pgn.includes('[Result "1/2-1/2"]'));
   });

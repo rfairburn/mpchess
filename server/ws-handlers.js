@@ -339,7 +339,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       }
     }
 
-    send(ws, { type: 'reconnectFailed', reason: 'Seat no longer available' });
+    send(ws, { type: 'reconnectFailed', reason: 'error.seat_unavailable' });
     if (wasSpectator) game.spectators.add(ws);
     return false;
   }
@@ -357,7 +357,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
     // Enforce the seat timeout server-side
     if (Date.now() < entry.disconnectedAt + seatTimeout) {
-      send(ws, { type: 'error', reason: 'Seat is still reserved for reconnect' });
+      send(ws, { type: 'error', reason: 'error.seat_reserved' });
       return;
     }
 
@@ -394,7 +394,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           broadcast({
             type: 'computerUnavailable',
             color: thinkingColor,
-            reason: 'Engine failed to start',
+            reason: 'error.engine_start',
           });
           return;
         }
@@ -436,7 +436,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         broadcast({
           type: 'computerUnavailable',
           color: thinkingColor,
-          reason: 'Engine returned an invalid move',
+          reason: 'error.engine_invalid_move',
         });
         return;
       }
@@ -535,7 +535,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         broadcast({
           type: 'computerUnavailable',
           color: thinkingColor,
-          reason: 'Engine could not find a legal move',
+          reason: 'error.engine_no_move',
         });
       }
     } catch (err) {
@@ -545,7 +545,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         broadcast({
           type: 'computerUnavailable',
           color: thinkingColor,
-          reason: 'Engine not found',
+          reason: 'error.engine_not_found',
         });
       } else {
         // Try to respawn
@@ -558,7 +558,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           broadcast({
             type: 'computerUnavailable',
             color: thinkingColor,
-            reason: 'Engine crashed',
+            reason: 'error.engine_crashed',
           });
         }
       }
@@ -567,14 +567,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   function handleActivateComputer(ws, data) {
     if (!computerPlayerEnabled) {
-      send(ws, { type: 'error', reason: 'Computer player is disabled' });
+      send(ws, { type: 'error', reason: 'error.computer_disabled' });
       return;
     }
 
     // Only a seated human player can activate the computer
     const callerColor = game.players.get(ws);
     if (!callerColor) {
-      send(ws, { type: 'error', reason: 'You must be seated to activate the computer player' });
+      send(ws, { type: 'error', reason: 'error.must_be_seated_computer' });
       return;
     }
 
@@ -582,26 +582,34 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     // The computer plays the opposite color
     const targetColor = callerColor === 'white' ? 'black' : 'white';
     if (color !== targetColor) {
-      send(ws, { type: 'error', reason: `Computer must play ${targetColor}` });
+      send(ws, { type: 'error', reason: 'error.computer_color', _params: { color: targetColor } });
       return;
     }
 
     // Validate skill level
     const validSkills = Object.keys(engine.skills);
     if (!validSkills.includes(skill)) {
-      send(ws, { type: 'error', reason: `Invalid skill level. Choose: ${validSkills.join(', ')}` });
+      send(ws, {
+        type: 'error',
+        reason: 'error.invalid_skill',
+        _params: { skills: validSkills.join(', ') },
+      });
       return;
     }
 
     // Check activation rules
     const seatStatus = seatStatusForColor(targetColor);
     if (seatStatus.status !== 'free') {
-      send(ws, { type: 'error', reason: `${targetColor} seat is not available` });
+      send(ws, {
+        type: 'error',
+        reason: 'error.seat_not_available',
+        _params: { color: targetColor },
+      });
       return;
     }
 
     if (game.gameOver) {
-      send(ws, { type: 'error', reason: 'Game is over. Restart first.' });
+      send(ws, { type: 'error', reason: 'error.game_over_restart' });
       return;
     }
 
@@ -626,7 +634,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         console.error(`[Stockfish] Activation failed: ${err.message}`);
         computerColor = null;
         computerSkill = null;
-        send(ws, { type: 'error', reason: 'Failed to start computer player' });
+        send(ws, { type: 'error', reason: 'error.failed_computer' });
         broadcastState();
         return;
       }
@@ -653,7 +661,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   async function handleComputerDrawOffer(offererWs) {
     // Use Stockfish to evaluate the position and decide on the draw
     let accepted = false;
-    let reason = 'Computer declined the draw offer';
+    let reason = 'msg.computer_draw_declined';
 
     // Capture revision before async evaluation so we can detect
     // board-state changes (restart, concede, FEN import) while Stockfish
@@ -674,7 +682,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         // Accept draw if evaluation is within ±50 centipawns (roughly half a pawn)
         if (evalScore !== null && Math.abs(evalScore) <= 50) {
           accepted = true;
-          reason = 'Computer accepted the draw offer';
+          reason = 'msg.computer_draw_accepted';
         }
       }
     } catch (err) {
@@ -687,7 +695,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // the real terminal state.
       if (game.gameOver || gameRevision !== requestRevision) return;
       game.gameOver = true;
-      game.gameResult = 'Draw by agreement';
+      game.gameResult = 'game.draw_agreement';
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
@@ -699,11 +707,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   function handleOfferDraw(ws, _data) {
     const callerColor = game.players.get(ws);
     if (!callerColor) {
-      send(ws, { type: 'error', reason: 'Only seated players can offer a draw' });
+      send(ws, { type: 'error', reason: 'error.only_seated_draw_offer' });
       return;
     }
     if (game.gameOver) {
-      send(ws, { type: 'error', reason: 'Game is already over' });
+      send(ws, { type: 'error', reason: 'error.game_already_over' });
       return;
     }
 
@@ -722,7 +730,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       return;
     }
     if (!opponentWs) {
-      send(ws, { type: 'error', reason: 'No opponent to offer a draw to' });
+      send(ws, { type: 'error', reason: 'error.no_opponent_draw' });
       return;
     }
 
@@ -733,24 +741,24 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   function handleDrawResponse(ws, data) {
     if (!drawOffer) {
-      send(ws, { type: 'error', reason: 'No draw offer pending' });
+      send(ws, { type: 'error', reason: 'error.no_draw_pending' });
       return;
     }
     if (game.gameOver) {
-      send(ws, { type: 'error', reason: 'Game is already over' });
+      send(ws, { type: 'error', reason: 'error.game_already_over' });
       clearDrawOffer();
       return;
     }
 
     // Only the intended responder may answer — reject the offerer and any third party
     if (ws !== drawOffer.to) {
-      send(ws, { type: 'error', reason: 'You did not receive this draw offer' });
+      send(ws, { type: 'error', reason: 'error.draw_not_yours' });
       return;
     }
 
     const responderColor = game.players.get(ws);
     if (!responderColor) {
-      send(ws, { type: 'error', reason: 'Only seated players can respond to draw offers' });
+      send(ws, { type: 'error', reason: 'error.only_seated_draw_response' });
       return;
     }
 
@@ -761,7 +769,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     if (accepted) {
       // Both players agree — end the game as a draw
       game.gameOver = true;
-      game.gameResult = 'Draw by agreement';
+      game.gameResult = 'game.draw_agreement';
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
@@ -770,9 +778,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       send(offererWs, {
         type: 'drawResult',
         accepted: false,
-        reason: 'Opponent declined the draw offer',
+        reason: 'msg.opponent_draw_declined',
       });
-      send(ws, { type: 'drawResult', accepted: false, reason: 'You declined the draw offer' });
+      send(ws, { type: 'drawResult', accepted: false, reason: 'msg.you_declined_draw' });
     }
   }
 
@@ -797,7 +805,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       send(ws, { type: 'joined', color, token });
     } else {
       // Seat not available — reject, do NOT fall back to spectator
-      send(ws, { type: 'error', reason: `${color} seat is not available` });
+      send(ws, { type: 'error', reason: 'error.seat_not_available', _params: { color } });
       return;
     }
 
@@ -839,7 +847,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       } catch {
         console.warn(`Malformed JSON from client: ${raw.slice(0, 120)}`);
         try {
-          ws.send(JSON.stringify({ type: 'error', reason: 'Malformed message' }));
+          ws.send(JSON.stringify({ type: 'error', reason: 'error.malformed_message' }));
         } catch {
           /* client already disconnected — nothing to send */
         }
@@ -999,12 +1007,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         case 'importFen': {
           if (!game.players.has(ws)) {
-            send(ws, { type: 'error', reason: 'Only players can import FEN' });
+            send(ws, { type: 'error', reason: 'error.only_players_fen' });
             break;
           }
           const fen = msg.fen;
           if (typeof fen !== 'string' || !fen.trim()) {
-            send(ws, { type: 'error', reason: 'Invalid FEN string' });
+            send(ws, { type: 'error', reason: 'error.invalid_fen' });
             break;
           }
           try {
@@ -1049,7 +1057,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               message: `FEN imported: ${fen.trim()}`,
             });
           } catch (e) {
-            send(ws, { type: 'error', reason: `Invalid FEN: ${e.message}` });
+            send(ws, {
+              type: 'error',
+              reason: 'error.invalid_fen_detail',
+              _params: { msg: e.message },
+            });
           }
           break;
         }
@@ -1059,13 +1071,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         case 'changeSkill': {
           if (!computerColor) {
-            send(ws, { type: 'error', reason: 'No computer player active' });
+            send(ws, { type: 'error', reason: 'error.no_computer' });
             break;
           }
           // Only the human player can change the skill
           const callerColor = game.players.get(ws);
           if (!callerColor || callerColor === computerColor) {
-            send(ws, { type: 'error', reason: 'Only the human player can change skill level' });
+            send(ws, { type: 'error', reason: 'error.only_human_skill' });
             break;
           }
           const { skill } = msg;
@@ -1073,7 +1085,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (!validSkills.includes(skill)) {
             send(ws, {
               type: 'error',
-              reason: `Invalid skill level. Choose: ${validSkills.join(', ')}`,
+              reason: 'error.invalid_skill',
+              _params: { skills: validSkills.join(', ') },
             });
             break;
           }
@@ -1089,7 +1102,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               console.error(`[Stockfish] Skill change failed: ${err.message}`);
               // Roll back to previous skill so server state stays consistent
               computerSkill = previousSkill;
-              send(ws, { type: 'error', reason: `Skill change failed: ${err.message}` });
+              send(ws, {
+                type: 'error',
+                reason: 'error.skill_change_failed',
+                _params: { msg: err.message },
+              });
               broadcastState();
             }
           })();

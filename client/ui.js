@@ -43,6 +43,7 @@ import {
 } from './controls.js';
 import { setMute, isMuted } from './sound.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
+import { t } from './i18n.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
 import { toggle2DBoard, renderBoard2D } from './board_2d.js';
@@ -244,20 +245,20 @@ document.addEventListener('fullscreenchange', () => {
   if (document.fullscreenElement) {
     if (btn) {
       btn.textContent = '✕';
-      btn.setAttribute('aria-label', 'Exit fullscreen');
+      btn.setAttribute('aria-label', t('ui.fullscreen_exit'));
     }
     if (btnDesktop) {
       btnDesktop.textContent = '✕';
-      btnDesktop.setAttribute('aria-label', 'Exit fullscreen');
+      btnDesktop.setAttribute('aria-label', t('ui.fullscreen_exit'));
     }
   } else {
     if (btn) {
       btn.textContent = '⛶';
-      btn.setAttribute('aria-label', 'Toggle fullscreen');
+      btn.setAttribute('aria-label', t('ui.fullscreen_enter'));
     }
     if (btnDesktop) {
       btnDesktop.textContent = '⛶';
-      btnDesktop.setAttribute('aria-label', 'Toggle fullscreen');
+      btnDesktop.setAttribute('aria-label', t('ui.fullscreen_enter'));
     }
   }
 });
@@ -267,7 +268,7 @@ document.addEventListener('fullscreenchange', () => {
 // Sync button icons with persisted mute state on page load
 function updateSoundButtons() {
   const icon = isMuted() ? '🔇' : '🔊';
-  const label = isMuted() ? 'Enable sound' : 'Mute sound';
+  const label = isMuted() ? t('ui.sound_off') : t('ui.sound_on');
   const btn = document.getElementById('btn-sound');
   const btnDesktop = document.getElementById('btn-sound-desktop');
   if (btn) {
@@ -604,21 +605,25 @@ if (settingsOverlay) {
 export function updateMouseModeDisplay(mouseLookOn) {
   const hud = domRef('hud');
   if (mouseLookOn) {
-    mouseModeEl.textContent = '🖱 Camera Mode';
+    mouseModeEl.textContent = t('ui.camera_mode');
     mouseModeEl.style.borderColor = 'rgba(181, 136, 99, 0.3)';
-    hud.textContent =
-      'Click to look around · WASD move · Q/E up/down · TAB toggle mouse-look · ESC menu';
+    hud.textContent = t('ui.camera_help');
     if (btnModeToggle) btnModeToggle.textContent = '🖱';
   } else {
-    mouseModeEl.textContent = '♟ Piece Mode';
+    mouseModeEl.textContent = t('ui.piece_mode');
     mouseModeEl.style.borderColor = 'rgba(68, 187, 68, 0.6)';
-    hud.textContent = 'Click to move pieces · TAB toggle mouse-look · ESC menu';
+    hud.textContent = t('ui.piece_help');
     if (btnModeToggle) btnModeToggle.textContent = '♟';
   }
 }
 
 function updateRoleBadge() {
-  const roleText = myRole === 'white' ? '♔ White' : myRole === 'black' ? '♚ Black' : '👁 Spectator';
+  const roleText =
+    myRole === 'white'
+      ? t('ui.white_role')
+      : myRole === 'black'
+        ? t('ui.black_role')
+        : t('ui.spectator_role');
   roleBadge.textContent = roleText;
   roleBadge.className = myRole;
   if (topBarRole) {
@@ -628,14 +633,14 @@ function updateRoleBadge() {
 }
 
 function updatePlayerCount(players, spectators) {
-  const text = `Players: ${players} · Spectators: ${spectators}`;
+  const text = t('ui.players_spectators', { players, spectators });
   playerCountEl.textContent = text;
   if (drawerPlayerCount) drawerPlayerCount.textContent = text;
 }
 
 function updateTurnIndicator() {
   const isWhite = serverTurn === 'white';
-  const text = isWhite ? "⬤ White's Turn" : "⬤ Black's Turn";
+  const text = isWhite ? t('ui.white_turn') : t('ui.black_turn');
   const cls = isWhite ? 'white-turn' : 'black-turn';
   turnIndicator.textContent = text;
   turnIndicator.className = cls;
@@ -689,9 +694,10 @@ function updateDrawInfo() {
   const el = domRefOptional('draw-info');
   if (!el) return;
 
-  const repLabel = threefoldCount > 0 ? `Repetition: ${threefoldCount}/3` : '';
-  const fiftyLabel = halfmoveClock > 0 ? `50-move: ${halfmoveClock}/100` : '';
-  const seventyFiveLabel = halfmoveClock >= 100 ? `75-move: ${halfmoveClock}/150` : '';
+  const repLabel = threefoldCount > 0 ? t('ui.draw_rep_label', { count: threefoldCount }) : '';
+  const fiftyLabel = halfmoveClock > 0 ? t('ui.draw_50move_label', { count: halfmoveClock }) : '';
+  const seventyFiveLabel =
+    halfmoveClock >= 100 ? t('ui.draw_75move_label', { count: halfmoveClock }) : '';
 
   const hasInfo = repLabel || fiftyLabel || seventyFiveLabel;
 
@@ -966,7 +972,7 @@ btnGiveUpSpotCancel.addEventListener('click', () => hideGiveUpSpotConfirm());
 
 export function showDrawOffer(fromColor) {
   const colorLabel = fromColor === 'white' ? 'White' : 'Black';
-  drawOfferText.textContent = `${colorLabel} offers a draw.`;
+  drawOfferText.textContent = t('msg.draw_offer', { color: colorLabel });
   drawOfferOverlay.classList.add('visible');
 }
 
@@ -1056,7 +1062,7 @@ onStateUpdate((msg) => {
 
   // Game over
   if (serverGameOver && serverGameResult) {
-    gameOverText.textContent = serverGameResult;
+    gameOverText.textContent = t(serverGameResult);
     btnNewGame.disabled = myRole === 'spectator';
     gameOverOverlay.classList.add('visible');
   } else {
@@ -1098,11 +1104,11 @@ onRestart(() => {
 });
 
 onError((msg) => {
-  showError(msg.reason);
+  showError(t(msg.reason, msg._params));
 });
 
 onInfo((msg) => {
-  showInfo(msg.reason);
+  showInfo(t(msg.reason, msg._params));
 });
 
 // ── Draw offer callbacks ────────────────────────────────
@@ -1114,26 +1120,26 @@ onDrawOffer((msg) => {
 onDrawResult((msg) => {
   hideDrawOffer();
   if (msg.accepted) {
-    showInfo('Draw accepted — game ended in a draw.');
+    showInfo(t('msg.draw_accepted'));
   } else {
-    showError(msg.reason || 'Draw offer declined.');
+    showError(t(msg.reason) || t('msg.draw_declined'));
   }
 });
 
 onDrawOfferCancelled(() => {
   hideDrawOffer();
-  showInfo('Draw offer was cancelled.');
+  showInfo(t('msg.draw_cancelled'));
 });
 
 // Opponent left voluntarily — show info toast
 onPlayerLeft((msg) => {
   const colorLabel = msg.color === 'white' ? 'White' : 'Black';
-  showInfo(`${colorLabel} has left — their seat is now available`);
+  showInfo(t('msg.player_left', { color: colorLabel }));
 });
 
 // FEN import warnings — show as yellow toast
 onFenImportWarning((msg) => {
   if (msg.warnings && msg.warnings.length > 0) {
-    showWarning(`FEN warning: ${msg.warnings[0]}`);
+    showWarning(t('msg.fen_warning', { msg: msg.warnings[0] }));
   }
 });
