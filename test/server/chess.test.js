@@ -774,6 +774,7 @@ describe('Static file server — requestHandler', () => {
     'chuckamcknight',
     'jeu',
     'low-poly',
+    'ornate',
     'samurai',
     'simple-classic',
   ];

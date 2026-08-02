@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Added `jeu`, `low-poly`, `simple-classic`, and `afnafziger` 3D model sets (`client/files/pieces/3d/`) with CC0/public domain license, and made the 3D model set selectable via `getModelSet()`/`setModelSet()` in `client/pieces.js`. Default is `simple-classic`.
 - Added `samurai` 3D model set (`client/files/pieces/3d/samurai/`) converted from FBX source ("Samurai chess" by 3DWorkbench, CC BY 4.0), decimated to ~712 KB total.
+- Added `ornate` 3D model set (`client/files/pieces/3d/ornate/`) extracted from GLB source ("Ornate Golden Chess Pieces" by iGauravRajput, CC BY 4.0), decimated to ~450 KB total.
 
 ### Changed
 
@@ -25,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **Move log scrollbar on desktop**: `#move-log` now has `pointer-events: auto` so the scrollbar is interactive.
 - **3D model orientation**: all STL files pre-rotated upright so the loader no longer applies runtime rotation. Pawn pieces use a smaller target footprint (0.55) than other pieces (0.7) for better proportional sizing.
+- **3D model scaling**: pieces are now centered and scaled from their bottom base geometry (bottom 5% of height) rather than the whole-model bounding box, ensuring consistent base sizes across all model sets even when upper geometry (wings, swords) extends beyond the base.
 - **2D board right-click square highlight**: highlight overlay now renders behind pieces so only the square background is highlighted, not the piece on top of it.
 - **2D board size toggle on touch devices**: now uses `isMobileLayout()` based on `(pointer: coarse)` CSS media queries, mirroring the exact breakpoints used by the mobile/desktop render path. Hybrid-pointer devices (touch-capable with fine primary pointer) and large-screen touch devices (Steam Deck, tablets) now get the same two board sizes as desktop.
 - **WebSocket origin check**: default `allowedOrigins` is now `"*"` (accept all) instead of an empty array, which previously rejected all browser connections in production. The wildcard `*` is supported in the origin comparison logic. Narrow `allowedOrigins` to specific domains for production deployments exposed to the public internet.

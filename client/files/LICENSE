@@ -48,6 +48,16 @@ License: CC0 1.0 (Public Domain Dedication)
 You should have received a copy of the license along with this work. If not,
 see <https://creativecommons.org/publicdomain/zero/1.0/>.
 
+pieces/3d/ornate/
+-----------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: iGauravRajput (Sketchfab)
+Source: https://skfb.ly/pK6BM
+License: CC BY 4.0 (Creative Commons Attribution)
+
+You should have received a copy of the license along with this work. If not,
+see <https://creativecommons.org/licenses/by/4.0/>.
+
 pieces/3d/simple-classic/
 -------------------------
 Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
@@ -208,6 +218,7 @@ Summary
 | pieces/3d/chuckamcknight/*.stl      | CC BY-NC-SA 4.0   | No          |
 | pieces/3d/jeu/*.stl                 | CC0 1.0           | Yes         |
 | pieces/3d/low-poly/*.stl            | CC0 1.0           | Yes         |
+| pieces/3d/ornate/*.stl              | CC BY 4.0         | Yes         |
 | pieces/3d/simple-classic/*.stl      | CC0 1.0           | Yes         |
 | pieces/3d/samurai/*.stl             | CC BY 4.0         | Yes         |
 | pieces/2d/rhosgfx/*.svg             | CC0 1.0           | Yes         |

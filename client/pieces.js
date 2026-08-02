@@ -16,6 +16,7 @@ export const MODEL_SETS = [
   'chuckamcknight',
   'jeu',
   'low-poly',
+  'ornate',
   'samurai',
   'simple-classic',
 ];
@@ -173,12 +174,46 @@ function processGeometry(geometry, type) {
   geometry.computeBoundingBox();
   const size = geometry.boundingBox.getSize(new THREE.Vector3());
   const targetSize = type === 'pawn' ? 0.55 : 0.7;
-  const baseScale = targetSize / Math.max(size.x, size.z);
+
+  // Find base vertices (bottom 5% of height) and compute their center + radius
+  const pos = geometry.attributes?.position;
+  let baseRadius = 0;
+  let baseCx = 0,
+    baseCz = 0,
+    baseVertexCount = 0;
+  if (pos) {
+    const epsilon = size.y * 0.05;
+    const bottomThreshold = geometry.boundingBox.min.y + epsilon;
+    // First pass: find center of base vertices
+    let sx = 0,
+      sz = 0;
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getY(i) <= bottomThreshold) {
+        sx += pos.getX(i);
+        sz += pos.getZ(i);
+        baseVertexCount++;
+      }
+    }
+    if (baseVertexCount > 0) {
+      baseCx = sx / baseVertexCount;
+      baseCz = sz / baseVertexCount;
+      // Second pass: find max radius from base center
+      for (let i = 0; i < pos.count; i++) {
+        if (pos.getY(i) <= bottomThreshold) {
+          const r = Math.sqrt((pos.getX(i) - baseCx) ** 2 + (pos.getZ(i) - baseCz) ** 2);
+          if (r > baseRadius) baseRadius = r;
+        }
+      }
+    }
+  }
+  if (baseRadius === 0) baseRadius = Math.max(size.x, size.z) / 2;
+
+  // Center on base center, not bounding box center
+  geometry.translate(-baseCx, 0, -baseCz);
+  const baseScale = targetSize / (baseRadius * 2);
   geometry.scale(baseScale, baseScale, baseScale);
   geometry.computeBoundingBox();
-  const cx = (geometry.boundingBox.min.x + geometry.boundingBox.max.x) / 2;
-  const cz = (geometry.boundingBox.min.z + geometry.boundingBox.max.z) / 2;
-  geometry.translate(-cx, -geometry.boundingBox.min.y, -cz);
+  geometry.translate(0, -geometry.boundingBox.min.y, 0);
   geometry.computeVertexNormals();
   return geometry;
 }

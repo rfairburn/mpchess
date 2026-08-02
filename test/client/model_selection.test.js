@@ -143,10 +143,75 @@ describe('loadPieceModels — model set selection', () => {
     const lastScales = state.scales.slice(-6);
     expect(lastScales).toHaveLength(6);
 
-    const expected = [0.55, 0.7, 0.7, 0.7, 0.7, 0.7];
-    for (let i = 0; i < 6; i++) {
-      expect(lastScales[i]).toEqual([expected[i], expected[i], expected[i]]);
+    // Pawn scale should be smaller than other pieces (0.55 target vs 0.7 target)
+    const pawnScale = lastScales[0][0];
+    const otherScale = lastScales[1][0];
+    expect(pawnScale).toBeLessThan(otherScale);
+    // Ratio should match 0.55/0.7
+    expect(pawnScale / otherScale).toBeCloseTo(0.55 / 0.7, 4);
+  });
+
+  it('scales and centers from base geometry, not full bounding box', async () => {
+    // Build a mock geometry with an offset octagonal base and wider upper protrusion.
+    // Base: 8 vertices at y=0, radius 0.5, centered at (1, 0, 1)
+    // Upper: 4 vertices at y=1, radius 1.0, centered at (1, 1, 1)
+    const baseR = 0.5;
+    const baseCx = 1,
+      baseCz = 1;
+    const positions = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      positions.push(baseCx + baseR * Math.cos(a), 0, baseCz + baseR * Math.sin(a));
     }
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      positions.push(baseCx + 1.0 * Math.cos(a), 1, baseCz + 1.0 * Math.sin(a));
+    }
+
+    const captured = { scales: [], translates: [] };
+    const geoWithPositions = {
+      computeBoundingBox: vi.fn(),
+      boundingBox: {
+        getSize: vi.fn().mockReturnValue({ x: 3, y: 1, z: 3 }),
+        min: { x: 0, y: 0, z: 0 },
+        max: { x: 3, y: 1, z: 3 },
+      },
+      attributes: {
+        position: {
+          count: 12,
+          array: new Float32Array(positions),
+          getX: (i) => positions[i * 3],
+          getY: (i) => positions[i * 3 + 1],
+          getZ: (i) => positions[i * 3 + 2],
+        },
+      },
+      scale: vi.fn(function (...args) {
+        captured.scales.push(args);
+        return this;
+      }),
+      translate: vi.fn(function (...args) {
+        captured.translates.push(args);
+        return this;
+      }),
+      computeVertexNormals: vi.fn(),
+    };
+
+    vi.doMock('three/addons/loaders/STLLoader.js', () => ({
+      STLLoader: vi.fn().mockImplementation(function () {
+        return { load: vi.fn((_url, cb) => cb(geoWithPositions)) };
+      }),
+    }));
+
+    const pieces = await import('../../client/pieces.js');
+    pieces.loadPieceModels({}, vi.fn());
+
+    // First translate should center on base center (1, 1), not bbox center (1.5, 1.5)
+    expect(captured.translates[0]).toEqual([-baseCx, 0, -baseCz]);
+
+    // Scale should use base diameter (0.5 * 2 = 1.0), not bbox width (3)
+    // First piece loaded is "pawn" which uses targetSize 0.55
+    const scaleFactor = captured.scales[0][0];
+    expect(scaleFactor).toBeCloseTo(0.55 / (baseR * 2), 4);
   });
 });
 
