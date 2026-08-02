@@ -15,7 +15,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Added `jeu`, `low-poly`, `simple-classic`, and `afnafziger` 3D model sets (`client/files/pieces/3d/`) with CC0/public domain license, and made the 3D model set selectable via `getModelSet()`/`setModelSet()` in `client/pieces.js`. Default is `simple-classic`.
 - Added `samurai` 3D model set (`client/files/pieces/3d/samurai/`) converted from FBX source ("Samurai chess" by 3DWorkbench, CC BY 4.0), decimated to ~712 KB total.
-- Added `ornate` 3D model set (`client/files/pieces/3d/ornate/`) extracted from GLB source ("Ornate Golden Chess Pieces" by iGauravRajput, CC BY 4.0), decimated to ~450 KB total.
+- Added `ornate` 3D model set (`client/files/pieces/3d/ornate/`) extracted from GLB source ("Ornate Golden Chess Pieces" by iGauravRajput, CC BY 4.0), decimated to ~986 KB total.
+- Added `scrollsaw` 3D model set (`client/files/pieces/3d/scrollsaw/`) converted from FBX source ("ScrollSaw Chess Set" by trinityscsp, CC BY 4.0), topology-preserved, oriented Y-up, and reduced to ~976 KB total.
 
 ### Changed
 

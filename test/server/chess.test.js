@@ -776,6 +776,7 @@ describe('Static file server — requestHandler', () => {
     'low-poly',
     'ornate',
     'samurai',
+    'scrollsaw',
     'simple-classic',
   ];
   const PIECE_3D_NAMES = ['bishop', 'king', 'knight', 'pawn', 'queen', 'rook'];

@@ -78,6 +78,16 @@ License: CC BY 4.0 (Creative Commons Attribution)
 You should have received a copy of the license along with this work. If not,
 see <https://creativecommons.org/licenses/by/4.0/>.
 
+pieces/3d/scrollsaw/
+--------------------
+Files: bishop.stl, king.stl, knight.stl, pawn.stl, queen.stl, rook.stl
+Author: trinityscsp (Sketchfab)
+Source: https://skfb.ly/pLAFS
+License: CC BY 4.0 (Creative Commons Attribution)
+
+You should have received a copy of the license along with this work. If not,
+see <https://creativecommons.org/licenses/by/4.0/>.
+
 2D Piece Sets (pieces/2d/)
 ==========================
 
@@ -221,6 +231,7 @@ Summary
 | pieces/3d/ornate/*.stl              | CC BY 4.0         | Yes         |
 | pieces/3d/simple-classic/*.stl      | CC0 1.0           | Yes         |
 | pieces/3d/samurai/*.stl             | CC BY 4.0         | Yes         |
+| pieces/3d/scrollsaw/*.stl           | CC BY 4.0         | Yes         |
 | pieces/2d/rhosgfx/*.svg             | CC0 1.0           | Yes         |
 | pieces/2d/fantasy/*.svg             | MIT               | Yes         |
 | pieces/2d/spatial/*.svg             | MIT               | Yes         |

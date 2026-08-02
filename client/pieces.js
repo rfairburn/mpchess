@@ -18,6 +18,7 @@ export const MODEL_SETS = [
   'low-poly',
   'ornate',
   'samurai',
+  'scrollsaw',
   'simple-classic',
 ];
 let _modelSet = 'simple-classic';
