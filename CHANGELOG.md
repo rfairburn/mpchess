@@ -31,6 +31,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Extracted shared 2D/3D selection-highlight orchestration into `client/highlight-orchestration.js`, eliminating ~12 duplicated clear/select/highlight sequences across `client/controls.js` and `client/board_2d.js`.
 - Consolidated FEN and PGN clipboard export fallback handling into a shared `copyOrDownload()` helper in `client/network.js`.
 - Extracted `sendToServer(msg)` helper in `client/network.js`, eliminating 14 duplicated `ws.readyState === 1` guards across all 15 `send*` functions.
+- Extracted `parseUciMove(uci)` helper in `server/ws-handlers.js`, eliminating duplicated UCI coordinate parsing (magic number `97` replaced with `'a'.charCodeAt(0)`).
 
 ### Fixed
 

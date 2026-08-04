@@ -2,6 +2,21 @@ const crypto = require('crypto');
 const { validateFenForEngine, fromFen } = require('../shared/chess.mjs');
 const { getStockfishEngine } = require('../shared/stockfish_engine');
 
+/**
+ * Parse a UCI move string (e.g. "e2e4" or "e7e8q") into board coordinates.
+ * Only the first four characters are used; any promotion suffix is ignored.
+ * @param {string} uci - UCI move (at least 4 characters)
+ * @returns {{ fromFile: number, fromRank: number, toFile: number, toRank: number }}
+ */
+function parseUciMove(uci) {
+  return {
+    fromFile: uci.charCodeAt(0) - 'a'.charCodeAt(0),
+    fromRank: parseInt(uci[1], 10) - 1,
+    toFile: uci.charCodeAt(2) - 'a'.charCodeAt(0),
+    toRank: parseInt(uci[3], 10) - 1,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════
 //  WEBSOCKET HANDLER SETUP (extracted for testability)
 // ═══════════════════════════════════════════════════════════
@@ -442,10 +457,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       }
 
       // Parse UCI move (e.g. "e2e4" → fromFile=4, fromRank=1, toFile=4, toRank=3)
-      const fromFile = uciMove.charCodeAt(0) - 97;
-      const fromRank = parseInt(uciMove[1]) - 1;
-      const toFile = uciMove.charCodeAt(2) - 97;
-      const toRank = parseInt(uciMove[3]) - 1;
+      const { fromFile, fromRank, toFile, toRank } = parseUciMove(uciMove);
 
       // Create a virtual ws for the computer player so tryMove works.
       // Must remain registered through completePromotion() because it validates
@@ -515,10 +527,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             console.warn(`[Stockfish] Invalid retry bestmove: "${retryMove}"; continuing retries`);
             continue;
           }
-          const rf = retryMove.charCodeAt(0) - 97;
-          const rr = parseInt(retryMove[1]) - 1;
-          const tf = retryMove.charCodeAt(2) - 97;
-          const tr = parseInt(retryMove[3]) - 1;
+          const { fromFile: rf, fromRank: rr, toFile: tf, toRank: tr } = parseUciMove(retryMove);
           if (applyMove(rf, rr, tf, tr)) {
             moveApplied = true;
             break;
