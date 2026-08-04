@@ -2266,16 +2266,16 @@ describe('Threefold repetition detection', () => {
 // ═══════════════════════════════════════════════════════════
 
 describe('Fifty-move rule', () => {
-  test('isFiftyMoveRule returns false when clock < 100', () => {
+  test('canClaimDrawByFiftyMoves returns false when clock < 100', () => {
     const g = new Game();
     g.halfmoveClock = 99;
-    assert.strictEqual(g.isFiftyMoveRule(), false);
+    assert.strictEqual(g.canClaimDrawByFiftyMoves(), false);
   });
 
-  test('isFiftyMoveRule returns true when clock >= 100', () => {
+  test('canClaimDrawByFiftyMoves returns true when clock >= 100', () => {
     const g = new Game();
     g.halfmoveClock = 100;
-    assert.strictEqual(g.isFiftyMoveRule(), true);
+    assert.strictEqual(g.canClaimDrawByFiftyMoves(), true);
   });
 
   test('isSeventyFiveMoveRule returns true when clock >= 150', () => {
@@ -2420,7 +2420,7 @@ describe('Fifty-move rule', () => {
     game.halfmoveClock = 99;
     game.tryMove(white, 4, 1, 4, 3); // e2-e4
     assert.strictEqual(game.halfmoveClock, 0, 'pawn move resets clock');
-    assert.strictEqual(game.isFiftyMoveRule(), false);
+    assert.strictEqual(game.canClaimDrawByFiftyMoves(), false);
   });
 
   test('checkmate at halfmoveClock 150 takes precedence over 75-move rule', () => {

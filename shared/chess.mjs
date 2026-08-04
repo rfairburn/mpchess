@@ -624,10 +624,6 @@ class Game {
     return [...this.positionCounts.values()].some((c) => c >= 3);
   }
 
-  isFiftyMoveRule() {
-    return this.halfmoveClock >= 100;
-  }
-
   // 75-move rule — forced draw at 150 half-moves (no manual claim needed)
   isSeventyFiveMoveRule() {
     return this.halfmoveClock >= 150;
