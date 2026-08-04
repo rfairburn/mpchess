@@ -8,85 +8,7 @@ const assert = require('assert');
 const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers } = require('../../server');
 
-// ── Mock WebSocket ────────────────────────────────────────
-
-class MockWebSocket {
-  static _ipCounter = 0;
-
-  constructor() {
-    this.readyState = 1; // OPEN
-    this.sentMessages = [];
-    this._listeners = {};
-    this._closed = false;
-    this.bufferedAmount = 0;
-    // Simulate the underlying TCP socket with a unique IP per connection
-    MockWebSocket._ipCounter++;
-    this._socket = { remoteAddress: `10.0.0.${MockWebSocket._ipCounter}` };
-  }
-
-  send(data) {
-    this.sentMessages.push(data);
-  }
-
-  getSent(type) {
-    return this.sentMessages
-      .filter((m) => {
-        try {
-          return JSON.parse(m).type === type;
-        } catch {
-          return false;
-        }
-      })
-      .map((m) => JSON.parse(m));
-  }
-
-  getRawSent() {
-    return this.sentMessages;
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  emit(event, data) {
-    if (this._listeners[event]) this._listeners[event](data);
-  }
-
-  close() {
-    this.readyState = 3; // CLOSED
-    this._closed = true;
-    if (this._listeners.close) this._listeners.close();
-  }
-}
-
-// ── Mock WebSocketServer ──────────────────────────────────
-
-class MockWebSocketServer {
-  constructor() {
-    this.clients = new Set();
-    this._listeners = {};
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  simulateConnection() {
-    const ws = new MockWebSocket();
-    this.clients.add(ws);
-    if (this._listeners.connection) this._listeners.connection(ws);
-    return ws;
-  }
-
-  simulateDisconnect(ws) {
-    this.clients.delete(ws);
-    ws.close();
-  }
-
-  reset() {
-    this.clients.clear();
-  }
-}
+const { createMockWebSocketServer } = require('./test-helpers');
 
 // ── Test runner — buffered output, prints in declaration order ──
 
@@ -136,7 +58,7 @@ function describe(label, fn) {
 
 function createTestEnv(seatTimeout) {
   const game = new Game();
-  const wss = new MockWebSocketServer();
+  const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
   const handlers = setupWebSocketHandlers(wss, game, {
     seatTimeout: seatTimeout != null ? seatTimeout : 100,
     joinTimeoutMs: 0,
@@ -1087,7 +1009,7 @@ describe('Rate limiter — basic behavior', () => {
 describe('Rate limiter — configurable limits', () => {
   test('custom rateLimitMax is respected', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1116,7 +1038,7 @@ describe('Rate limiter — configurable limits', () => {
 
   test('custom rateLimitWindow is respected', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1143,7 +1065,7 @@ describe('Rate limiter — configurable limits', () => {
 
   test('window resets after rateLimitWindow expires', async () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1192,7 +1114,7 @@ describe('Rate limiter — bucket persists across disconnect', () => {
 
   test('reconnected client from same IP stays rate limited', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1225,7 +1147,7 @@ describe('Rate limiter — bucket persists across disconnect', () => {
 describe('Rate limiter — different message types all count', () => {
   test('join, move, restart, and export messages all count toward limit', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1252,7 +1174,7 @@ describe('Rate limiter — different message types all count', () => {
 
   test('rate limited message itself does not count toward limit', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1289,7 +1211,7 @@ describe('Rate limiter — different message types all count', () => {
 
   test('reconnect and validateToken messages count toward limit', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -1325,7 +1247,7 @@ describe('Rate limiter — malformed messages count toward limit', () => {
 
 describe('Malformed JSON handling', () => {
   function makeServer() {
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const game = new Game();
     const handlers = setupWebSocketHandlers(wss, game, {
       rateLimitMax: 9999,
@@ -1379,7 +1301,7 @@ describe('Malformed JSON handling', () => {
 
 describe('WebSocket backpressure', () => {
   function makeServer() {
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ autoIp: true, trackRaw: true });
     const game = new Game();
     const handlers = setupWebSocketHandlers(wss, game, {
       rateLimitMax: 9999,

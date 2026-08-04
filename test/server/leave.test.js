@@ -8,72 +8,7 @@ const assert = require('assert');
 const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers } = require('../../server');
 
-// ── Mock WebSocket ────────────────────────────────────────
-
-class MockWebSocket {
-  constructor() {
-    this.readyState = 1; // OPEN
-    this.sentMessages = [];
-    this._listeners = {};
-    this._closed = false;
-    this.bufferedAmount = 0;
-  }
-
-  send(data) {
-    this.sentMessages.push(data);
-  }
-
-  getSent(type) {
-    return this.sentMessages
-      .filter((m) => {
-        try {
-          return JSON.parse(m).type === type;
-        } catch {
-          return false;
-        }
-      })
-      .map((m) => JSON.parse(m));
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  emit(event, data) {
-    if (this._listeners[event]) this._listeners[event](data);
-  }
-
-  close() {
-    this.readyState = 3; // CLOSED
-    this._closed = true;
-    if (this._listeners.close) this._listeners.close();
-  }
-}
-
-// ── Mock WebSocketServer ──────────────────────────────────
-
-class MockWebSocketServer {
-  constructor() {
-    this.clients = new Set();
-    this._listeners = {};
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  simulateConnection() {
-    const ws = new MockWebSocket();
-    this.clients.add(ws);
-    if (this._listeners.connection) this._listeners.connection(ws);
-    return ws;
-  }
-
-  simulateDisconnect(ws) {
-    this.clients.delete(ws);
-    ws.close();
-  }
-}
+const { createMockWebSocketServer } = require('./test-helpers');
 
 // ── Test runner ───────────────────────────────────────────
 
@@ -120,7 +55,7 @@ function describe(label, fn) {
 
 function createTestEnv(seatTimeout) {
   const game = new Game();
-  const wss = new MockWebSocketServer();
+  const wss = createMockWebSocketServer();
   const handlers = setupWebSocketHandlers(wss, game, {
     seatTimeout: seatTimeout != null ? seatTimeout : 100,
     joinTimeoutMs: 0,

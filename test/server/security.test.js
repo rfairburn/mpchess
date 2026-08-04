@@ -11,79 +11,7 @@ const WebSocket = require('ws');
 const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers, buildWssOptions } = require('../../server');
 
-// ── Mock WebSocket ────────────────────────────────────────
-
-class MockWebSocket {
-  constructor(ip) {
-    this.readyState = 1; // OPEN
-    this.sentMessages = [];
-    this._listeners = {};
-    this._closed = false;
-    this.bufferedAmount = 0;
-    this._socket = ip ? { remoteAddress: ip } : undefined;
-    this._closeCode = null;
-    this._closeReason = null;
-  }
-
-  send(data) {
-    this.sentMessages.push(data);
-  }
-
-  getSent(type) {
-    return this.sentMessages
-      .filter((m) => {
-        try {
-          return JSON.parse(m).type === type;
-        } catch {
-          return false;
-        }
-      })
-      .map((m) => JSON.parse(m));
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  emit(event, data) {
-    if (this._listeners[event]) this._listeners[event](data);
-  }
-
-  close(code, reason) {
-    this.readyState = 3; // CLOSED
-    this._closed = true;
-    this._closeCode = code;
-    this._closeReason = reason;
-    if (this._listeners.close) this._listeners.close();
-  }
-}
-
-// ── Mock WebSocketServer ──────────────────────────────────
-
-class MockWebSocketServer {
-  constructor() {
-    this.clients = new Set();
-    this._listeners = {};
-  }
-
-  on(event, fn) {
-    this._listeners[event] = fn;
-  }
-
-  simulateConnection(ip, reqProps = {}) {
-    const ws = new MockWebSocket(ip);
-    this.clients.add(ws);
-    // Pass req as second argument, matching real ws library: (ws, req)
-    const req = { socket: { remoteAddress: ip }, ...reqProps };
-    if (this._listeners.connection) this._listeners.connection(ws, req);
-    return ws;
-  }
-
-  simulateDisconnect(ws) {
-    this.clients.delete(ws);
-    ws.close();
-  }
-}
+const { createMockWebSocketServer } = require('./test-helpers');
 
 // ── Test runner ───────────────────────────────────────────
 
@@ -236,7 +164,7 @@ describe('WebSocket maxPayload — production buildWssOptions', () => {
 describe('Rate limiter — per-IP tracking', () => {
   test('multiple connections from same IP share rate limit', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -293,7 +221,7 @@ describe('Rate limiter — per-IP tracking', () => {
 
   test('connections from different IPs have independent limits', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -348,7 +276,7 @@ describe('Rate limiter — per-IP tracking', () => {
 
   test('connections without _socket fall back to unknown key', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -392,7 +320,7 @@ describe('Rate limiter — per-IP tracking', () => {
 describe('Rate limiter — bucket persists across rejection and disconnect', () => {
   test('bucket is NOT deleted on rate limit rejection', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -450,7 +378,7 @@ describe('Rate limiter — bucket persists across rejection and disconnect', () 
 
   test('bucket persists after disconnect — reconnect from same IP stays limited', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -497,7 +425,7 @@ describe('Rate limiter — bucket persists across rejection and disconnect', () 
 
   test('repeated close/reopen from same IP remains rate limited', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -553,7 +481,7 @@ describe('Rate limiter — bucket persists across rejection and disconnect', () 
 
   test('rate limit lifts after window expires', async () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -611,7 +539,7 @@ describe('Rate limiter — bucket persists across rejection and disconnect', () 
 describe('Rate limiter — existing behavior preserved', () => {
   test('messages within limit are accepted', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -636,7 +564,7 @@ describe('Rate limiter — existing behavior preserved', () => {
 
   test('messages exceeding limit are rejected with rateLimited', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -674,7 +602,7 @@ describe('Rate limiter — existing behavior preserved', () => {
 
   test('rate limited messages include retryAfter field', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const handlers = setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 0,
@@ -704,7 +632,7 @@ describe('Rate limiter — existing behavior preserved', () => {
 describe('joinTimeout cleared on close', () => {
   test('joinTimeout is cleared when connection closes', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
       joinTimeoutMs: 5000,
@@ -740,7 +668,7 @@ describe('joinTimeout cleared on close', () => {
 describe('Connection rate limiter', () => {
   test('allows connections under the limit', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
@@ -763,7 +691,7 @@ describe('Connection rate limiter', () => {
 
   test('rejects connections after the limit via defense-in-depth check', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
@@ -790,7 +718,7 @@ describe('Connection rate limiter', () => {
 
   test('retryAfter is included in rate limit response', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
@@ -814,7 +742,7 @@ describe('Connection rate limiter', () => {
 
   test('per-IP isolation: different IPs have independent limits', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
@@ -839,7 +767,7 @@ describe('Connection rate limiter', () => {
 
   test('window expiry: connections allowed after window passes', async () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
@@ -873,7 +801,7 @@ describe('Connection rate limiter', () => {
 
   test('configuration wiring: custom max and window are respected', () => {
     const game = new Game();
-    const wss = new MockWebSocketServer();
+    const wss = createMockWebSocketServer({ trackClose: true });
     const connectionBuckets = new Map();
     setupWebSocketHandlers(wss, game, {
       seatTimeout: 100,
