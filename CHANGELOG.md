@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Reduced 3D model file sizes for `afnafziger`, `simple-classic`, and `jeu` sets via mesh decimation (quadric edge collapse), bringing each set from 3–16 MB down to ~892 KB (3,000 triangles per piece). Total 3D folder reduced from 24 MB to 2 MB.
 - Improved captured-piece visibility on desktop and mobile with a light-square-colored inner background.
 - Consolidated duplicated server WebSocket mocks (`MockWebSocket` / `MockWebSocketServer`) into `test/server/test-helpers.js`.
+- Extracted duplicated `isActuallyVisible()` from `client/ui.js` and `client/ui/help.js` into shared `client/ui/focus-utils.js`.
 
 ### Fixed
 

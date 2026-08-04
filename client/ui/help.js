@@ -1,17 +1,10 @@
 import { isTouchDevice } from '../capabilities.js';
+import { isActuallyVisible } from './focus-utils.js';
 
 let helpOverlay = document.getElementById('help-overlay');
 let helpOpen = false;
 let previousFocus = null;
 let closeCallback = null;
-
-function isActuallyVisible(element) {
-  if (!element?.isConnected || element.disabled) return false;
-  const style = window.getComputedStyle(element);
-  return (
-    style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0
-  );
-}
 
 function trapHandler(event) {
   if (event.key !== 'Tab') return;

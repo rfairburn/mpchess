@@ -47,6 +47,7 @@ import { CONTROLS_CONFIG } from './controls_config.js';
 import { t, setLocale, getLocale, LOCALES } from '../shared/i18n.mjs';
 import { applyTranslations } from './localize-dom.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
+import { isActuallyVisible } from './ui/focus-utils.js';
 import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
 import { toggle2DBoard, renderBoard2D } from './board_2d.js';
 import {
@@ -428,14 +429,6 @@ export function setThreeScene(scene) {
 // Focus management for settings overlay
 let _settingsPreviousFocus = null;
 let _settingsCloseCallback = null;
-
-function isActuallyVisible(element) {
-  if (!element?.isConnected || element.disabled) return false;
-  const style = window.getComputedStyle(element);
-  return (
-    style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0
-  );
-}
 
 function settingsTrapHandler(event) {
   if (event.key !== 'Tab') return;
