@@ -442,6 +442,16 @@ function scheduleReconnect() {
 }
 
 /**
+ * Send a JSON message to the server if the WebSocket is open.
+ * @param {object} msg
+ */
+function sendToServer(msg) {
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify(msg));
+  }
+}
+
+/**
  * Send a move request to the server.
  * @param {number} fromFile
  * @param {number} fromRank
@@ -449,9 +459,7 @@ function scheduleReconnect() {
  * @param {number} toRank
  */
 export function sendMove(fromFile, fromRank, toFile, toRank) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'move', fromFile, fromRank, toFile, toRank }));
-  }
+  sendToServer({ type: 'move', fromFile, fromRank, toFile, toRank });
 }
 
 /**
@@ -459,27 +467,19 @@ export function sendMove(fromFile, fromRank, toFile, toRank) {
  * @param {'queen'|'rook'|'bishop'|'knight'} pieceType
  */
 export function sendPromotion(pieceType) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'promotion', pieceType }));
-  }
+  sendToServer({ type: 'promotion', pieceType });
 }
 
 export function sendRestart() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'restart' }));
-  }
+  sendToServer({ type: 'restart' });
 }
 
 export function sendConcede() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'concede' }));
-  }
+  sendToServer({ type: 'concede' });
 }
 
 export function sendDropPlayer(token) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'dropPlayer', token }));
-  }
+  sendToServer({ type: 'dropPlayer', token });
 }
 
 /**
@@ -493,27 +493,23 @@ export function sendJoin(color) {
   const token = localStorage.getItem(tokenKey(color));
   if (token && color !== 'spectator' && validatedTokens[color] === true) {
     pendingToken = token;
-    ws.send(JSON.stringify({ type: 'reconnect', token }));
+    sendToServer({ type: 'reconnect', token });
   } else {
     // Fresh join (no token, unvalidated token, or spectator)
     if (token && color !== 'spectator' && validatedTokens[color] === false) {
       // Token was validated as invalid — remove the stale token
       localStorage.removeItem(tokenKey(color));
     }
-    ws.send(JSON.stringify({ type: 'join', color }));
+    sendToServer({ type: 'join', color });
   }
 }
 
 export function sendExportFen() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'exportFen' }));
-  }
+  sendToServer({ type: 'exportFen' });
 }
 
 export function sendExportPgn() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'exportPgn' }));
-  }
+  sendToServer({ type: 'exportPgn' });
 }
 
 /**
@@ -521,9 +517,7 @@ export function sendExportPgn() {
  * @param {string} fen
  */
 export function sendImportFen(fen) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'importFen', fen }));
-  }
+  sendToServer({ type: 'importFen', fen });
 }
 
 /**
@@ -532,39 +526,27 @@ export function sendImportFen(fen) {
  * @param {number} skill — Skill level (0–20)
  */
 export function sendActivateComputer(color, skill) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'activateComputer', color, skill }));
-  }
+  sendToServer({ type: 'activateComputer', color, skill });
 }
 
 export function sendChangeSkill(skill) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'changeSkill', skill }));
-  }
+  sendToServer({ type: 'changeSkill', skill });
 }
 
 export function sendOfferDraw() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'offerDraw' }));
-  }
+  sendToServer({ type: 'offerDraw' });
 }
 
 export function sendDrawResponse(accepted) {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'drawResponse', accepted }));
-  }
+  sendToServer({ type: 'drawResponse', accepted });
 }
 
 export function sendClaimDraw() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'claimDraw' }));
-  }
+  sendToServer({ type: 'claimDraw' });
 }
 
 export function sendLeave() {
-  if (ws && ws.readyState === 1) {
-    ws.send(JSON.stringify({ type: 'leave' }));
-  }
+  sendToServer({ type: 'leave' });
 }
 
 export function isReconnecting() {

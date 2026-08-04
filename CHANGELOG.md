@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Extracted duplicated `COLORS` + modifier-priority logic from `client/arrows.js` and `client/highlights.js` into shared `client/annotation-colors.js`.
 - Extracted shared 2D/3D selection-highlight orchestration into `client/highlight-orchestration.js`, eliminating ~12 duplicated clear/select/highlight sequences across `client/controls.js` and `client/board_2d.js`.
 - Consolidated FEN and PGN clipboard export fallback handling into a shared `copyOrDownload()` helper in `client/network.js`.
+- Extracted `sendToServer(msg)` helper in `client/network.js`, eliminating 14 duplicated `ws.readyState === 1` guards across all 15 `send*` functions.
 
 ### Fixed
 

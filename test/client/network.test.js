@@ -334,6 +334,120 @@ describe('network.js — send functions guard', () => {
   });
 });
 
+describe('network.js — sendToServer serialization', () => {
+  let network;
+  let mockWs;
+  let sentMessages = [];
+
+  function createMockWS(readyState) {
+    sentMessages = [];
+    mockWs = {
+      readyState,
+      send: vi.fn((data) => sentMessages.push(JSON.parse(data))),
+    };
+    return mockWs;
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+
+    createMockWS(1); // OPEN by default
+
+    const store = {};
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: {
+        getItem: () => null,
+        setItem: () => {},
+        removeItem: () => {},
+      },
+      writable: true,
+    });
+
+    Object.defineProperty(globalThis, 'location', {
+      value: { protocol: 'http:', host: 'localhost:3000' },
+      writable: true,
+    });
+
+    globalThis.WebSocket = class {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      constructor() {
+        return mockWs;
+      }
+    };
+
+    network = await import('../../client/network.js');
+  });
+
+  const sendCases = [
+    {
+      fn: () => network.sendMove(0, 7, 2, 5),
+      expected: { type: 'move', fromFile: 0, fromRank: 7, toFile: 2, toRank: 5 },
+    },
+    {
+      fn: () => network.sendPromotion('queen'),
+      expected: { type: 'promotion', pieceType: 'queen' },
+    },
+    { fn: () => network.sendRestart(), expected: { type: 'restart' } },
+    { fn: () => network.sendConcede(), expected: { type: 'concede' } },
+    { fn: () => network.sendDropPlayer('abc'), expected: { type: 'dropPlayer', token: 'abc' } },
+    { fn: () => network.sendExportFen(), expected: { type: 'exportFen' } },
+    { fn: () => network.sendExportPgn(), expected: { type: 'exportPgn' } },
+    {
+      fn: () => network.sendImportFen('rnbqkbnr'),
+      expected: { type: 'importFen', fen: 'rnbqkbnr' },
+    },
+    {
+      fn: () => network.sendActivateComputer('black', 10),
+      expected: { type: 'activateComputer', color: 'black', skill: 10 },
+    },
+    { fn: () => network.sendChangeSkill(5), expected: { type: 'changeSkill', skill: 5 } },
+    { fn: () => network.sendOfferDraw(), expected: { type: 'offerDraw' } },
+    {
+      fn: () => network.sendDrawResponse(true),
+      expected: { type: 'drawResponse', accepted: true },
+    },
+    { fn: () => network.sendClaimDraw(), expected: { type: 'claimDraw' } },
+    { fn: () => network.sendLeave(), expected: { type: 'leave' } },
+  ];
+
+  it.each(sendCases)('serializes $expected.type when socket is OPEN', ({ fn, expected }) => {
+    fn();
+    expect(sentMessages).toEqual([expected]);
+  });
+
+  it('does not send when socket is CONNECTING', async () => {
+    vi.resetModules();
+    createMockWS(0);
+    globalThis.WebSocket = class {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      constructor() {
+        return mockWs;
+      }
+    };
+    network = await import('../../client/network.js');
+    network.sendMove(0, 7, 2, 5);
+    expect(sentMessages).toEqual([]);
+  });
+
+  it('does not send when socket is CLOSED', async () => {
+    vi.resetModules();
+    createMockWS(3);
+    globalThis.WebSocket = class {
+      static CONNECTING = 0;
+      static OPEN = 1;
+      constructor() {
+        return mockWs;
+      }
+    };
+    network = await import('../../client/network.js');
+    network.sendMove(0, 7, 2, 5);
+    expect(sentMessages).toEqual([]);
+  });
+});
+
 // Tests assert that URL revocation uses queueMicrotask (not setTimeout),
 // which is intentional: rapid FEN/PGN exports must not leak blob URLs.
 // The microtask queue is exposed via __microtaskQueue so tests can flush it
