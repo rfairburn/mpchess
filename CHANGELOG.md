@@ -8,7 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
-- Added client-side localization framework (`shared/i18n.js`, `client/i18n.js`, `shared/locales/en-US.js`). All ~150 user-facing strings are now resolved via `t(key, params?)` lookups. The server sends machine-readable keys (e.g., `game.checkmate_white`, `error.not_your_turn`) instead of display strings, keeping it locale-agnostic. Static HTML strings use `data-i18n` attributes resolved on page load.
+- Added shared localization framework (`shared/i18n.mjs`, `shared/locales/*.mjs`). All ~150 user-facing strings are resolved via `t(key, params?)` lookups. The server sends machine-readable keys (e.g., `game.checkmate_white`, `error.not_your_turn`) instead of display strings, keeping it locale-agnostic. Static HTML strings use `data-i18n`/`data-i18n-aria-label`/`data-i18n-placeholder` attributes resolved on page load and live refresh.
+- Added 4 new locales (Español, Français, Deutsch, 简体中文) with full translations verified against FIDE chess terminology sources. Language selector in Settings overlay with `localStorage` persistence and live UI refresh via `refreshI18n()` — no page reload required.
 - Added Settings menu (accessible from the main menu) with mouse sensitivity slider, virtual joystick toggle, and dropdown selectors for 2D piece set and 3D model set. Selections persist in `localStorage` and apply in-place without a page reload.
 - Added contributor guidance (`CONTRIBUTING.md`) and per-change changelog requirements (`AGENTS.md`).
 - Added all 42 2D piece sets from Lichess (`client/files/pieces/2d/`) with consolidated license attribution in `client/files/LICENSE`.
@@ -19,6 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 
+- **Deduplicated client/server code**: `shared/chess.js` → `shared/chess.mjs` (single ES module used by both Node.js and browser, no build step). Deleted `build_chess_mjs.js`, `client/chess.mjs`, `client/i18n.js`, `shared/i18n.js`. Added `/shared/` HTTP route with whitelist for serving `.mjs` files to the browser. Zobrist uses lazy singleton pattern (`initZobrist`/`getZobrist`) instead of eager initialization.
 - Replaced Unicode 2D board pieces and captured-piece indicators with configurable SVG assets, defaulting to the `mpchess` set. Controlled via `getSvgPieceSet()`/`setSvgPieceSet()` in `client/pieces.js`.
 - Reorganized 3D models into `client/files/pieces/3d/chuckamcknight/`.
 - Reduced 3D model file sizes for `afnafziger`, `simple-classic`, and `jeu` sets via mesh decimation (quadric edge collapse), bringing each set from 3–16 MB down to ~892 KB (3,000 triangles per piece). Total 3D folder reduced from 24 MB to 2 MB.

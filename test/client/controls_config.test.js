@@ -233,7 +233,7 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       highlightCheck: vi.fn(),
     }));
 
-    vi.doMock('../../client/chess.mjs', () => ({
+    vi.doMock('../../shared/chess.mjs', () => ({
       pieceColor: vi.fn(),
       getValidMoves: vi.fn(),
       findKing: vi.fn(),

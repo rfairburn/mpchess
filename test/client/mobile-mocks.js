@@ -9,6 +9,93 @@
 
 import { vi } from 'vitest';
 
+// i18n mock — stateful so tests can switch locales
+const _i18nState = { locale: 'en-US' };
+const _i18nCatalog = {
+  'en-US': {
+    'ui.language': 'Language',
+    'ui.settings': 'Settings',
+    'ui.settings_title': 'Settings',
+    'ui.mouse_sensitivity': 'Mouse Sensitivity',
+    'ui.virtual_joystick': 'Virtual Joystick',
+    'ui.piece_set_2d': '2D Piece Set',
+    'ui.piece_set_3d': '3D Model Set',
+    'ui.title': '♔ 3D Chess ♚',
+    'ui.fullscreen_enter': 'Toggle fullscreen',
+    'ui.fullscreen_exit': 'Exit fullscreen',
+    'ui.sound_on': 'Mute sound',
+    'ui.sound_off': 'Enable sound',
+    'game.checkmate_white': 'Checkmate! White wins!',
+  },
+  es: {
+    'ui.language': 'Idioma',
+    'ui.settings': 'Configuración',
+    'ui.settings_title': 'Configuración',
+    'ui.mouse_sensitivity': 'Sensibilidad del ratón',
+    'ui.virtual_joystick': 'Joystick virtual',
+    'ui.piece_set_2d': 'Juego de piezas 2D',
+    'ui.piece_set_3d': 'Juego de modelos 3D',
+    'ui.title': '♔ Ajedrez 3D ♚',
+    'game.checkmate_white': '¡Jaque mate! ¡Ganan las Blancas!',
+  },
+  fr: {
+    'ui.language': 'Langue',
+    'ui.settings': 'Paramètres',
+    'ui.settings_title': 'Paramètres',
+    'ui.mouse_sensitivity': 'Sensibilité de la souris',
+    'ui.virtual_joystick': 'Joystick virtuel',
+    'ui.piece_set_2d': 'Ensemble de pièces 2D',
+    'ui.piece_set_3d': 'Ensemble de modèles 3D',
+    'ui.title': '♔ Échecs 3D ♚',
+    'game.checkmate_white': 'Échec et mat ! Les Blancs gagnent !',
+  },
+  de: {
+    'ui.language': 'Sprache',
+    'ui.settings': 'Einstellungen',
+    'ui.settings_title': 'Einstellungen',
+    'ui.mouse_sensitivity': 'Mausempfindlichkeit',
+    'ui.virtual_joystick': 'Virtueller Joystick',
+    'ui.piece_set_2d': '2D-Figur-Set',
+    'ui.piece_set_3d': '3D-Modell-Set',
+    'ui.title': '♔ 3D-Schach ♚',
+    'game.checkmate_white': 'Schachmatt! Weiß gewinnt!',
+  },
+  'zh-CN': {
+    'ui.language': '语言',
+    'ui.settings': '设置',
+    'ui.settings_title': '设置',
+    'ui.mouse_sensitivity': '鼠标灵敏度',
+    'ui.virtual_joystick': '虚拟摇杆',
+    'ui.piece_set_2d': '2D棋子套装',
+    'ui.piece_set_3d': '3D模型套装',
+    'ui.title': '♔ 3D国际象棋 ♚',
+    'game.checkmate_white': '将死！白方获胜！',
+  },
+};
+
+vi.mock('../../shared/i18n.mjs', () => ({
+  t: vi.fn((key) => {
+    const dict = _i18nCatalog[_i18nState.locale] || _i18nCatalog['en-US'];
+    return dict?.[key] || key;
+  }),
+  setLocale: vi.fn((loc) => {
+    if (_i18nCatalog[loc]) _i18nState.locale = loc;
+  }),
+  getLocale: vi.fn(() => _i18nState.locale),
+  LOCALES: {
+    'en-US': 'English',
+    es: 'Español',
+    fr: 'Français',
+    de: 'Deutsch',
+    'zh-CN': '简体中文',
+  },
+}));
+
+// Exported for tests that need to reset i18n state
+export function resetI18nMockState() {
+  _i18nState.locale = 'en-US';
+}
+
 vi.mock('../../client/network.js', () => ({
   myRole: null,
   serverBoard: null,
@@ -19,6 +106,7 @@ vi.mock('../../client/network.js', () => ({
   moveHistory: [],
   previousMove: null,
   seatStatus: {},
+  validatedTokens: {},
   tokenKey: (color) => `mpchess_session_${color}`,
   halfmoveClock: 0,
   threefoldCount: 0,
@@ -81,6 +169,7 @@ vi.mock('../../client/controls.js', () => ({
   toggleMouseMode: vi.fn(),
   setJoystickEnabled: vi.fn(),
   clearHeldKeys: vi.fn(),
+  mouseLookOn: false,
 }));
 
 vi.mock('../../client/dom_ref.js', () => ({
@@ -97,6 +186,7 @@ vi.mock('../../client/ui/toast.js', () => ({
 
 vi.mock('../../client/ui/disconnected.js', () => ({
   syncDisconnectedBanners: vi.fn(),
+  refreshDisconnectedText: vi.fn(),
 }));
 
 vi.mock('../../client/ui/join.js', () => ({
@@ -108,6 +198,7 @@ vi.mock('../../client/ui/join.js', () => ({
 vi.mock('../../client/ui/computer.js', () => ({
   updateMenuComputerSections: vi.fn(),
   initComputerMenu: vi.fn(),
+  refreshComputerThinking: vi.fn(),
 }));
 
 vi.mock('../../client/ui/connection.js', () => ({}));

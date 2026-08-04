@@ -19,15 +19,14 @@ npm run ci            # Full CI check (same as npm test)
 ## CI Pipeline (`scripts/ci.sh`)
 
 1. Install dependencies (`npm install` if `node_modules` missing)
-2. Node version check (requires ≥ 18)
-3. Build shared ESM module (`npm run build:chess`)
-4. Build Stockfish from source (`scripts/build_stockfish.sh`)
-5. Docker build (`docker build -t mpchess:test .`)
-6. ESLint (`npm run lint`)
-7. Prettier check (`npm run format:check`)
-8. Helm checks (lint, template render, optional unittest)
-9. All tests (`node scripts/test_orchestrator.js`)
-10. Playwright browser tests (installs Chromium, then runs `npx playwright test`)
+2. Node version check (requires ≥ 20.19.0)
+3. Build Stockfish from source (`scripts/build_stockfish.sh`)
+4. Docker build (`docker build -t mpchess:test .`)
+5. ESLint (`npm run lint`)
+6. Prettier check (`npm run format:check`)
+7. Helm checks (lint, template render, optional unittest)
+8. All tests (`node scripts/test_orchestrator.js`)
+9. Playwright browser tests (installs Chromium, then runs `npx playwright test`)
 
 ## Test Structure
 

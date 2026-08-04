@@ -119,6 +119,15 @@ module.exports = [
       },
     },
   },
+  // Shared ES modules — used by both Node.js and browser
+  {
+    files: ['shared/**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...nodeCjsGlobals, ...browserGlobals },
+    },
+  },
   // Client files — browser environment
   {
     files: ['client/**/*.js'],
@@ -179,14 +188,6 @@ module.exports = [
   },
   // Ignore auto-generated files and config files
   {
-    ignores: [
-      'shared/chess.mjs',
-      'client/chess.mjs',
-      'client/vendor/',
-      'node_modules/',
-      'coverage/',
-      'dist/',
-      'vitest.config.js',
-    ],
+    ignores: ['client/vendor/', 'node_modules/', 'coverage/', 'dist/', 'vitest.config.js'],
   },
 ];

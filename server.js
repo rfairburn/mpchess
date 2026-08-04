@@ -3,7 +3,9 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
-const { Game } = require('./shared/chess');
+const { Game, initZobrist } = require('./shared/chess.mjs');
+const { randomBytes } = require('node:crypto');
+initZobrist(randomBytes);
 const { setupWebSocketHandlers } = require('./server/ws-handlers');
 
 // ═══════════════════════════════════════════════════════════
@@ -28,6 +30,16 @@ const MIME = {
 };
 
 const CLIENT_ROOT = path.resolve(__dirname, 'client');
+const SHARED_DIR = path.resolve(__dirname, 'shared');
+const ALLOWED_SHARED_FILES = new Set([
+  'chess.mjs',
+  'i18n.mjs',
+  'locales/en-US.mjs',
+  'locales/es.mjs',
+  'locales/fr.mjs',
+  'locales/de.mjs',
+  'locales/zh-CN.mjs',
+]);
 
 let _prefix = '';
 
@@ -50,6 +62,31 @@ const requestHandler = (req, res) => {
   }
 
   if (urlPath === '/') urlPath = '/client/index.html';
+
+  // Serve shared ES modules for browser imports
+  if (urlPath.startsWith('/shared/')) {
+    const sharedFile = urlPath.slice('/shared/'.length);
+    if (!ALLOWED_SHARED_FILES.has(sharedFile)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+    const resolved = path.resolve(SHARED_DIR, sharedFile);
+    if (!resolved.startsWith(SHARED_DIR + path.sep)) {
+      res.writeHead(403);
+      res.end('Forbidden');
+      return;
+    }
+    try {
+      const content = fs.readFileSync(resolved);
+      res.writeHead(200, { 'Content-Type': 'application/javascript' });
+      res.end(content);
+    } catch {
+      res.writeHead(404);
+      res.end('Not found');
+    }
+    return;
+  }
 
   // Only serve files from the client/ directory
   if (!urlPath.startsWith('/client/')) {
@@ -83,11 +120,21 @@ const requestHandler = (req, res) => {
     let content = fs.readFileSync(filePath);
     // Inject the correct base href for subpath deployments.
     // The HTML ships with <base href="/client/" /> — replace it when a prefix is set.
-    if (ext === '.html' && _prefix) {
-      content = content
-        .toString('utf8')
-        .replace('<base href="/client/" />', `<base href="${_prefix}/client/" />`)
-        .replace('</head>', `<script>window.__mpchess_prefix="${_prefix}";</script></head>`);
+    // Also inject development-mode flag for i18n warnings.
+    if (ext === '.html') {
+      let html = content.toString('utf8');
+      const isDev = process.env.NODE_ENV !== 'production';
+      if (_prefix) {
+        html = html
+          .replace('<base href="/client/" />', `<base href="${_prefix}/client/" />`)
+          .replace(
+            '</head>',
+            `<script>window.__mpchess_prefix="${_prefix}";window.__DEV__=${isDev};</script></head>`
+          );
+      } else {
+        html = html.replace('</head>', `<script>window.__DEV__=${isDev};</script></head>`);
+      }
+      content = html;
     }
     res.writeHead(200, { 'Content-Type': MIME[ext] });
     res.end(content);
@@ -401,8 +448,11 @@ Examples:
 module.exports = {
   setupWebSocketHandlers,
   requestHandler,
+  setPrefix,
   MIME,
   CLIENT_ROOT,
+  SHARED_DIR,
+  ALLOWED_SHARED_FILES,
   buildWssOptions,
   createConnectionRateLimiter,
   createGracefulShutdown,

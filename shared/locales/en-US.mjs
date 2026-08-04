@@ -1,10 +1,9 @@
 // ═══════════════════════════════════════════════════════════
-//  client/i18n.js — browser-side translation lookup
-//  Embeds the en-US catalog directly (no dynamic loading).
-//  For additional locales, the catalog can be extended at runtime.
+//  English (US) — baseline locale catalog
+//  All user-facing strings organized by namespace prefix.
 // ═══════════════════════════════════════════════════════════
 
-const CATALOG = {
+export default {
   // ── Game results ──────────────────────────────────────
   'game.checkmate_white': 'Checkmate! White wins!',
   'game.checkmate_black': 'Checkmate! Black wins!',
@@ -91,6 +90,7 @@ const CATALOG = {
   'ui.join_white': 'Join as White',
   'ui.join_black': 'Join as Black',
   'ui.join_spectate': 'Spectate',
+  'ui.join_subtitle': 'Choose how to join',
   'ui.back': 'Back',
   'ui.give_up': 'Give Up',
   'ui.drop_player': 'Drop Player',
@@ -103,6 +103,9 @@ const CATALOG = {
   'ui.draw_offer_button': 'Offer Draw',
   'ui.accept_draw': 'Accept',
   'ui.decline_draw': 'Decline',
+  'ui.draw_rep_label': 'Repetition: {count}/3',
+  'ui.draw_50move_label': '50-move: {count}/100',
+  'ui.draw_75move_label': '75-move: {count}/150',
   'ui.fen_import_title': 'Import FEN',
   'ui.fen_import_button': 'Import',
   'ui.restart': 'New Game',
@@ -139,15 +142,16 @@ const CATALOG = {
   'ui.change_skill': 'Change Skill',
   'ui.settings': 'Settings',
   'ui.help': 'Help',
+  'ui.language': 'Language',
   'ui.mouse_sensitivity': 'Mouse Sensitivity',
+  'color.white': 'White',
+  'color.black': 'Black',
   'ui.virtual_joystick': 'Virtual Joystick',
   'ui.piece_set_2d': '2D Piece Set',
   'ui.piece_set_3d': '3D Model Set',
   'ui.close': 'Close',
   'ui.give_up_spot': 'Give Up Spot',
   'ui.give_up_spot_title': 'Give Up Spot?',
-  'ui.title': '♔ 3D Chess ♚',
-  'ui.join_subtitle': 'Choose how to join',
   'ui.game_over': 'Game Over',
   'ui.draw_offer': 'Draw Offer',
   'ui.connection_failed': 'Connection Failed',
@@ -162,6 +166,7 @@ const CATALOG = {
   'ui.join_game': 'Join Game',
   'ui.fen_import_placeholder': 'Paste a FEN string to load a position',
   'ui.game_available': 'Game available — both players disconnected',
+  'ui.title': '♔ 3D Chess ♚',
   'ui.settings_title': 'Settings',
   'ui.settings_and_export': 'Settings & Export',
   'ui.fen_import_desc': 'Paste a FEN string to load any position. Requires player role.',
@@ -169,9 +174,122 @@ const CATALOG = {
     'Full-screen overlay with spinner when connection is lost. "Give Up" button to abort.',
   'ui.reconnecting_label': 'Reconnecting',
   'ui.captured_pieces': 'Captured pieces',
-  'ui.draw_rep_label': 'Repetition: {count}/3',
-  'ui.draw_50move_label': '50-move: {count}/100',
-  'ui.draw_75move_label': '75-move: {count}/150',
+
+  // ── Aria labels & misc ────────────────────────────────
+  'ui.menu': 'Menu',
+  'ui.toggle_mode': 'Toggle mode',
+  'ui.toggle_sound': 'Toggle sound',
+  'ui.toggle_fullscreen': 'Toggle fullscreen',
+  'ui.toggle_2d_board': 'Toggle 2D board',
+  'ui.toggle_status_drawer': 'Toggle status drawer',
+  'ui.spectate': 'Spectate',
+  'ui.always_available': 'Always available',
+  'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+  'ui.claim_draw': 'Claim Draw (50-move)',
+  'ui.white_captures': "White's Captures",
+  'ui.black_captures': "Black's Captures",
+  'ui.menu_hint': 'TAB = toggle camera / piece mode · ESC = menu',
+
+  // ── Help overlay ──────────────────────────────────────
+  'help.getting_started': 'Getting Started',
+  'help.joining': 'Joining',
+  'help.joining_desc':
+    'Choose White, Black, or Spectate from the join screen. White/Black seats fill first-come-first-served; Spectate is always available.',
+  'help.your_role': 'Your role',
+  'help.your_role_desc':
+    'Role badge (top-left on desktop, top bar on mobile) shows White/Black/Spectator.',
+  'help.menu_button': 'Menu button',
+  'help.menu_button_desc':
+    '☰ button (top-left on mobile top bar, top-right on desktop) opens the main menu. On desktop, clicking the role badge also opens the menu.',
+  'help.turn_indicator': 'Turn indicator',
+  'help.turn_indicator_desc':
+    'Center-top shows whose turn it is with a colored dot matching the active player.',
+  'help.playing': 'Playing',
+  'help.piece_mode': 'Piece mode (default)',
+  'help.piece_mode_desc':
+    'Click a piece to select, click a highlighted square to move. Green dot = valid move, ring = capture.',
+  'help.camera_mode': 'Camera mode',
+  'help.camera_mode_desc':
+    'TAB or ♟ button switches to camera mode. WASD to move, mouse to look around. Click "Piece Mode" label to switch back.',
+  'help.board_2d': '2D board',
+  'help.board_2d_desc':
+    '⬜ button toggles a 2D board overlay. Click pieces to move. Desktop: small board in top-right, click again for fullscreen. Mobile: centered overlay.',
+  'help.pawn_promotion': 'Pawn promotion',
+  'help.pawn_promotion_desc':
+    'When a pawn reaches the back rank, pick Queen, Rook, Bishop, or Knight.',
+  'help.annotations': 'Annotations',
+  'help.draw_arrows': 'Draw arrows',
+  'help.draw_arrows_desc':
+    'Right-click and drag between two squares to draw an arrow. Arrows appear on both the 2D and 3D boards. Knight-move arrows bend in an L-shape.',
+  'help.highlight_squares': 'Highlight squares',
+  'help.highlight_squares_desc':
+    'Right-click a square (no drag) to highlight it. Same colors as arrows. Multiple highlights on the same square replace each other.',
+  'help.annotation_colors': 'Annotation colors',
+  'help.annotation_colors_desc':
+    'Hold a modifier while releasing: Ctrl = red, Alt = blue, Shift = green. No modifier = yellow.',
+  'help.clear_annotations': 'Clear annotations',
+  'help.clear_annotations_desc':
+    'Left-click anywhere on the board to clear all arrows and highlights.',
+  'help.desktop_only': 'Desktop only',
+  'help.desktop_only_desc': 'Annotations require a mouse with a right button.',
+  'help.camera_controls': 'Camera & Controls',
+  'help.camera_positions': 'Camera positions',
+  'help.camera_positions_desc': 'Numbered buttons (1–6) at bottom save/restore camera angles.',
+  'help.virtual_joystick_label': 'Virtual joystick',
+  'help.virtual_joystick_desc':
+    'Toggle in menu. Left joystick orbits camera, right slider adjusts zoom. Enabled by default on touch devices.',
+  'help.mouse_sensitivity_label': 'Mouse sensitivity',
+  'help.mouse_sensitivity_desc':
+    'Slider in menu adjusts camera speed (1–100, logarithmic scale). Default is 20.',
+  'help.fullscreen_label': 'Fullscreen',
+  'help.fullscreen_desc':
+    "⛶ button toggles browser fullscreen. Hidden on browsers that don't support it.",
+  'help.game_actions': 'Game Actions',
+  'help.new_game': 'New Game',
+  'help.new_game_desc': '"New Game" in menu resets the board. Only available to active players.',
+  'help.offer_draw': 'Offer Draw',
+  'help.offer_draw_desc':
+    '"Offer Draw" in menu sends a draw request. Opponent accepts or declines.',
+  'help.claim_draw': 'Claim Draw',
+  'help.claim_draw_desc':
+    '"Claim Draw" button appears when a 50-move-rule or threefold-repetition draw is eligible. The 75-move rule is automatic.',
+  'help.concede_label': 'Concede',
+  'help.concede_desc': '"Concede Game" in menu ends the game with a loss. Confirmed via popup.',
+  'help.give_up_spot_label': 'Give Up Spot',
+  'help.give_up_spot_desc': '"Give Up Spot" in menu frees your seat. Confirmed via popup.',
+  'help.info_panels': 'Info Panels',
+  'help.move_log': 'Move log',
+  'help.move_log_desc':
+    'Scrollable list of moves in algebraic notation. Desktop: bottom-right, full history. Mobile: status drawer, last 6 move-pairs.',
+  'help.captured_pieces_desc':
+    'Unicode symbols of pieces each side has captured, sorted by value (Queen > Rook > Bishop > Knight > Pawn).',
+  'help.draw_info': 'Draw info',
+  'help.draw_info_desc':
+    'Shows 50-move counter, 3-fold repetition count, and 75-move auto-draw progress. Appears when any counter is active.',
+  'help.status_drawer': 'Status drawer (mobile)',
+  'help.status_drawer_desc':
+    'ℹ button opens a slide-down panel with player count, captures, moves, and draw info.',
+  'help.sound_label': 'Sound',
+  'help.sound_desc': '🔊 button toggles sound on/off. State persists between sessions.',
+  'help.computer_opponent': 'Computer opponent',
+  'help.computer_opponent_desc':
+    'Select skill level (Beginner → Grandmaster) and start a game vs Stockfish AI.',
+  'help.export_fen_pgn': 'Export FEN/PGN',
+  'help.export_fen_pgn_desc': 'Copies the current position (FEN) or full game (PGN) to clipboard.',
+  'help.import_fen': 'Import FEN',
+  'help.notifications': 'Notifications',
+  'help.toasts': 'Toasts',
+  'help.toasts_desc':
+    'Brief messages at the bottom: green (info), red (error), yellow (warning). Auto-dismiss after a few seconds.',
+  'help.opponent_disconnected': 'Opponent disconnected',
+  'help.opponent_disconnected_desc':
+    'Orange banner appears when your opponent disconnects. "Drop Player" button available after a countdown.',
+  'help.game_available_label': 'Game available',
+  'help.game_available_desc':
+    'Green banner for spectators when both players disconnect — click to join.',
+  'help.keyboard_shortcuts': 'Keyboard Shortcuts',
+  'help.tab_desc': 'Toggle between Piece mode and Camera mode.',
+  'help.esc_desc': 'Open/close main menu.',
 
   // ── FEN errors ────────────────────────────────────────
   'fen.invalid_parts': 'Invalid FEN: must have exactly 6 parts',
@@ -184,30 +302,3 @@ const CATALOG = {
   'fen.wrong_turn_check': "{enemy} is in check but it is {turn}'s turn",
   'fen.both_kings_check': 'Both kings are in check',
 };
-
-let locale = 'en-US';
-
-/**
- * Translate a key with optional parameter interpolation.
- * @param {string} key
- * @param {object} [params]
- * @returns {string}
- */
-export function t(key, params) {
-  if (!key) return '';
-  const str = CATALOG[key];
-  if (str === undefined) return key;
-  if (!params) return str;
-  return str.replace(/\{(\w+)\}/g, (_, p) => (params[p] !== undefined ? params[p] : `{${p}}`));
-}
-
-/**
- * @param {string} loc
- */
-export function setLocale(loc) {
-  locale = loc;
-}
-
-export function getLocale() {
-  return locale;
-}

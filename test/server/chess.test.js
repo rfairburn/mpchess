@@ -34,15 +34,21 @@ const {
   hasAnyMoves,
   isInsufficientMaterial,
   Game,
-  ZOBRIST,
+  Zobrist,
   MAX_POSITION_HISTORY,
   toFen,
   fromFen,
   validateFenForEngine,
-} = require('../../shared/chess');
+  initZobrist,
+  getZobrist,
+} = require('../../shared/chess.mjs');
 
+const { randomBytes } = require('node:crypto');
 const fs = require('fs');
-const acorn = require('acorn');
+
+// Initialize Zobrist for tests
+initZobrist(randomBytes);
+const zobrist = getZobrist();
 
 // ── Test runner — buffered output, prints in declaration order ──
 let passed = 0;
@@ -696,7 +702,7 @@ describe('Game state management', () => {
 });
 
 describe('Static file server — requestHandler', () => {
-  const { requestHandler, MIME, CLIENT_ROOT } = require('../../server');
+  const { requestHandler, setPrefix, MIME, CLIENT_ROOT } = require('../../server');
 
   function mockReq(urlPath) {
     return { url: urlPath };
@@ -739,6 +745,55 @@ describe('Static file server — requestHandler', () => {
     assert.strictEqual(res.headers['Content-Type'], MIME['.html']);
   });
 
+  test('injects window.__DEV__=true in development mode', () => {
+    const hadEnv = 'NODE_ENV' in process.env;
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      const res = mockRes();
+      requestHandler(mockReq('/client/index.html'), res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.ok(res.body.includes('window.__DEV__=true'), 'should inject __DEV__=true');
+    } finally {
+      if (hadEnv) process.env.NODE_ENV = origEnv;
+      else delete process.env.NODE_ENV;
+    }
+  });
+
+  test('injects window.__DEV__=false in production mode', () => {
+    const hadEnv = 'NODE_ENV' in process.env;
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const res = mockRes();
+      requestHandler(mockReq('/client/index.html'), res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.ok(res.body.includes('window.__DEV__=false'), 'should inject __DEV__=false');
+    } finally {
+      if (hadEnv) process.env.NODE_ENV = origEnv;
+      else delete process.env.NODE_ENV;
+    }
+  });
+
+  test('prefixed index includes base href, prefix, and dev flag', () => {
+    const hadEnv = 'NODE_ENV' in process.env;
+    const origEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      setPrefix('/chess');
+      const res = mockRes();
+      requestHandler(mockReq('/chess/'), res);
+      assert.strictEqual(res.statusCode, 200);
+      assert.ok(res.body.includes('<base href="/chess/client/" />'), 'should rewrite base href');
+      assert.ok(res.body.includes('window.__mpchess_prefix="/chess"'), 'should inject prefix');
+      assert.ok(res.body.includes('window.__DEV__=false'), 'should inject dev flag');
+    } finally {
+      setPrefix('');
+      if (hadEnv) process.env.NODE_ENV = origEnv;
+      else delete process.env.NODE_ENV;
+    }
+  });
+
   test('serves .js files', () => {
     const res = mockRes();
     requestHandler(mockReq('/client/app.js'), res);
@@ -746,11 +801,11 @@ describe('Static file server — requestHandler', () => {
     assert.strictEqual(res.headers['Content-Type'], MIME['.js']);
   });
 
-  test('serves .mjs files', () => {
+  test('serves .mjs files via /shared/ route', () => {
     const res = mockRes();
-    requestHandler(mockReq('/client/chess.mjs'), res);
+    requestHandler(mockReq('/shared/chess.mjs'), res);
     assert.strictEqual(res.statusCode, 200);
-    assert.strictEqual(res.headers['Content-Type'], MIME['.mjs']);
+    assert.strictEqual(res.headers['Content-Type'], 'application/javascript');
   });
 
   test('serves .css files', () => {
@@ -1048,7 +1103,7 @@ describe('Client-side capture — rebuildPieces regression', () => {
 
   function simulateRebuild(serverBoard, pieceMeshes) {
     // Replicates the rebuildPieces diffing logic (without Three.js)
-    const { pieceColor, pieceType } = require('../../shared/chess');
+    const { pieceColor, pieceType } = require('../../shared/chess.mjs');
 
     const desired = new Map();
     for (let r = 0; r < 8; r++) {
@@ -1917,8 +1972,8 @@ describe('Insufficient material — draw detection', () => {
 describe('Zobrist hashing', () => {
   test('same position produces same hash', () => {
     const board = startingBoard();
-    const h1 = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
-    const h2 = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h1 = zobrist.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h2 = zobrist.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.strictEqual(h1, h2, 'identical positions must produce identical hashes');
   });
 
@@ -1926,16 +1981,16 @@ describe('Zobrist hashing', () => {
     const b1 = startingBoard();
     const b2 = startingBoard();
     b2[1][4] = 0; // remove white e-pawn
-    const h1 = ZOBRIST.compute(b1, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
-    const h2 = ZOBRIST.compute(b2, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h1 = zobrist.compute(b1, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h2 = zobrist.compute(b2, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.notStrictEqual(h1, h2, 'different boards must produce different hashes');
   });
 
   test('different turn produces different hash', () => {
     const board = startingBoard();
     const cr = { wK: true, wQ: true, bK: true, bQ: true };
-    const hw = ZOBRIST.compute(board, 'white', cr, null);
-    const hb = ZOBRIST.compute(board, 'black', cr, null);
+    const hw = zobrist.compute(board, 'white', cr, null);
+    const hb = zobrist.compute(board, 'black', cr, null);
     assert.notStrictEqual(hw, hb, 'different sides to move must produce different hashes');
   });
 
@@ -1943,22 +1998,22 @@ describe('Zobrist hashing', () => {
     const board = startingBoard();
     const cr1 = { wK: true, wQ: true, bK: true, bQ: true };
     const cr2 = { wK: false, wQ: true, bK: true, bQ: true };
-    const h1 = ZOBRIST.compute(board, 'white', cr1, null);
-    const h2 = ZOBRIST.compute(board, 'white', cr2, null);
+    const h1 = zobrist.compute(board, 'white', cr1, null);
+    const h2 = zobrist.compute(board, 'white', cr2, null);
     assert.notStrictEqual(h1, h2, 'different castling rights must produce different hashes');
   });
 
   test('en passant target produces different hash', () => {
     const board = startingBoard();
     const cr = { wK: true, wQ: true, bK: true, bQ: true };
-    const h1 = ZOBRIST.compute(board, 'white', cr, null);
-    const h2 = ZOBRIST.compute(board, 'white', cr, { file: 3, rank: 3 });
+    const h1 = zobrist.compute(board, 'white', cr, null);
+    const h2 = zobrist.compute(board, 'white', cr, { file: 3, rank: 3 });
     assert.notStrictEqual(h1, h2, 'en passant target must affect hash');
   });
 
   test('hash is a BigInt', () => {
     const board = startingBoard();
-    const h = ZOBRIST.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
+    const h = zobrist.compute(board, 'white', { wK: true, wQ: true, bK: true, bQ: true }, null);
     assert.ok(typeof h === 'bigint', 'Zobrist hash must be a BigInt');
   });
 });
@@ -2627,249 +2682,138 @@ describe('getState includes new fields', () => {
 });
 
 // ═══════════════════════════════════════════════════════════
-//  BUILD REGRESSION — chess.mjs must not crash in browser
+//  BUILD REGRESSION — shared/chess.mjs is the single source
 // ═══════════════════════════════════════════════════════════
 
-describe('Build regression — chess.mjs browser safety', () => {
-  test('generated chess.mjs has no bare require() calls', () => {
-    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
+describe('Build regression — shared chess.mjs', () => {
+  test('shared/chess.mjs exists and has no require() calls', () => {
+    const mjsPath = path.join(ROOT, 'shared', 'chess.mjs');
     const mjs = fs.readFileSync(mjsPath, 'utf8');
-    const lines = mjs.split('\n');
-    const bareRequires = [];
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      // Skip comments
-      if (line.startsWith('//') || line.startsWith('*')) continue;
-      // Skip lines with require( that are inside a try/catch block
-      // (check if require( is on same line as try, or if a nearby line has try)
-      if (line.includes('try') && line.includes('require(')) continue;
-      if (line.includes('require(')) {
-        // Check if any of the previous 3 lines contain 'try' (multi-line try/catch)
-        let insideTry = false;
-        for (let j = Math.max(0, i - 3); j < i; j++) {
-          if (lines[j].trim().includes('try')) {
-            insideTry = true;
-            break;
-          }
-        }
-        if (!insideTry) {
-          bareRequires.push({ line: i + 1, text: line });
-        }
-      }
-    }
-    assert.strictEqual(
-      bareRequires.length,
-      0,
-      `Bare require() found in chess.mjs (crashes in browser):\n${bareRequires.map((r) => `  line ${r.line}: ${r.text}`).join('\n')}`
-    );
+    assert.ok(mjs.includes('export {'), 'shared/chess.mjs must use ESM exports');
+    assert.ok(!mjs.includes('require('), 'shared/chess.mjs must not contain require()');
   });
 
-  test('generated chess.mjs wraps crypto require in try/catch', () => {
-    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
-    const mjs = fs.readFileSync(mjsPath, 'utf8');
-    assert.ok(
-      mjs.includes('try') && mjs.includes("require('crypto')"),
-      'crypto require must be wrapped in try/catch for browser compatibility'
-    );
+  test('shared/chess.mjs exports initZobrist and getZobrist', () => {
+    const mjs = fs.readFileSync(path.join(ROOT, 'shared', 'chess.mjs'), 'utf8');
+    assert.ok(mjs.includes('export {'), 'has export block');
+    assert.ok(mjs.includes('initZobrist'), 'exports initZobrist');
+    assert.ok(mjs.includes('getZobrist'), 'exports getZobrist');
   });
 
-  test('ZOBRIST is null-safe when crypto unavailable', () => {
-    // In Node.js, ZOBRIST is a real instance. In browser it would be null.
-    // Verify the Game class handles null ZOBRIST gracefully.
-    assert.ok(ZOBRIST !== null, 'ZOBRIST should be initialized in Node.js');
-    // Verify _computeZobrist has a null guard (check source)
-    const src = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
-    assert.ok(
-      src.includes('if (!ZOBRIST)'),
-      '_computeZobrist must guard against null ZOBRIST for browser safety'
-    );
+  test('client/chess.mjs does not exist (deleted)', () => {
+    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
+    assert.ok(!fs.existsSync(mjsPath), 'client/chess.mjs should be deleted');
+  });
+
+  test('build_chess_mjs.js does not exist (deleted)', () => {
+    const scriptPath = path.join(ROOT, 'build_chess_mjs.js');
+    assert.ok(!fs.existsSync(scriptPath), 'build_chess_mjs.js should be deleted');
+  });
+
+  test('Zobrist is initialized via initZobrist', () => {
+    assert.ok(zobrist !== null, 'zobrist should be initialized in tests');
+    assert.ok(typeof zobrist.compute === 'function', 'zobrist.compute must exist');
+  });
+
+  test('_computeZobrist guards against null Zobrist', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'shared', 'chess.mjs'), 'utf8');
+    assert.ok(src.includes('if (!z)'), '_computeZobrist must guard against null Zobrist');
   });
 });
 
 // ═══════════════════════════════════════════════════════════
-//  BUILD REGRESSION — chess.mjs export boundary
-//  Verifies that the generated chess.mjs exports exactly match
-//  the union of all `import { … } from './chess.mjs'` statements
-//  in client/*.js.  This is the programmatic boundary between
-//  server-side chess.js (CommonJS, ~30 exports) and the browser
-//  build (ES module, only what the client imports).  See the
-//  header comment in build_chess_mjs.js for the full rationale.
+//  SHARED ROUTE — /shared/ HTTP endpoint
 // ═══════════════════════════════════════════════════════════
 
-describe('Build regression — chess.mjs export boundary', () => {
-  // Helper: parse module.exports names from shared/chess.js (AST-based)
-  function parseCjsExports(source) {
-    const ast = acorn.parse(source, { ecmaVersion: 2022 });
-    const names = [];
+describe('Shared route — /shared/', () => {
+  const { spawn } = require('child_process');
+  const http = require('http');
 
-    function walk(node) {
-      if (!node) return;
-      if (
-        node.type === 'AssignmentExpression' &&
-        node.operator === '=' &&
-        node.left.type === 'MemberExpression' &&
-        node.left.object.type === 'Identifier' &&
-        node.left.object.name === 'module' &&
-        node.left.property.type === 'Identifier' &&
-        node.left.property.name === 'exports' &&
-        node.right.type === 'ObjectExpression'
-      ) {
-        for (const prop of node.right.properties) {
-          if (prop.type === 'Property') {
-            const key = prop.key;
-            if (key.type === 'Identifier') names.push(key.name);
-            else if (key.type === 'Literal' && typeof key.value === 'string') names.push(key.value);
-          }
-        }
-        return;
-      }
-      for (const child of Object.values(node)) {
-        if (Array.isArray(child)) {
-          for (const item of child) {
-            if (item && typeof item === 'object') walk(item);
-          }
-        } else if (child && typeof child === 'object') {
-          walk(child);
-        }
-      }
-    }
-
-    walk(ast);
-    return names;
+  function startServer(p) {
+    return new Promise((resolve) => {
+      const srv = spawn('node', ['server.js', '--config=/dev/null', '--port', String(p)], {
+        cwd: ROOT,
+        env: { ...process.env, MPCHESS_PORT: String(p) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let attempts = 0;
+      const tryConnect = () => {
+        attempts++;
+        http
+          .get(`http://127.0.0.1:${p}/`, (res) => {
+            resolve({ srv, port: p });
+          })
+          .on('error', () => {
+            if (attempts < 20) setTimeout(tryConnect, 100);
+            else resolve({ srv, port: p });
+          });
+      };
+      setTimeout(tryConnect, 500);
+    });
   }
 
-  // Helper: recursively find .js files (skip vendor/)
-  function findJsFiles(dir, result = []) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'vendor') continue;
-        findJsFiles(full, result);
-      } else if (entry.name.endsWith('.js')) {
-        result.push(full);
-      }
-    }
-    return result;
+  function httpGet(p, path) {
+    return new Promise((resolve, reject) => {
+      http
+        .get(`http://127.0.0.1:${p}${path}`, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => resolve({ status: res.statusCode, body: data }));
+        })
+        .on('error', reject);
+    });
   }
 
-  // Helper: scan client/**/*.js for imports that resolve to chess.mjs (AST-based)
-  function parseClientImports(clientDir) {
-    const mjsOut = path.join(clientDir, 'chess.mjs');
-    const files = findJsFiles(clientDir);
-    const imported = new Set();
-    for (const file of files) {
-      const content = fs.readFileSync(file, 'utf8');
-      const ast = acorn.parse(content, { ecmaVersion: 2022, sourceType: 'module' });
-      for (const node of ast.body) {
-        if (node.type !== 'ImportDeclaration') continue;
-        const specifier = node.source.value;
-        if (!specifier.startsWith('.')) continue;
-        const resolved = path.resolve(path.dirname(file), specifier);
-        if (resolved !== mjsOut) continue;
-        for (const spec of node.specifiers) {
-          if (spec.type === 'ImportSpecifier') imported.add(spec.imported.name);
-        }
-      }
-    }
-    return [...imported].sort();
-  }
-
-  // Helper: parse `export { … }` from generated chess.mjs (AST-based)
-  function parseMjsExports(mjs) {
-    const ast = acorn.parse(mjs, { ecmaVersion: 2022, sourceType: 'module' });
-    const names = [];
-    for (const node of ast.body) {
-      if (node.type === 'ExportNamedDeclaration') {
-        for (const spec of node.specifiers) {
-          names.push(spec.local.name);
-        }
-      }
-    }
-    return names.sort();
-  }
-
-  const chessSrc = fs.readFileSync(path.join(ROOT, 'shared', 'chess.js'), 'utf8');
-  const mjsSrc = fs.readFileSync(path.join(ROOT, 'client', 'chess.mjs'), 'utf8');
-  const cjsExports = parseCjsExports(chessSrc);
-  const clientImports = parseClientImports(path.join(ROOT, 'client'));
-  const mjsExports = parseMjsExports(mjsSrc);
-
-  test('chess.mjs exports match client imports exactly', () => {
-    assert.deepStrictEqual(
-      mjsExports,
-      clientImports,
-      `chess.mjs exports [${mjsExports.join(', ')}] do not match client imports [${clientImports.join(', ')}]. ` +
-        'Run `npm run build:chess` to regenerate, or check for stale imports.'
-    );
-  });
-
-  test('every client import exists in chess.js module.exports', () => {
-    const cjsSet = new Set(cjsExports);
-    const missing = clientImports.filter((name) => !cjsSet.has(name));
-    assert.strictEqual(
-      missing.length,
-      0,
-      `Client imports symbols not in module.exports: ${missing.join(', ')}. ` +
-        'Add them to shared/chess.js module.exports.'
-    );
-  });
-
-  test('chess.mjs does not export symbols the client does not import', () => {
-    const clientSet = new Set(clientImports);
-    const extra = mjsExports.filter((name) => !clientSet.has(name));
-    assert.strictEqual(
-      extra.length,
-      0,
-      `chess.mjs exports symbols not imported by any client module: ${extra.join(', ')}. ` +
-        'Run `npm run build:chess` to regenerate.'
-    );
-  });
-
-  test('chess.mjs does not omit symbols the client imports', () => {
-    const mjsSet = new Set(mjsExports);
-    const omitted = clientImports.filter((name) => !mjsSet.has(name));
-    assert.strictEqual(
-      omitted.length,
-      0,
-      `chess.mjs is missing exports the client needs: ${omitted.join(', ')}. ` +
-        'Run `npm run build:chess` to regenerate.'
-    );
-  });
-
-  test('imports from client/ui/ via ../chess.mjs are resolved correctly', () => {
-    // Regression test: the build scanner must resolve relative import
-    // specifiers so that a file in client/ui/ importing from
-    // '../chess.mjs' is treated the same as client/*.js importing
-    // from './chess.mjs'.
-    const { execSync: xSync } = require('child_process');
-    const uiDir = path.join(ROOT, 'client', 'ui');
-    const testFile = path.join(uiDir, '_test_chess_import.js');
-    const buildScript = path.join(ROOT, 'build_chess_mjs.js');
-    const mjsPath = path.join(ROOT, 'client', 'chess.mjs');
-
-    // Pick a symbol that is already exported by chess.js
-    const testSymbol = 'pieceColor';
-
-    // 1) Create a temp file in client/ui/ that imports via ../chess.mjs
-    fs.writeFileSync(testFile, `import { ${testSymbol} } from '../chess.mjs';\n`);
-
+  test('serves chess.mjs', async () => {
+    const { srv, port } = await startServer(13991);
     try {
-      // 2) Run the build — it must pick up the new import
-      xSync(`node ${buildScript}`, { stdio: 'pipe' });
-
-      // 3) Verify the generated chess.mjs includes the symbol
-      const rebuilt = fs.readFileSync(mjsPath, 'utf8');
-      const exportMatch = rebuilt.match(/export\s*\{([^}]*)\}/);
-      assert.ok(exportMatch, 'Generated chess.mjs has no export block');
-      const exportedNames = exportMatch[1].split(',').map((s) => s.trim());
-      assert.ok(
-        exportedNames.includes(testSymbol),
-        `Expected ${testSymbol} in chess.mjs exports but got: ${exportedNames.join(', ')}`
-      );
+      const r = await httpGet(port, '/shared/chess.mjs');
+      assert.strictEqual(r.status, 200);
+      assert.ok(r.body.includes('export {'));
     } finally {
-      // 4) Clean up the temp file and restore the original build
-      fs.unlinkSync(testFile);
-      xSync(`node ${buildScript}`, { stdio: 'pipe' });
+      srv.kill();
+    }
+  });
+
+  test('serves i18n.mjs', async () => {
+    const { srv, port } = await startServer(13992);
+    try {
+      const r = await httpGet(port, '/shared/i18n.mjs');
+      assert.strictEqual(r.status, 200);
+      assert.ok(r.body.includes('export const LOCALES'));
+    } finally {
+      srv.kill();
+    }
+  });
+
+  test('serves locale file', async () => {
+    const { srv, port } = await startServer(13993);
+    try {
+      const r = await httpGet(port, '/shared/locales/en-US.mjs');
+      assert.strictEqual(r.status, 200);
+      assert.ok(r.body.includes('export default'));
+    } finally {
+      srv.kill();
+    }
+  });
+
+  test('blocks disallowed file (403)', async () => {
+    const { srv, port } = await startServer(13994);
+    try {
+      const r = await httpGet(port, '/shared/stockfish_engine.js');
+      assert.strictEqual(r.status, 403);
+    } finally {
+      srv.kill();
+    }
+  });
+
+  test('blocks path traversal (403)', async () => {
+    const { srv, port } = await startServer(13995);
+    try {
+      const r = await httpGet(port, '/shared/../../../etc/passwd');
+      assert.strictEqual(r.status, 403);
+    } finally {
+      srv.kill();
     }
   });
 });

@@ -5,7 +5,7 @@
 
 const assert = require('assert');
 
-const { Game } = require('../../shared/chess');
+const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers } = require('../../server');
 
 // ── Mock WebSocket ────────────────────────────────────────
@@ -148,6 +148,19 @@ function joinAs(wss, color) {
   const ws = wss.simulateConnection();
   ws.emit('message', JSON.stringify({ type: 'join', color }));
   return ws;
+}
+
+function sendMove(ws, fromFile, fromRank, toFile, toRank) {
+  ws.emit(
+    'message',
+    JSON.stringify({
+      type: 'move',
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+    })
+  );
 }
 
 function safeGet(obj, ...keys) {
@@ -1763,6 +1776,31 @@ describe('Spectator reconnect failure — not orphaned', () => {
     assert.strictEqual(ws3.getSent('reconnectFailed').length, 1);
     // Spectator should still be in the spectators set
     assert.ok(game.spectators.has(ws3), 'spectator was orphaned after failed reconnect');
+  });
+});
+
+describe('Machine-readable game result broadcasts', () => {
+  test('checkmate state WebSocket message carries the namespaced key', () => {
+    const { wss } = createTestEnv();
+    const white = joinAs(wss, 'white');
+    const black = joinAs(wss, 'black');
+
+    const move = (ws, fromFile, fromRank, toFile, toRank) => {
+      ws.emit('message', JSON.stringify({ type: 'move', fromFile, fromRank, toFile, toRank }));
+    };
+
+    move(white, 4, 1, 4, 3); // e2-e4
+    move(black, 4, 6, 4, 4); // e7-e5
+    move(white, 3, 0, 7, 4); // Qd1-h5
+    move(black, 1, 7, 2, 5); // Nb8-c6
+    move(white, 5, 0, 2, 3); // Bf1-c4
+    move(black, 6, 7, 5, 5); // Ng8-f6
+    move(white, 7, 4, 5, 6); // Qh5xf7#
+
+    const finalState = white.getSent('state').at(-1);
+    assert.ok(finalState, 'expected a state broadcast');
+    assert.strictEqual(finalState.gameOver, true);
+    assert.strictEqual(finalState.gameResult, 'game.checkmate_white');
   });
 });
 

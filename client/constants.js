@@ -2,7 +2,7 @@
 //  Shared client constants
 // ═══════════════════════════════════════════════════════════
 
-import { t } from './i18n.js';
+import { t } from '../shared/i18n.mjs';
 
 // Skill labels — resolved via i18n
 export function getSkillLabel(skill) {

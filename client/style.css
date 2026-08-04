@@ -2350,17 +2350,22 @@ select:focus-visible {
 }
 .model-select-row {
   margin: 14px 0;
-  display: flex;
+  display: grid;
+  grid-template-columns: 140px 1fr;
   align-items: center;
-  justify-content: center;
   gap: 12px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
 }
 .model-select-row label {
   font-size: 14px;
   color: #c4a882;
+  text-align: right;
 }
 #select-2d-set,
-#select-3d-set {
+#select-3d-set,
+#select-language {
   width: 200px;
   padding: 8px 12px;
   font-size: 14px;
@@ -2376,16 +2381,19 @@ select:focus-visible {
   text-align: center;
 }
 #select-2d-set:hover,
-#select-3d-set:hover {
+#select-3d-set:hover,
+#select-language:hover {
   border-color: rgba(240, 217, 181, 0.6);
 }
 #select-2d-set:focus,
-#select-3d-set:focus {
+#select-3d-set:focus,
+#select-language:focus {
   outline: none;
   border-color: #f0d9b5;
 }
 #select-2d-set option,
-#select-3d-set option {
+#select-3d-set option,
+#select-language option {
   background: #2a1f14;
   color: #f0d9b5;
 }

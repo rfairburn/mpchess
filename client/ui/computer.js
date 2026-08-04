@@ -18,11 +18,15 @@ import {
 } from '../network.js';
 import { showInfo, showError } from './toast.js';
 import { getSkillLabel } from '../constants.js';
-import { t } from '../i18n.js';
+import { t } from '../../shared/i18n.mjs';
 
 // ── DOM refs ──────────────────────────────────────────────
 
 const computerThinkingIndicator = document.getElementById('computer-thinking');
+
+// ── State ─────────────────────────────────────────────────
+
+let lastThinkingColor = null; // stable color ID for locale refresh
 
 const menuComputerSection = document.getElementById('menu-computer-section');
 const menuSkillChangeSection = document.getElementById('menu-skill-change-section');
@@ -91,7 +95,8 @@ onComputerActivated((msg) => {
 
 onComputerThinking((msg) => {
   if (computerThinkingIndicator) {
-    const color = msg.color === 'white' ? 'White' : 'Black';
+    lastThinkingColor = msg.color;
+    const color = msg.color === 'white' ? t('color.white') : t('color.black');
     computerThinkingIndicator.textContent = t('ui.computer_thinking', { color });
     computerThinkingIndicator.classList.add('visible');
   }
@@ -119,3 +124,12 @@ onRestart(() => {
     computerThinkingIndicator.classList.remove('visible');
   }
 });
+
+// ── Locale refresh ───────────────────────────────────────
+
+export function refreshComputerThinking() {
+  if (lastThinkingColor && computerThinkingIndicator?.classList.contains('visible')) {
+    const color = lastThinkingColor === 'white' ? t('color.white') : t('color.black');
+    computerThinkingIndicator.textContent = t('ui.computer_thinking', { color });
+  }
+}

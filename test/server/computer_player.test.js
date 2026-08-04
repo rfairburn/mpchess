@@ -8,7 +8,7 @@
 
 const assert = require('assert');
 
-const { Game } = require('../../shared/chess');
+const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers } = require('../../server');
 const {
   resetStockfishEngine,

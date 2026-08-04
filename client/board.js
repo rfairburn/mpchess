@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
 
 import { serverBoard, serverTurn, previousMove } from './network.js';
-import { findKing, isInCheck } from './chess.mjs';
+import { findKing, isInCheck } from '../shared/chess.mjs';
 import { getArrows, onArrowChange, getArrowPath } from './arrows.js';
 import { getHighlights, onHighlightChange } from './highlights.js';
 

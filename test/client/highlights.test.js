@@ -58,7 +58,7 @@ vi.mock('../../client/capabilities.js', () => ({
   isMobileLayout: () => false,
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   pieceColor: vi.fn((piece) => (piece > 0 && piece <= 6 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => [
     { file: 4, rank: 3 },

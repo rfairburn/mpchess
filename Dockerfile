@@ -19,14 +19,16 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Copy source and build shared module
+# Copy source
 COPY . .
-RUN npm run build:chess
 
 # ── Production stage ─────────────────────────────────────────
 FROM node:24-alpine@sha256:a0b9bf06e4e6193cf7a0f58816cc935ff8c2a908f81e6f1a95432d679c54fbfd AS production
 
 WORKDIR /app
+
+# Production mode: disables development-only i18n warnings
+ENV NODE_ENV=production
 
 # Install production-only dependencies (no devDependencies)
 COPY package.json package-lock.json* ./
@@ -36,7 +38,9 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/server  ./server/
 COPY --from=builder /app/loadConfig.js ./
-COPY --from=builder /app/shared/chess.js ./shared/
+COPY --from=builder /app/shared/chess.mjs ./shared/
+COPY --from=builder /app/shared/i18n.mjs ./shared/
+COPY --from=builder /app/shared/locales ./shared/locales
 COPY --from=builder /app/shared/stockfish_engine.js ./shared/
 COPY --from=builder /app/shared/uci.js ./shared/
 COPY --from=builder /app/client ./client/

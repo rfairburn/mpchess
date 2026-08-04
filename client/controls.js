@@ -29,7 +29,7 @@ import {
   mouseSensitivity,
   showError,
 } from './ui.js';
-import { t } from './i18n.js';
+import { t } from '../shared/i18n.mjs';
 import { saveAndHide2DBoard, restore2DBoard } from './board_2d.js';
 import {
   squares,
@@ -39,7 +39,7 @@ import {
   highlightCheck,
   highlightPreviousMove,
 } from './board.js';
-import { pieceColor, getValidMoves } from './chess.mjs';
+import { pieceColor, getValidMoves } from '../shared/chess.mjs';
 import { pieceMeshes } from './pieces.js';
 import { playMove } from './sound.js';
 import { addArrow, clearArrows, getArrowColor } from './arrows.js';

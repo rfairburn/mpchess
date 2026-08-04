@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { Game } from '../../shared/chess.js';
+import { Game } from '../../shared/chess.mjs';
 
 describe('Game.lastMove', () => {
   let game;

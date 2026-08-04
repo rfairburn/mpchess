@@ -40,10 +40,12 @@ import {
   toggleMouseMode,
   setJoystickEnabled,
   clearHeldKeys,
+  mouseLookOn,
 } from './controls.js';
 import { setMute, isMuted } from './sound.js';
 import { CONTROLS_CONFIG } from './controls_config.js';
-import { t } from './i18n.js';
+import { t, setLocale, getLocale, LOCALES } from '../shared/i18n.mjs';
+import { applyTranslations } from './localize-dom.js';
 import { domRef, domRefOptional, domRefQuery } from './dom_ref.js';
 import { isCoarsePointer, isMobilePhone, hasFullscreen } from './capabilities.js';
 import { toggle2DBoard, renderBoard2D } from './board_2d.js';
@@ -61,9 +63,13 @@ import {
 // ── Sub-modules (initialize their own callbacks) ─────────
 
 import { showError, showInfo, showWarning } from './ui/toast.js';
-import { syncDisconnectedBanners } from './ui/disconnected.js';
+import { syncDisconnectedBanners, refreshDisconnectedText } from './ui/disconnected.js';
 import { showJoinOverlay, hideJoinOverlay, updateJoinButtons } from './ui/join.js';
-import { updateMenuComputerSections, initComputerMenu } from './ui/computer.js';
+import {
+  updateMenuComputerSections,
+  initComputerMenu,
+  refreshComputerThinking,
+} from './ui/computer.js';
 
 // Initialize connection overlays
 import './ui/connection.js';
@@ -77,6 +83,12 @@ import { reloadPage } from './navigation.js';
 
 // Re-export toast functions for use by other modules
 export { showError, showInfo, showWarning };
+
+// ── State for locale refresh ─────────────────────────────
+let lastPlayerCount = 0;
+let lastSpectatorCount = 0;
+let lastDrawOfferColor = null; // stable color ID
+let lastGameResult = null; // machine-readable key
 
 // ── DOM refs (validated via dom_ref.js) ───────────────────
 
@@ -403,6 +415,7 @@ const sensitivityValue = document.getElementById('sensitivity-value');
 const joystickToggle = document.getElementById('joystick-toggle');
 const select2dSet = document.getElementById('select-2d-set');
 const select3dSet = document.getElementById('select-3d-set');
+const selectLanguage = document.getElementById('select-language');
 
 export let settingsOpen = false;
 
@@ -541,6 +554,40 @@ if (select3dSet) {
   });
 }
 
+// ── Language selector ────────────────────────────────────
+
+// Populate language dropdown
+if (selectLanguage) {
+  for (const [code, name] of Object.entries(LOCALES)) {
+    const opt = document.createElement('option');
+    opt.value = code;
+    opt.textContent = name;
+    selectLanguage.appendChild(opt);
+  }
+}
+
+// Initialize language from saved value
+{
+  const savedLang = localStorage.getItem('locale');
+  if (savedLang && LOCALES[savedLang]) {
+    setLocale(savedLang);
+    document.documentElement.lang = savedLang;
+    if (selectLanguage) selectLanguage.value = savedLang;
+  } else if (selectLanguage) {
+    selectLanguage.value = getLocale();
+  }
+}
+
+// Language change handler
+if (selectLanguage) {
+  selectLanguage.addEventListener('change', () => {
+    const val = selectLanguage.value;
+    setLocale(val);
+    localStorage.setItem('locale', val);
+    refreshI18n();
+  });
+}
+
 export function showSettings(onClose) {
   if (!settingsOverlay) return;
   _settingsPreviousFocus = document.activeElement;
@@ -600,6 +647,45 @@ if (settingsOverlay) {
   });
 }
 
+// ── i18n live-refresh ────────────────────────────────────
+
+/**
+ * Re-render all translatable text in the DOM after a locale change.
+ * Updates elements with data-i18n attributes and re-runs dynamic display helpers.
+ */
+export function refreshI18n() {
+  // Update document lang attribute
+  document.documentElement.lang = getLocale();
+
+  // Update all static data-i18n-* elements
+  applyTranslations();
+
+  // Re-run dynamic display updates
+  updateMouseModeDisplay(mouseLookOn);
+  updateRoleBadge();
+  updateTurnIndicator();
+  updateSoundButtons();
+  updateJoinButtons();
+  updateMenuComputerSections();
+
+  // Refresh components that retain localized text
+  updatePlayerCount(lastPlayerCount, lastSpectatorCount);
+  updateDrawInfo();
+  refreshDisconnectedText();
+  refreshComputerThinking();
+
+  // Refresh draw offer if visible
+  if (lastDrawOfferColor && drawOfferOverlay.classList.contains('visible')) {
+    const colorLabel = lastDrawOfferColor === 'white' ? t('color.white') : t('color.black');
+    drawOfferText.textContent = t('msg.draw_offer', { color: colorLabel });
+  }
+
+  // Refresh game-over text if visible
+  if (lastGameResult && gameOverOverlay.classList.contains('visible')) {
+    gameOverText.textContent = t(lastGameResult);
+  }
+}
+
 // ── Display helpers ──────────────────────────────────────
 
 export function updateMouseModeDisplay(mouseLookOn) {
@@ -633,6 +719,8 @@ function updateRoleBadge() {
 }
 
 function updatePlayerCount(players, spectators) {
+  lastPlayerCount = players;
+  lastSpectatorCount = spectators;
   const text = t('ui.players_spectators', { players, spectators });
   playerCountEl.textContent = text;
   if (drawerPlayerCount) drawerPlayerCount.textContent = text;
@@ -971,7 +1059,8 @@ btnGiveUpSpotCancel.addEventListener('click', () => hideGiveUpSpotConfirm());
 // ── Draw offer ───────────────────────────────────────────
 
 export function showDrawOffer(fromColor) {
-  const colorLabel = fromColor === 'white' ? 'White' : 'Black';
+  lastDrawOfferColor = fromColor;
+  const colorLabel = fromColor === 'white' ? t('color.white') : t('color.black');
   drawOfferText.textContent = t('msg.draw_offer', { color: colorLabel });
   drawOfferOverlay.classList.add('visible');
 }
@@ -1062,6 +1151,7 @@ onStateUpdate((msg) => {
 
   // Game over
   if (serverGameOver && serverGameResult) {
+    lastGameResult = serverGameResult;
     gameOverText.textContent = t(serverGameResult);
     btnNewGame.disabled = myRole === 'spectator';
     gameOverOverlay.classList.add('visible');
@@ -1133,7 +1223,7 @@ onDrawOfferCancelled(() => {
 
 // Opponent left voluntarily — show info toast
 onPlayerLeft((msg) => {
-  const colorLabel = msg.color === 'white' ? 'White' : 'Black';
+  const colorLabel = msg.color === 'white' ? t('color.white') : t('color.black');
   showInfo(t('msg.player_left', { color: colorLabel }));
 });
 

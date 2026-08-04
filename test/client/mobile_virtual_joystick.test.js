@@ -39,7 +39,7 @@ vi.mock('../../client/board.js', () => ({
   highlightPreviousMove: vi.fn(),
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   pieceColor: vi.fn(),
   getValidMoves: vi.fn(() => []),
 }));

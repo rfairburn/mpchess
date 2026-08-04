@@ -12,7 +12,7 @@ const {
   setStockfishEngine,
   SKILL_DEFAULTS,
 } = require('../../shared/stockfish_engine');
-const { Game } = require('../../shared/chess');
+const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers } = require('../../server');
 
 // ── Mock WebSocket ────────────────────────────────────────

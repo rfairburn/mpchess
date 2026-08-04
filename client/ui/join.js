@@ -12,7 +12,7 @@ import {
   onLeft,
 } from '../network.js';
 import { getSkillLabel } from '../constants.js';
-import { t } from '../i18n.js';
+import { t } from '../../shared/i18n.mjs';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -40,15 +40,14 @@ export function hideJoinOverlay() {
 }
 
 export function updateJoinButtons() {
-  setJoinButton(btnJoinWhite, seatStatus.white, 'White');
-  setJoinButton(btnJoinBlack, seatStatus.black, 'Black');
+  setJoinButton(btnJoinWhite, seatStatus.white, 'white', t('color.white'));
+  setJoinButton(btnJoinBlack, seatStatus.black, 'black', t('color.black'));
   btnJoinSpectator.disabled = false;
 }
 
-function setJoinButton(btn, seat, colorName) {
+function setJoinButton(btn, seat, colorId, colorName) {
   const statusEl = btn.querySelector('.join-status');
-  const color = colorName.toLowerCase();
-  const canReconnect = validatedTokens[color] === true;
+  const canReconnect = validatedTokens[colorId] === true;
 
   if (canReconnect && seat && (seat.status === 'held' || seat.status === 'occupied')) {
     btn.disabled = false;

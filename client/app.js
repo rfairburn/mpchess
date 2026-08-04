@@ -7,7 +7,7 @@ import { FontLoader } from 'three/addons/loaders/FontLoader.js';
 
 import { onMove } from './network.js';
 import { updateMouseModeDisplay, setThreeScene } from './ui.js';
-import { t } from './i18n.js';
+import { applyTranslations } from './localize-dom.js';
 import { init as initSound } from './sound.js';
 import {
   createBoard,
@@ -254,7 +254,4 @@ window.addEventListener('resize', () => {
 });
 
 // ── Resolve data-i18n attributes on page load ────────────
-for (const el of document.querySelectorAll('[data-i18n]')) {
-  const key = el.getAttribute('data-i18n');
-  el.textContent = t(key);
-}
+applyTranslations();

@@ -310,7 +310,7 @@ vi.mock('../../client/ui.js', () => ({
   setThreeScene: vi.fn(),
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   pieceColor,
   getValidMoves,
   findKing,

@@ -51,7 +51,7 @@ vi.mock('../../client/board.js', () => ({
   highlightPreviousMove: vi.fn(),
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => []),
   findKing: vi.fn(() => null),

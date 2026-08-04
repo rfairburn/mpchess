@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { validateFenForEngine, fromFen } = require('../shared/chess');
+const { validateFenForEngine, fromFen } = require('../shared/chess.mjs');
 const { getStockfishEngine } = require('../shared/stockfish_engine');
 
 // ═══════════════════════════════════════════════════════════

@@ -50,22 +50,16 @@ if [ ! -d node_modules ]; then
   npm install
 fi
 
-# Check Node version
+# Check Node version (>= 20.19.0 required for require() of .mjs)
 NODE_VERSION=$(node --version | cut -d'v' -f2)
 NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1)
-if [ "$NODE_MAJOR" -lt 18 ]; then
-  echo -e "${RED}✗ Node.js >= 18 required (found $NODE_VERSION)${NC}"
+NODE_MINOR=$(echo "$NODE_VERSION" | cut -d'.' -f2)
+if [ "$NODE_MAJOR" -lt 20 ] || { [ "$NODE_MAJOR" -eq 20 ] && [ "$NODE_MINOR" -lt 19 ]; }; then
+  echo -e "${RED}✗ Node.js >= 20.19.0 required (found $NODE_VERSION)${NC}"
   exit 1
 fi
 echo -e "${GREEN}✓ Node.js $NODE_VERSION${NC}"
 PASS=$((PASS + 1))
-
-echo ""
-
-# Always rebuild client/chess.mjs — it is derived from shared/chess.js
-# and can go stale even when the file exists. Run this before any step
-# that depends on it (Docker build, client tests).
-run_check "Build shared module" npm run build:chess
 
 echo ""
 

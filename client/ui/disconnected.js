@@ -10,7 +10,7 @@ import {
   onPlayerDropped,
   onGameAvailable,
 } from '../network.js';
-import { t } from '../i18n.js';
+import { t } from '../../shared/i18n.mjs';
 
 // ── DOM refs ──────────────────────────────────────────────
 
@@ -87,7 +87,7 @@ function setSecondTimer(v) {
 
 function buildDisconnectedText(color) {
   const icon = color === 'white' ? '♔' : '♚';
-  const colorName = color.charAt(0).toUpperCase() + color.slice(1);
+  const colorName = color === 'white' ? t('color.white') : t('color.black');
   return t('ui.disconnected', { icon, color: colorName });
 }
 
@@ -178,6 +178,25 @@ export function showGameAvailableBanner() {
 
 export function hideGameAvailableBanner() {
   gameAvailableBanner.classList.remove('visible');
+}
+
+// ── Locale refresh ───────────────────────────────────────
+
+export function refreshDisconnectedText() {
+  // Only refresh static text; active countdown timers will
+  // pick up the new locale on their next tick via buildDisconnectedText().
+  if (disconnectedOpponentToken && !firstTimer) {
+    const dp = disconnectedPlayersInfo.find((p) => p.token === disconnectedOpponentToken);
+    if (dp) {
+      opponentDisconnectedText.textContent = buildDisconnectedText(dp.color);
+    }
+  }
+  if (secondDisconnectedToken && !secondTimer) {
+    const dp = disconnectedPlayersInfo.find((p) => p.token === secondDisconnectedToken);
+    if (dp) {
+      secondDisconnectedText.textContent = buildDisconnectedText(dp.color);
+    }
+  }
 }
 
 // ── Drop player button ───────────────────────────────────

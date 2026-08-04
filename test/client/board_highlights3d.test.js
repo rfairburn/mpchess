@@ -9,7 +9,7 @@ vi.mock('../../client/network.js', () => ({
   serverTurn: 'white',
   previousMove: null,
 }));
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   findKing: vi.fn(),
   isInCheck: vi.fn(),
 }));

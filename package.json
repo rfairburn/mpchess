@@ -10,7 +10,6 @@
     "test:client": "vitest run",
     "test:all": "npm run ci",
     "test:report": "node scripts/test_orchestrator.js",
-    "build:chess": "node build_chess_mjs.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -30,7 +29,6 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@playwright/test": "^1.62.0",
-    "acorn": "^8.17.0",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-prettier": "^5.0.0",

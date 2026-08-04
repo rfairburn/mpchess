@@ -74,7 +74,7 @@ vi.mock('../../client/network.js', () => ({
   previousMove: null,
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   findKing: vi.fn(),
   isInCheck: vi.fn(),
 }));

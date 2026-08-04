@@ -14,17 +14,39 @@
 
     <!-- Compact top bar (mobile landscape / short-height) -->
     <div id="top-bar">
-      <button id="btn-menu-toggle" aria-label="Menu"></button>
+      <button id="btn-menu-toggle" aria-label="Menu" data-i18n-aria-label="ui.menu"></button>
       <div id="top-bar-status">
         <span id="top-bar-role" data-i18n="ui.spectator_role">Connecting...</span>
         <span id="top-bar-turn" data-i18n="ui.white_turn">⬤ White's Turn</span>
       </div>
       <div id="top-bar-controls">
-        <button id="btn-mode-toggle" aria-label="Toggle mode">♟</button>
-        <button id="btn-sound" aria-label="Toggle sound">🔊</button>
-        <button id="btn-fullscreen" aria-label="Toggle fullscreen">⛶</button>
-        <button id="btn-board-2d" aria-label="Toggle 2D board">⬜</button>
-        <button id="btn-status-drawer" aria-label="Toggle status drawer">ℹ</button>
+        <button id="btn-mode-toggle" aria-label="Toggle mode" data-i18n-aria-label="ui.toggle_mode">
+          ♟
+        </button>
+        <button id="btn-sound" aria-label="Toggle sound" data-i18n-aria-label="ui.toggle_sound">
+          🔊
+        </button>
+        <button
+          id="btn-fullscreen"
+          aria-label="Toggle fullscreen"
+          data-i18n-aria-label="ui.toggle_fullscreen"
+        >
+          ⛶
+        </button>
+        <button
+          id="btn-board-2d"
+          aria-label="Toggle 2D board"
+          data-i18n-aria-label="ui.toggle_2d_board"
+        >
+          ⬜
+        </button>
+        <button
+          id="btn-status-drawer"
+          aria-label="Toggle status drawer"
+          data-i18n-aria-label="ui.toggle_status_drawer"
+        >
+          ℹ
+        </button>
       </div>
     </div>
 
@@ -33,18 +55,44 @@
       <div id="computer-thinking"></div>
       <div id="turn-indicator" class="white-turn" data-i18n="ui.white_turn">⬤ White's Turn</div>
       <div id="mouse-mode" data-i18n="ui.piece_mode">♟ Piece Mode</div>
-      <button id="btn-menu-toggle-desktop" aria-label="Menu"></button>
-      <button id="btn-sound-desktop" aria-label="Toggle sound">🔊</button>
-      <button id="btn-fullscreen-desktop" aria-label="Toggle fullscreen">⛶</button>
-      <button id="btn-board-2d-desktop" aria-label="Toggle 2D board">⬜</button>
-      <button id="btn-claim-draw" class="hidden">Claim Draw (50-move)</button>
+      <button
+        id="btn-menu-toggle-desktop"
+        aria-label="Menu"
+        data-i18n-aria-label="ui.menu"
+      ></button>
+      <button
+        id="btn-sound-desktop"
+        aria-label="Toggle sound"
+        data-i18n-aria-label="ui.toggle_sound"
+      >
+        🔊
+      </button>
+      <button
+        id="btn-fullscreen-desktop"
+        aria-label="Toggle fullscreen"
+        data-i18n-aria-label="ui.toggle_fullscreen"
+      >
+        ⛶
+      </button>
+      <button
+        id="btn-board-2d-desktop"
+        aria-label="Toggle 2D board"
+        data-i18n-aria-label="ui.toggle_2d_board"
+      >
+        ⬜
+      </button>
+      <button id="btn-claim-draw" class="hidden" data-i18n="ui.claim_draw">
+        Claim Draw (50-move)
+      </button>
       <div id="role-badge" data-i18n="ui.spectator_role">Connecting...</div>
       <div id="player-count"></div>
       <div id="captured-white">
-        <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
+        <span class="cap-label" data-i18n="ui.white_captures">White's Captures</span
+        ><span class="cap-pieces"></span>
       </div>
       <div id="captured-black">
-        <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+        <span class="cap-label" data-i18n="ui.black_captures">Black's Captures</span
+        ><span class="cap-pieces"></span>
       </div>
       <div id="move-log"></div>
       <div id="draw-info"></div>
@@ -55,10 +103,12 @@
       <div id="status-drawer-content">
         <div id="drawer-player-count"></div>
         <div id="drawer-captured-white">
-          <span class="cap-label">White's Captures</span><span class="cap-pieces"></span>
+          <span class="cap-label" data-i18n="ui.white_captures">White's Captures</span
+          ><span class="cap-pieces"></span>
         </div>
         <div id="drawer-captured-black">
-          <span class="cap-label">Black's Captures</span><span class="cap-pieces"></span>
+          <span class="cap-label" data-i18n="ui.black_captures">Black's Captures</span
+          ><span class="cap-pieces"></span>
         </div>
         <div id="drawer-move-log"></div>
         <div id="drawer-draw-info"></div>
@@ -115,7 +165,9 @@
         </div>
         <button id="btn-settings" data-i18n="ui.settings">Settings</button>
         <button id="btn-help" data-i18n="ui.help">Help</button>
-        <div class="hint">TAB = toggle camera / piece mode · ESC = menu</div>
+        <div class="hint" data-i18n="ui.menu_hint">
+          TAB = toggle camera / piece mode · ESC = menu
+        </div>
       </div>
     </div>
 
@@ -124,7 +176,9 @@
       <div id="settings-box">
         <div id="settings-header">
           <h2 data-i18n="ui.settings_title">Settings</h2>
-          <button id="btn-settings-close" aria-label="Close">✕</button>
+          <button id="btn-settings-close" aria-label="Close" data-i18n-aria-label="ui.close">
+            ✕
+          </button>
         </div>
         <div id="sensitivity-row">
           <label for="sensitivity-slider" data-i18n="ui.mouse_sensitivity">Mouse Sensitivity</label>
@@ -146,6 +200,10 @@
           <label for="select-3d-set" data-i18n="ui.piece_set_3d">3D Model Set</label>
           <select id="select-3d-set"></select>
         </div>
+        <div class="model-select-row">
+          <label for="select-language" data-i18n="ui.language">Language</label>
+          <select id="select-language"></select>
+        </div>
       </div>
     </div>
 
@@ -154,35 +212,35 @@
       <div id="help-box">
         <div id="help-header">
           <h2 data-i18n="ui.help_title">Help</h2>
-          <button id="btn-help-close" aria-label="Close">✕</button>
+          <button id="btn-help-close" aria-label="Close" data-i18n-aria-label="ui.close">✕</button>
         </div>
         <div id="help-content">
           <details class="help-section" open>
-            <summary>Getting Started</summary>
+            <summary data-i18n="help.getting_started">Getting Started</summary>
             <div class="help-row">
-              <span class="help-label">Joining</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.joining">Joining</span>
+              <span class="help-desc" data-i18n="help.joining_desc"
                 >Choose White, Black, or Spectate from the join screen. White/Black seats fill
                 first-come-first-served; Spectate is always available.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Your role</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.your_role">Your role</span>
+              <span class="help-desc" data-i18n="help.your_role_desc"
                 >Role badge (top-left on desktop, top bar on mobile) shows
                 White/Black/Spectator.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Menu button</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.menu_button">Menu button</span>
+              <span class="help-desc" data-i18n="help.menu_button_desc"
                 >☰ button (top-left on mobile top bar, top-right on desktop) opens the main menu.
                 On desktop, clicking the role badge also opens the menu.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Turn indicator</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.turn_indicator">Turn indicator</span>
+              <span class="help-desc" data-i18n="help.turn_indicator_desc"
                 >Center-top shows whose turn it is with a colored dot matching the active
                 player.</span
               >
@@ -190,96 +248,102 @@
           </details>
 
           <details class="help-section">
-            <summary>Playing</summary>
+            <summary data-i18n="help.playing">Playing</summary>
             <div class="help-row">
-              <span class="help-label">Piece mode (default)</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.piece_mode">Piece mode (default)</span>
+              <span class="help-desc" data-i18n="help.piece_mode_desc"
                 >Click a piece to select, click a highlighted square to move. Green dot = valid
                 move, ring = capture.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Camera mode</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.camera_mode">Camera mode</span>
+              <span class="help-desc" data-i18n="help.camera_mode_desc"
                 >TAB or ♟ button switches to camera mode. WASD to move, mouse to look around. Click
                 "Piece Mode" label to switch back.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">2D board</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.board_2d">2D board</span>
+              <span class="help-desc" data-i18n="help.board_2d_desc"
                 >⬜ button toggles a 2D board overlay. Click pieces to move. Desktop: small board in
                 top-right, click again for fullscreen. Mobile: centered overlay.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Pawn promotion</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.pawn_promotion">Pawn promotion</span>
+              <span class="help-desc" data-i18n="help.pawn_promotion_desc"
                 >When a pawn reaches the back rank, pick Queen, Rook, Bishop, or Knight.</span
               >
             </div>
           </details>
 
           <details class="help-section">
-            <summary>Annotations</summary>
+            <summary data-i18n="help.annotations">Annotations</summary>
             <div class="help-row">
-              <span class="help-label">Draw arrows</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.draw_arrows">Draw arrows</span>
+              <span class="help-desc" data-i18n="help.draw_arrows_desc"
                 >Right-click and drag between two squares to draw an arrow. Arrows appear on both
                 the 2D and 3D boards. Knight-move arrows bend in an L-shape.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Highlight squares</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.highlight_squares">Highlight squares</span>
+              <span class="help-desc" data-i18n="help.highlight_squares_desc"
                 >Right-click a square (no drag) to highlight it. Same colors as arrows. Multiple
                 highlights on the same square replace each other.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Annotation colors</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.annotation_colors">Annotation colors</span>
+              <span class="help-desc" data-i18n="help.annotation_colors_desc"
                 >Hold a modifier while releasing: Ctrl = red, Alt = blue, Shift = green. No modifier
                 = yellow.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Clear annotations</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.clear_annotations">Clear annotations</span>
+              <span class="help-desc" data-i18n="help.clear_annotations_desc"
                 >Left-click anywhere on the board to clear all arrows and highlights.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Desktop only</span>
-              <span class="help-desc">Annotations require a mouse with a right button.</span>
+              <span class="help-label" data-i18n="help.desktop_only">Desktop only</span>
+              <span class="help-desc" data-i18n="help.desktop_only_desc"
+                >Annotations require a mouse with a right button.</span
+              >
             </div>
           </details>
 
           <details class="help-section">
-            <summary>Camera &amp; Controls</summary>
+            <summary data-i18n="help.camera_controls">Camera &amp; Controls</summary>
             <div class="help-row">
-              <span class="help-label">Camera positions</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.camera_positions">Camera positions</span>
+              <span class="help-desc" data-i18n="help.camera_positions_desc"
                 >Numbered buttons (1–6) at bottom save/restore camera angles.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Virtual joystick</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.virtual_joystick_label"
+                >Virtual joystick</span
+              >
+              <span class="help-desc" data-i18n="help.virtual_joystick_desc"
                 >Toggle in menu. Left joystick orbits camera, right slider adjusts zoom. Enabled by
                 default on touch devices.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Mouse sensitivity</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.mouse_sensitivity_label"
+                >Mouse sensitivity</span
+              >
+              <span class="help-desc" data-i18n="help.mouse_sensitivity_desc"
                 >Slider in menu adjusts camera speed (1–100, logarithmic scale). Default is
                 20.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Fullscreen</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.fullscreen_label">Fullscreen</span>
+              <span class="help-desc" data-i18n="help.fullscreen_desc"
                 >⛶ button toggles browser fullscreen. Hidden on browsers that don't support
                 it.</span
               >
@@ -287,66 +351,66 @@
           </details>
 
           <details class="help-section">
-            <summary>Game Actions</summary>
+            <summary data-i18n="help.game_actions">Game Actions</summary>
             <div class="help-row">
-              <span class="help-label">New Game</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.new_game">New Game</span>
+              <span class="help-desc" data-i18n="help.new_game_desc"
                 >"New Game" in menu resets the board. Only available to active players.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Offer Draw</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.offer_draw">Offer Draw</span>
+              <span class="help-desc" data-i18n="help.offer_draw_desc"
                 >"Offer Draw" in menu sends a draw request. Opponent accepts or declines.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Claim Draw</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.claim_draw">Claim Draw</span>
+              <span class="help-desc" data-i18n="help.claim_draw_desc"
                 >"Claim Draw" button appears when a 50-move-rule or threefold-repetition draw is
                 eligible. The 75-move rule is automatic.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Concede</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.concede_label">Concede</span>
+              <span class="help-desc" data-i18n="help.concede_desc"
                 >"Concede Game" in menu ends the game with a loss. Confirmed via popup.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Give Up Spot</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.give_up_spot_label">Give Up Spot</span>
+              <span class="help-desc" data-i18n="help.give_up_spot_desc"
                 >"Give Up Spot" in menu frees your seat. Confirmed via popup.</span
               >
             </div>
           </details>
 
           <details class="help-section">
-            <summary>Info Panels</summary>
+            <summary data-i18n="help.info_panels">Info Panels</summary>
             <div class="help-row">
-              <span class="help-label">Move log</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.move_log">Move log</span>
+              <span class="help-desc" data-i18n="help.move_log_desc"
                 >Scrollable list of moves in algebraic notation. Desktop: bottom-right, full
                 history. Mobile: status drawer, last 6 move-pairs.</span
               >
             </div>
             <div class="help-row">
               <span class="help-label" data-i18n="ui.captured_pieces">Captured pieces</span>
-              <span class="help-desc"
+              <span class="help-desc" data-i18n="help.captured_pieces_desc"
                 >Unicode symbols of pieces each side has captured, sorted by value (Queen &gt; Rook
                 &gt; Bishop &gt; Knight &gt; Pawn).</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Draw info</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.draw_info">Draw info</span>
+              <span class="help-desc" data-i18n="help.draw_info_desc"
                 >Shows 50-move counter, 3-fold repetition count, and 75-move auto-draw progress.
                 Appears when any counter is active.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Status drawer (mobile)</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.status_drawer">Status drawer (mobile)</span>
+              <span class="help-desc" data-i18n="help.status_drawer_desc"
                 >ℹ button opens a slide-down panel with player count, captures, moves, and draw
                 info.</span
               >
@@ -356,25 +420,25 @@
           <details class="help-section">
             <summary data-i18n="ui.settings_and_export">Settings &amp; Export</summary>
             <div class="help-row">
-              <span class="help-label">Sound</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.sound_label">Sound</span>
+              <span class="help-desc" data-i18n="help.sound_desc"
                 >🔊 button toggles sound on/off. State persists between sessions.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Computer opponent</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.computer_opponent">Computer opponent</span>
+              <span class="help-desc" data-i18n="help.computer_opponent_desc"
                 >Select skill level (Beginner → Grandmaster) and start a game vs Stockfish AI.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Export FEN/PGN</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.export_fen_pgn">Export FEN/PGN</span>
+              <span class="help-desc" data-i18n="help.export_fen_pgn_desc"
                 >Copies the current position (FEN) or full game (PGN) to clipboard.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Import FEN</span>
+              <span class="help-label" data-i18n="help.import_fen">Import FEN</span>
               <span class="help-desc" data-i18n="ui.fen_import_desc"
                 >Paste a FEN string to load any position. Requires player role.</span
               >
@@ -382,24 +446,26 @@
           </details>
 
           <details class="help-section">
-            <summary>Notifications</summary>
+            <summary data-i18n="help.notifications">Notifications</summary>
             <div class="help-row">
-              <span class="help-label">Toasts</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.toasts">Toasts</span>
+              <span class="help-desc" data-i18n="help.toasts_desc"
                 >Brief messages at the bottom: green (info), red (error), yellow (warning).
                 Auto-dismiss after a few seconds.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Opponent disconnected</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.opponent_disconnected"
+                >Opponent disconnected</span
+              >
+              <span class="help-desc" data-i18n="help.opponent_disconnected_desc"
                 >Orange banner appears when your opponent disconnects. "Drop Player" button
                 available after a countdown.</span
               >
             </div>
             <div class="help-row">
-              <span class="help-label">Game available</span>
-              <span class="help-desc"
+              <span class="help-label" data-i18n="help.game_available_label">Game available</span>
+              <span class="help-desc" data-i18n="help.game_available_desc"
                 >Green banner for spectators when both players disconnect — click to join.</span
               >
             </div>
@@ -413,14 +479,16 @@
           </details>
 
           <details class="help-section help-keyboard">
-            <summary>Keyboard Shortcuts</summary>
+            <summary data-i18n="help.keyboard_shortcuts">Keyboard Shortcuts</summary>
             <div class="help-row">
               <span class="help-label">TAB</span>
-              <span class="help-desc">Toggle between Piece mode and Camera mode.</span>
+              <span class="help-desc" data-i18n="help.tab_desc"
+                >Toggle between Piece mode and Camera mode.</span
+              >
             </div>
             <div class="help-row">
               <span class="help-label">ESC</span>
-              <span class="help-desc">Open/close main menu.</span>
+              <span class="help-desc" data-i18n="help.esc_desc">Open/close main menu.</span>
             </div>
           </details>
         </div>
@@ -484,6 +552,7 @@
         <p data-i18n="ui.fen_import_placeholder">Paste a FEN string to load a position</p>
         <textarea
           id="fen-input"
+          data-i18n-placeholder="ui.fen_placeholder"
           placeholder="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
           rows="3"
         ></textarea>
@@ -512,18 +581,18 @@
         <div id="join-buttons">
           <button id="btn-join-white" disabled>
             <span class="join-icon">♔</span>
-            <span class="join-label">White</span>
+            <span class="join-label" data-i18n="color.white">White</span>
             <span class="join-status"></span>
           </button>
           <button id="btn-join-black" disabled>
             <span class="join-icon">♚</span>
-            <span class="join-label">Black</span>
+            <span class="join-label" data-i18n="color.black">Black</span>
             <span class="join-status"></span>
           </button>
           <button id="btn-join-spectator">
             <span class="join-icon">👁</span>
-            <span class="join-label">Spectate</span>
-            <span class="join-status">Always available</span>
+            <span class="join-label" data-i18n="ui.spectate">Spectate</span>
+            <span class="join-status" data-i18n="ui.always_available">Always available</span>
           </button>
         </div>
       </div>

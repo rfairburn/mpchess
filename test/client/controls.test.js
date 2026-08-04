@@ -54,7 +54,7 @@ vi.mock('../../client/board.js', () => ({
   highlightPreviousMove: vi.fn(),
 }));
 
-vi.mock('../../client/chess.mjs', () => ({
+vi.mock('../../shared/chess.mjs', () => ({
   pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
   getValidMoves: vi.fn(() => []),
   findKing: vi.fn(() => null),
@@ -133,7 +133,7 @@ describe('controls.js', () => {
     network = await import('../../client/network.js');
     ui = await import('../../client/ui.js');
     board = await import('../../client/board.js');
-    chess = await import('../../client/chess.mjs');
+    chess = await import('../../shared/chess.mjs');
     controls = await import('../../client/controls.js');
   });
 
@@ -1607,7 +1607,7 @@ describe('controls.js', () => {
       network = await import('../../client/network.js');
       ui = await import('../../client/ui.js');
       board = await import('../../client/board.js');
-      chess = await import('../../client/chess.mjs');
+      chess = await import('../../shared/chess.mjs');
       board2d = await import('../../client/board_2d.js');
       controls = await import('../../client/controls.js');
     });

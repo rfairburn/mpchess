@@ -8,7 +8,7 @@ const http = require('http');
 const { WebSocketServer } = require('ws');
 const WebSocket = require('ws');
 
-const { Game } = require('../../shared/chess');
+const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers, buildWssOptions } = require('../../server');
 
 // ── Mock WebSocket ────────────────────────────────────────

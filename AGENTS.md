@@ -16,7 +16,6 @@
   - `npm run test:client`
   - `npm run lint`
   - `npm run format:check`
-  - `npm run build:chess`
 - Do not change `npm test` back to a short-circuiting chain.
 
 ## Changelog

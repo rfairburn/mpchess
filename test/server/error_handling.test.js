@@ -381,7 +381,7 @@ describe('gracefulShutdown — async error handling', () => {
 
 describe('ws-handlers — async IIFE error handling', () => {
   test('handleActivateComputer rolls back state on engine spawn failure', async () => {
-    const { Game } = require('../../shared/chess');
+    const { Game } = require('../../shared/chess.mjs');
     const { setupWebSocketHandlers } = require('../../server');
 
     const mockEngine = {
@@ -438,7 +438,7 @@ describe('ws-handlers — async IIFE error handling', () => {
   });
 
   test('changeSkill rolls back on engine setSkill failure', async () => {
-    const { Game } = require('../../shared/chess');
+    const { Game } = require('../../shared/chess.mjs');
     const { setupWebSocketHandlers } = require('../../server');
 
     const mockEngine = {

@@ -11,7 +11,7 @@ import {
   retryConnection,
 } from '../network.js';
 import { showError } from './toast.js';
-import { t } from '../i18n.js';
+import { t } from '../../shared/i18n.mjs';
 
 // ── DOM refs ──────────────────────────────────────────────
 

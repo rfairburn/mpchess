@@ -7,7 +7,7 @@ import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from './network.js';
 import { clearHighlights, highlightCheck, highlightPreviousMove } from './board.js';
 import { diffBoardState } from './board_diff.js';
-import { pieceColor, pieceType } from './chess.mjs';
+import { pieceColor, pieceType } from '../shared/chess.mjs';
 import { playMove } from './sound.js';
 
 // 3D model set name — directory under files/pieces/3d/

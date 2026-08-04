@@ -16,11 +16,11 @@ import {
   previousMove,
 } from './network.js';
 import { isMobileLayout } from './capabilities.js';
-import { pieceColor, getValidMoves, findKing, isInCheck } from './chess.mjs';
+import { pieceColor, getValidMoves, findKing, isInCheck } from '../shared/chess.mjs';
 import { getPieceSvgUrl } from './pieces.js';
 import { playMove } from './sound.js';
 import { showError } from './ui.js';
-import { t } from './i18n.js';
+import { t } from '../shared/i18n.mjs';
 import {
   getArrows,
   onArrowChange,
