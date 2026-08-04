@@ -428,7 +428,8 @@ describe('cross-board selection synchronization', () => {
 
   it('selecting on 2D board updates 3D board highlights', () => {
     // Set up the 3D scene reference so controls.js callback fires
-    controls.setScene({});
+    const mockScene = { name: 'mock-3d-scene' };
+    controls.setScene(mockScene);
     board2d.toggle2DBoard();
     const grid = gridEl();
     const a2 = grid.children[6 * 8 + 0]; // a2 pawn
@@ -439,7 +440,11 @@ describe('cross-board selection synchronization', () => {
 
     // 3D board should have received the selection via callback
     expect(board3d.highlightSelected).toHaveBeenCalledWith(0, 1);
-    expect(board3d.highlightValidMoves).toHaveBeenCalled();
+    // Verify highlightValidMoves is called with (scene, moves) signature
+    expect(board3d.highlightValidMoves).toHaveBeenCalledWith(
+      mockScene,
+      expect.arrayContaining([expect.objectContaining({ file: expect.any(Number) })])
+    );
   });
 
   it('deselecting on 2D board clears 3D board highlights', () => {
@@ -489,6 +494,23 @@ describe('cross-board selection synchronization', () => {
     selection.clearSelection();
 
     expect(grid.children[6 * 8 + 0].classList.contains('selected')).toBe(false);
+  });
+
+  // ── Readiness guards ───────────────────────────────────
+
+  it('3D renderer callbacks do not run before setScene', () => {
+    // Do NOT call setScene — orchestrator should skip 3D updates
+    board2d.toggle2DBoard();
+    const grid = gridEl();
+    const a2 = grid.children[6 * 8 + 0];
+    a2.click(); // select on 2D
+
+    // 2D should still show selection (its own callbacks are independent)
+    expect(a2.classList.contains('selected')).toBe(true);
+
+    // 3D callbacks should NOT have been called (no scene set)
+    expect(board3d.highlightSelected).not.toHaveBeenCalled();
+    expect(board3d.highlightValidMoves).not.toHaveBeenCalled();
   });
 
   // ── Shared state consistency ───────────────────────────

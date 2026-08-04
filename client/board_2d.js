@@ -41,8 +41,8 @@ import {
   clearSelection,
   getSelectedSquare,
   getValidMovesList,
-  onSelectionChange,
 } from './selection.js';
+import { createHighlightOrchestrator, bindSelectionChange } from './highlight-orchestration.js';
 
 let boardEl = null;
 let gridEl = null;
@@ -147,14 +147,22 @@ function highlightPreviousMove() {
   highlightSquare(toFile, toRank, 'previous-move');
 }
 
+// ── Highlight orchestrator (2D) ──────────────────────────
+
+const orchestrator = createHighlightOrchestrator({
+  clearHighlights,
+  highlightPreviousMove,
+  highlightSelected,
+  highlightValidMoves,
+  highlightCheck,
+});
+bindSelectionChange(orchestrator, () => mode > 0);
+
 /**
  * Deselect the current piece and clear all highlights.
  */
 function deselect() {
-  clearSelection();
-  clearHighlights();
-  highlightPreviousMove();
-  highlightCheck();
+  orchestrator.deselect();
 }
 
 /**
@@ -169,10 +177,7 @@ function selectPiece(file, rank) {
     enPassantTarget
   );
   setSelectedSquare({ file, rank }, moves);
-  clearHighlights();
-  highlightPreviousMove();
-  highlightSelected(file, rank);
-  highlightValidMoves(moves);
+  orchestrator.selectPiece(file, rank, moves);
 }
 
 /**
@@ -235,15 +240,7 @@ function renderBoard() {
   boardEl.appendChild(container);
 
   // Re-apply highlights if something is selected
-  const sel = getSelectedSquare();
-  if (sel) {
-    highlightPreviousMove();
-    highlightSelected(sel.file, sel.rank);
-    highlightValidMoves(getValidMovesList());
-  } else {
-    highlightPreviousMove();
-    highlightCheck();
-  }
+  orchestrator.updateHighlights();
 
   // Create or update the arrow SVG overlay
   ensureArrowLayer2D();
@@ -869,20 +866,7 @@ onArrowChange(() => {
 });
 
 // Re-render board when selection changes (e.g. from 3D board)
-onSelectionChange(() => {
-  if (mode > 0) {
-    clearHighlights();
-    const sel = getSelectedSquare();
-    if (sel) {
-      highlightPreviousMove();
-      highlightSelected(sel.file, sel.rank);
-      highlightValidMoves(getValidMovesList());
-    } else {
-      highlightPreviousMove();
-      highlightCheck();
-    }
-  }
-});
+// Handled by bindSelectionChange(orchestrator) below — no duplicate callback needed.
 
 // ── Mode management ──────────────────────────────────────
 

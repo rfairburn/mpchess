@@ -27,6 +27,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Improved captured-piece visibility on desktop and mobile with a light-square-colored inner background.
 - Consolidated duplicated server WebSocket mocks (`MockWebSocket` / `MockWebSocketServer`) into `test/server/test-helpers.js`.
 - Extracted duplicated `isActuallyVisible()` from `client/ui.js` and `client/ui/help.js` into shared `client/ui/focus-utils.js`.
+- Extracted duplicated `COLORS` + modifier-priority logic from `client/arrows.js` and `client/highlights.js` into shared `client/annotation-colors.js`.
+- Extracted shared 2D/3D selection-highlight orchestration into `client/highlight-orchestration.js`, eliminating ~12 duplicated clear/select/highlight sequences across `client/controls.js` and `client/board_2d.js`.
 
 ### Fixed
 

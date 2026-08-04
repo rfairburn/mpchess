@@ -6,23 +6,14 @@
 let highlights = [];
 let callbacks = [];
 
-// Reuse the same color scheme as arrows
-const COLORS = {
-  none: '#ffdd00',
-  ctrl: '#ff4444',
-  alt: '#4488ff',
-  shift: '#44cc44',
-};
+import { getAnnotationColor } from './annotation-colors.js';
 
 /**
  * Determine highlight color from keyboard modifiers.
  * Priority: Ctrl > Alt > Shift.
  */
 export function getHighlightColor(event) {
-  if (event.ctrlKey) return COLORS.ctrl;
-  if (event.altKey) return COLORS.alt;
-  if (event.shiftKey) return COLORS.shift;
-  return COLORS.none;
+  return getAnnotationColor(event);
 }
 
 /**

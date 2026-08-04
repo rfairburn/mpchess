@@ -33,12 +33,13 @@ import { t } from '../shared/i18n.mjs';
 import { saveAndHide2DBoard, restore2DBoard } from './board_2d.js';
 import {
   squares,
-  clearHighlights,
-  highlightSelected,
-  highlightValidMoves,
-  highlightCheck,
-  highlightPreviousMove,
+  clearHighlights as clearBoardHighlights,
+  highlightSelected as highlightSelected3D,
+  highlightValidMoves as highlightValidMoves3D,
+  highlightCheck as highlightCheck3D,
+  highlightPreviousMove as highlightPreviousMove3D,
 } from './board.js';
+import { createHighlightOrchestrator, bindSelectionChange } from './highlight-orchestration.js';
 import { pieceColor, getValidMoves } from '../shared/chess.mjs';
 import { pieceMeshes } from './pieces.js';
 import { playMove } from './sound.js';
@@ -50,7 +51,6 @@ import {
 } from './highlights.js';
 import {
   setSelectedSquare,
-  clearSelection,
   getSelectedSquare,
   getValidMovesList,
   onSelectionChange,
@@ -295,6 +295,19 @@ function ensureAllSquares() {
   }
 }
 
+// ── Highlight orchestrator (3D) ──────────────────────────
+
+const orchestrator = createHighlightOrchestrator({
+  clearHighlights: clearBoardHighlights,
+  highlightPreviousMove: highlightPreviousMove3D,
+  highlightSelected: highlightSelected3D,
+  highlightValidMoves: (moves) => {
+    if (_scene) highlightValidMoves3D(_scene, moves);
+  },
+  highlightCheck: highlightCheck3D,
+});
+bindSelectionChange(orchestrator, () => !!_scene);
+
 // Selection state is now in selection.js — re-export for backward compat
 export let selectedSquare;
 export let validMoves;
@@ -377,10 +390,7 @@ export function setClickHandler(renderer) {
     if (sel) {
       // Clicking the same piece again deselects it
       if (sel.file === file && sel.rank === rank) {
-        clearSelection();
-        clearHighlights();
-        highlightPreviousMove();
-        highlightCheck();
+        orchestrator.deselect();
         return;
       }
       const isValid = vm.some((m) => m.file === file && m.rank === rank);
@@ -395,23 +405,14 @@ export function setClickHandler(renderer) {
             enPassantTarget
           );
           setSelectedSquare({ file, rank }, moves);
-          clearHighlights();
-          highlightPreviousMove();
-          highlightSelected(file, rank);
-          highlightValidMoves(_scene, moves);
+          orchestrator.selectPiece(file, rank, moves);
         } else {
-          clearSelection();
-          clearHighlights();
-          highlightPreviousMove();
-          highlightCheck();
+          orchestrator.deselect();
         }
         return;
       }
       sendMove(sel.file, sel.rank, file, rank);
-      clearSelection();
-      clearHighlights();
-      highlightPreviousMove();
-      highlightCheck();
+      orchestrator.deselect();
       return;
     }
 
@@ -424,15 +425,9 @@ export function setClickHandler(renderer) {
         enPassantTarget
       );
       setSelectedSquare({ file, rank }, moves);
-      clearHighlights();
-      highlightPreviousMove();
-      highlightSelected(file, rank);
-      highlightValidMoves(_scene, moves);
+      orchestrator.selectPiece(file, rank, moves);
     } else {
-      clearSelection();
-      clearHighlights();
-      highlightPreviousMove();
-      highlightCheck();
+      orchestrator.deselect();
       // Immediate local feedback when clicking on own piece but it's not your turn
       if (myRole && piece !== 0 && pieceColor(piece) === myRole && myRole !== serverTurn) {
         showError(t('error.not_your_turn'));
@@ -459,10 +454,7 @@ function commitDrag() {
     enPassantTarget
   );
   setSelectedSquare({ file, rank }, moves);
-  clearHighlights();
-  highlightPreviousMove();
-  highlightSelected(file, rank);
-  highlightValidMoves(_scene, moves);
+  orchestrator.selectPiece(file, rank, moves);
 
   const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
   if (!pm) {
@@ -544,19 +536,13 @@ function onDragEnd(event) {
   if (sq && vm.some((m) => m.file === sq.file && m.rank === sq.rank)) {
     // Valid drop — execute the move
     sendMove(dragPiece.file, dragPiece.rank, sq.file, sq.rank);
-    clearSelection();
-    clearHighlights();
-    highlightPreviousMove();
-    highlightCheck();
+    orchestrator.deselect();
   } else {
     // Invalid drop — return piece to original position
     if (pm && dragStartPos) {
       pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
     }
-    clearSelection();
-    clearHighlights();
-    highlightPreviousMove();
-    highlightCheck();
+    orchestrator.deselect();
   }
 
   dragPiece = null;
@@ -695,10 +681,7 @@ function touchCancelHandler(event) {
     dragPiece = null;
     dragStartPos = null;
   }
-  clearSelection();
-  clearHighlights();
-  highlightPreviousMove();
-  highlightCheck();
+  orchestrator.deselect();
 }
 
 export function setDragHandlers(renderer) {
@@ -801,10 +784,9 @@ onStateUpdate(() => {
 // ── Restart handler ──────────────────────────────────────
 
 onRestart(() => {
-  clearSelection();
+  orchestrator.deselect();
   hidePromotionPicker();
   hideConcedeConfirm();
-  clearHighlights();
   dragging = false;
   dragCandidate = null;
   dragPiece = null;
@@ -814,19 +796,7 @@ onRestart(() => {
 });
 
 // Re-render 3D board when selection changes (e.g. from 2D board)
-onSelectionChange(() => {
-  if (!_scene) return;
-  const sel = getSelectedSquare();
-  clearHighlights();
-  if (sel) {
-    highlightPreviousMove();
-    highlightSelected(sel.file, sel.rank);
-    highlightValidMoves(_scene, getValidMovesList());
-  } else {
-    highlightPreviousMove();
-    highlightCheck();
-  }
-});
+// Handled by bindSelectionChange(orchestrator) above — no duplicate callback needed.
 
 // ── M4.1 — Virtual joystick touch handlers ───────────────
 

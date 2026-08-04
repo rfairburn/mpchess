@@ -5,22 +5,14 @@
 let arrows = [];
 let callbacks = [];
 
-const COLORS = {
-  none: '#ffdd00',
-  ctrl: '#ff4444',
-  alt: '#4488ff',
-  shift: '#44cc44',
-};
+import { getAnnotationColor } from './annotation-colors.js';
 
 /**
  * Determine arrow color from keyboard modifiers.
  * Priority: Ctrl > Alt > Shift.
  */
 export function getArrowColor(event) {
-  if (event.ctrlKey) return COLORS.ctrl;
-  if (event.altKey) return COLORS.alt;
-  if (event.shiftKey) return COLORS.shift;
-  return COLORS.none;
+  return getAnnotationColor(event);
 }
 
 /**
