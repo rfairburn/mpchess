@@ -340,37 +340,11 @@ export function handleServerMessage(event) {
       break;
     }
     case 'fenExport': {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(msg.fen)
-          .then(() => {
-            emitter.emit('info', { reason: 'ui.fen_copied' });
-          })
-          .catch(() => {
-            downloadText(msg.fen, 'position.fen', 'text/plain');
-            emitter.emit('info', { reason: 'ui.fen_downloaded' });
-          });
-      } else {
-        downloadText(msg.fen, 'position.fen', 'text/plain');
-        emitter.emit('info', { reason: 'ui.fen_downloaded' });
-      }
+      copyOrDownload(msg.fen, 'position.fen', 'text/plain', 'ui.fen_copied', 'ui.fen_downloaded');
       break;
     }
     case 'pgnExport': {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard
-          .writeText(msg.pgn)
-          .then(() => {
-            emitter.emit('info', { reason: 'ui.pgn_copied' });
-          })
-          .catch(() => {
-            downloadText(msg.pgn, 'game.pgn', 'text/plain');
-            emitter.emit('info', { reason: 'ui.pgn_downloaded' });
-          });
-      } else {
-        downloadText(msg.pgn, 'game.pgn', 'text/plain');
-        emitter.emit('info', { reason: 'ui.pgn_downloaded' });
-      }
+      copyOrDownload(msg.pgn, 'game.pgn', 'text/plain', 'ui.pgn_copied', 'ui.pgn_downloaded');
       break;
     }
     case 'computerActivated': {
@@ -414,6 +388,21 @@ export function handleServerMessage(event) {
       emitter.emit('fenImportWarning', msg);
       break;
     }
+  }
+}
+
+function copyOrDownload(text, filename, mimeType, successKey, fallbackKey) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => emitter.emit('info', { reason: successKey }))
+      .catch(() => {
+        downloadText(text, filename, mimeType);
+        emitter.emit('info', { reason: fallbackKey });
+      });
+  } else {
+    downloadText(text, filename, mimeType);
+    emitter.emit('info', { reason: fallbackKey });
   }
 }
 

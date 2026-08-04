@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Extracted duplicated `isActuallyVisible()` from `client/ui.js` and `client/ui/help.js` into shared `client/ui/focus-utils.js`.
 - Extracted duplicated `COLORS` + modifier-priority logic from `client/arrows.js` and `client/highlights.js` into shared `client/annotation-colors.js`.
 - Extracted shared 2D/3D selection-highlight orchestration into `client/highlight-orchestration.js`, eliminating ~12 duplicated clear/select/highlight sequences across `client/controls.js` and `client/board_2d.js`.
+- Consolidated FEN and PGN clipboard export fallback handling into a shared `copyOrDownload()` helper in `client/network.js`.
 
 ### Fixed
 
