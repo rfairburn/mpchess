@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { validateFenForEngine, fromFen } = require('../shared/chess.mjs');
 const { getStockfishEngine } = require('../shared/stockfish_engine');
+const { createRateLimiter } = require('./rate-limiter');
 
 /**
  * Parse a UCI move string (e.g. "e2e4" or "e7e8q") into board coordinates.
@@ -31,14 +32,22 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   const sessions = new Map();
   const disconnectedPlayers = new Map();
-  // Per-IP sliding window: ip -> number[] of timestamps
-  const rateLimitBuckets = new Map();
-  // Connection rate limiter buckets (shared with server.js verifyClient)
-  const connectionBuckets = options.connectionBuckets || new Map();
+
+  // Message rate limiter: per-IP sliding window
+  const msgLimiter = createRateLimiter(rateLimitMax, rateLimitWindow);
+  const rateLimitBuckets = msgLimiter.buckets;
+
+  // Connection rate limiter (shared with server.js verifyClient)
   const connectionRateLimitMax =
     options.connectionRateLimitMax != null ? options.connectionRateLimitMax : 5;
   const connectionRateLimitWindow =
     options.connectionRateLimitWindow != null ? options.connectionRateLimitWindow : 10_000;
+  const connLimiter = createRateLimiter(
+    connectionRateLimitMax,
+    connectionRateLimitWindow,
+    options.connectionBuckets
+  );
+
   let bothDisconnectedTimer = null;
 
   const SLOW_CLIENT_THRESHOLD =
@@ -128,42 +137,14 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   // naturally expire as they slide out of the window. A periodic sweep
   // removes buckets whose oldest entry has expired, preventing unbounded growth.
 
-  function pruneBucket(bucket) {
-    const now = Date.now();
-    while (bucket.length > 0 && bucket[0] <= now - rateLimitWindow) {
-      bucket.shift();
-    }
-  }
-
-  function sweepStaleBuckets() {
-    for (const [ip, bucket] of rateLimitBuckets) {
-      pruneBucket(bucket);
-      if (bucket.length === 0) {
-        rateLimitBuckets.delete(ip);
-      }
-    }
-  }
-
   // Run sweep every rateLimitWindow to clean up expired buckets
-  const sweepInterval = setInterval(sweepStaleBuckets, rateLimitWindow);
+  const sweepInterval = setInterval(msgLimiter.sweep, rateLimitWindow);
   // Don't let the interval keep the process alive
   if (sweepInterval.unref) sweepInterval.unref();
 
   function checkRateLimit(ws) {
-    const now = Date.now();
     const clientIp = ws._socket?.remoteAddress || 'unknown';
-    let bucket = rateLimitBuckets.get(clientIp);
-    if (!bucket) {
-      bucket = [];
-      rateLimitBuckets.set(clientIp, bucket);
-    }
-    pruneBucket(bucket);
-    if (bucket.length >= rateLimitMax) {
-      const retryAfter = Math.ceil((bucket[0] - (now - rateLimitWindow)) / 1000);
-      return { allowed: false, retryAfter: Math.max(1, retryAfter) };
-    }
-    bucket.push(now);
-    return { allowed: true };
+    return msgLimiter.check(clientIp);
   }
 
   function checkConnectionRateLimit(ws, req) {
@@ -173,23 +154,8 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     // to recording the connection here.
     if (req && req._admitted) return { allowed: true };
 
-    const now = Date.now();
     const clientIp = ws._socket?.remoteAddress || 'unknown';
-    let bucket = connectionBuckets.get(clientIp);
-    if (!bucket) {
-      bucket = [];
-      connectionBuckets.set(clientIp, bucket);
-    }
-    // Prune expired entries
-    while (bucket.length > 0 && bucket[0] <= now - connectionRateLimitWindow) {
-      bucket.shift();
-    }
-    if (bucket.length >= connectionRateLimitMax) {
-      const retryAfter = Math.ceil((bucket[0] - (now - connectionRateLimitWindow)) / 1000);
-      return { allowed: false, retryAfter: Math.max(1, retryAfter) };
-    }
-    bucket.push(now);
-    return { allowed: true };
+    return connLimiter.check(clientIp);
   }
 
   function buildDisconnectedPlayersArray() {
@@ -1234,6 +1200,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     sendState,
     engine,
     getGameRevision: () => gameRevision,
+    checkConnectionRateLimit,
   };
 }
 

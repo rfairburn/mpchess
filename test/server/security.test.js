@@ -7,6 +7,7 @@ const assert = require('assert');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const WebSocket = require('ws');
+const { createRateLimiter } = require('../../server/rate-limiter');
 
 const { Game } = require('../../shared/chess.mjs');
 const { setupWebSocketHandlers, buildWssOptions } = require('../../server');
@@ -534,6 +535,40 @@ describe('Rate limiter — bucket persists across rejection and disconnect', () 
     );
     assert.strictEqual(ws.getSent('rateLimited').length, 1); // still just the original
   });
+
+  test('shared connection bucket map is used by defense-in-depth check', () => {
+    const game = new Game();
+    const wss = createMockWebSocketServer({ trackClose: true });
+
+    // Pre-populate the shared bucket map with 5 entries (at the limit)
+    const sharedBuckets = new Map();
+    const now = Date.now();
+    sharedBuckets.set('10.0.0.99', [now, now, now, now, now]);
+
+    const handlers = setupWebSocketHandlers(wss, game, {
+      seatTimeout: 100,
+      joinTimeoutMs: 0,
+      connectionBuckets: sharedBuckets,
+      connectionRateLimitMax: 5,
+      connectionRateLimitWindow: 10_000,
+    });
+
+    // Simulate a connection without req._admitted (defense-in-depth path)
+    const ws = wss.simulateConnection('10.0.0.99');
+    // The defense-in-depth checkConnectionRateLimit should reject because
+    // the shared bucket already has 5 entries
+    const result = handlers.checkConnectionRateLimit(ws, {});
+    assert.strictEqual(result.allowed, false, 'Should be rejected by shared bucket state');
+    assert.ok(result.retryAfter > 0, 'Should include retryAfter');
+
+    // Verify the shared map was updated (new entry pushed before rejection)
+    const bucket = sharedBuckets.get('10.0.0.99');
+    assert.strictEqual(
+      bucket.length,
+      5,
+      'Bucket should still have 5 entries (not pushed on rejection)'
+    );
+  });
 });
 
 describe('Rate limiter — existing behavior preserved', () => {
@@ -817,8 +852,7 @@ describe('Connection rate limiter', () => {
   });
 
   test('stale bucket cleanup: production sweep deletes empty buckets', async () => {
-    const { createConnectionRateLimiter } = require('../../server');
-    const limiter = createConnectionRateLimiter(5, 100); // 100ms window
+    const limiter = createRateLimiter(5, 100); // 100ms window
 
     // Simulate a connection
     limiter.check('10.0.0.5');
@@ -837,14 +871,11 @@ describe('Connection rate limiter', () => {
   });
 
   test('integrated: real server admits 5 connections, rejects 6th at upgrade', async () => {
-    const http = require('http');
-    const { WebSocketServer } = require('ws');
-    const WebSocket = require('ws');
-    const { buildWssOptions, createConnectionRateLimiter } = require('../../server');
+    const { buildWssOptions } = require('../../server');
     const game = new Game();
 
     // Use the production limiter
-    const limiter = createConnectionRateLimiter(5, 10_000);
+    const limiter = createRateLimiter(5, 10_000);
 
     // Create a real HTTP server and WebSocketServer
     const server = http.createServer();

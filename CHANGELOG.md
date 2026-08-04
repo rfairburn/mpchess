@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Consolidated FEN and PGN clipboard export fallback handling into a shared `copyOrDownload()` helper in `client/network.js`.
 - Extracted `sendToServer(msg)` helper in `client/network.js`, eliminating 14 duplicated `ws.readyState === 1` guards across all 15 `send*` functions.
 - Extracted `parseUciMove(uci)` helper in `server/ws-handlers.js`, eliminating duplicated UCI coordinate parsing (magic number `97` replaced with `'a'.charCodeAt(0)`).
+- Consolidated duplicated rate limiter logic from `server.js` and `server/ws-handlers.js` into shared `server/rate-limiter.js` (`createRateLimiter` factory).
 
 ### Fixed
 

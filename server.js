@@ -7,6 +7,7 @@ const { Game, initZobrist } = require('./shared/chess.mjs');
 const { randomBytes } = require('node:crypto');
 initZobrist(randomBytes);
 const { setupWebSocketHandlers } = require('./server/ws-handlers');
+const { createRateLimiter } = require('./server/rate-limiter');
 
 // ═══════════════════════════════════════════════════════════
 //  HTTP SERVER + WEBSOCKET (production entry point)
@@ -143,41 +144,6 @@ const requestHandler = (req, res) => {
     res.end('Not found');
   }
 };
-
-// Create a connection rate limiter with a shared bucket Map.
-// Returns { check(clientIp), sweep(), buckets } for testability.
-// Exported so tests can exercise the production sweep logic.
-function createConnectionRateLimiter(max, windowMs) {
-  const buckets = new Map();
-  function check(clientIp) {
-    const now = Date.now();
-    let bucket = buckets.get(clientIp);
-    if (!bucket) {
-      bucket = [];
-      buckets.set(clientIp, bucket);
-    }
-    while (bucket.length > 0 && bucket[0] <= now - windowMs) {
-      bucket.shift();
-    }
-    if (bucket.length >= max) {
-      return { allowed: false };
-    }
-    bucket.push(now);
-    return { allowed: true };
-  }
-  function sweep() {
-    for (const [ip, bucket] of buckets) {
-      const now = Date.now();
-      while (bucket.length > 0 && bucket[0] <= now - windowMs) {
-        bucket.shift();
-      }
-      if (bucket.length === 0) {
-        buckets.delete(ip);
-      }
-    }
-  }
-  return { check, sweep, buckets };
-}
 
 // Build WebSocketServer options with security defaults.
 // Exported for testing so tests can verify the production configuration.
@@ -376,10 +342,7 @@ Examples:
     config.connectionRateLimitMax != null ? config.connectionRateLimitMax : 5;
   const connectionRateLimitWindow =
     config.connectionRateLimitWindow != null ? config.connectionRateLimitWindow : 10_000;
-  const connLimiter = createConnectionRateLimiter(
-    connectionRateLimitMax,
-    connectionRateLimitWindow
-  );
+  const connLimiter = createRateLimiter(connectionRateLimitMax, connectionRateLimitWindow);
   const connectionBuckets = connLimiter.buckets;
 
   // Periodic sweep to clean up stale connection buckets
@@ -454,6 +417,5 @@ module.exports = {
   SHARED_DIR,
   ALLOWED_SHARED_FILES,
   buildWssOptions,
-  createConnectionRateLimiter,
   createGracefulShutdown,
 };
