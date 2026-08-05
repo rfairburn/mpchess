@@ -34,18 +34,27 @@ npm run ci            # Full CI check (same as npm test)
 
 Run via Node.js with a custom `describe`/`test` runner and built-in `assert`.
 
-| File                           | Coverage                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| `chess.test.js`                | Chess engine: moves, castling, promotion, FEN, check/checkmate/stalemate |
-| `config.test.js`               | Config loading, CLI/env/file parsing, merge priority                     |
-| `reconnect.test.js`            | WebSocket sessions, reconnection, rate limiting, FEN import              |
-| `stockfish.test.js`            | UCI transport against live Stockfish binary (skipped if unavailable)     |
-| `computer_player.test.js`      | Computer player server integration with mock engine                      |
-| `engine_serialization.test.js` | StockfishEngine serialization queue                                      |
-| `leave.test.js`                | Player leave, disconnect, seat management                                |
-| `security.test.js`             | Max payload, IP rate limiting                                            |
-| `error_handling.test.js`       | Async error handling, graceful shutdown                                  |
-| `sound_mime.test.js`           | WAV MIME type serving                                                    |
+| File                           | Coverage                                                                                    |
+| ------------------------------ | ------------------------------------------------------------------------------------------- |
+| `chess-engine.test.js`         | Chess engine: pieces, moves, check, castling, en passant, promotion, checkmate/stalemate    |
+| `game-rules.test.js`           | Game rules: state management, draws, Zobrist, half-move clock, position history, repetition |
+| `fen-pgn.test.js`              | FEN export/import, PGN export, FEN engine-compatibility validation                          |
+| `algebraic-notation.test.js`   | Algebraic notation disambiguation                                                           |
+| `static-server.test.js`        | Static file server, MIME types, security                                                    |
+| `client-rebuild.test.js`       | Client-side 3D board rebuildPieces                                                          |
+| `build-regression.test.js`     | Shared chess.mjs build verification                                                         |
+| `shared-route.test.js`         | /shared/ HTTP endpoint                                                                      |
+| `tls-cli.test.js`              | TLS CLI arguments                                                                           |
+| `game-state-api.test.js`       | getState fields, castlingRights copy, addMove integrity                                     |
+| `config.test.js`               | Config loading, CLI/env/file parsing, merge priority                                        |
+| `reconnect.test.js`            | WebSocket sessions, reconnection, rate limiting, FEN import                                 |
+| `stockfish.test.js`            | UCI transport against live Stockfish binary (skipped if unavailable)                        |
+| `computer_player.test.js`      | Computer player server integration with mock engine                                         |
+| `engine_serialization.test.js` | StockfishEngine serialization queue                                                         |
+| `leave.test.js`                | Player leave, disconnect, seat management                                                   |
+| `security.test.js`             | Max payload, IP rate limiting                                                               |
+| `error_handling.test.js`       | Async error handling, graceful shutdown                                                     |
+| `sound_mime.test.js`           | WAV MIME type serving                                                                       |
 
 ### Client Tests (`test/client/`)
 

@@ -15,7 +15,16 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
 const SERVER_TESTS = [
-  'test/server/chess.test.js',
+  'test/server/chess-engine.test.js',
+  'test/server/game-rules.test.js',
+  'test/server/fen-pgn.test.js',
+  'test/server/algebraic-notation.test.js',
+  'test/server/static-server.test.js',
+  'test/server/client-rebuild.test.js',
+  'test/server/build-regression.test.js',
+  'test/server/shared-route.test.js',
+  'test/server/tls-cli.test.js',
+  'test/server/game-state-api.test.js',
   'test/server/reconnect.test.js',
   'test/server/config.test.js',
   'test/server/stockfish.test.js',

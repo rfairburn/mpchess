@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - Extracted `parseUciMove(uci)` helper in `server/ws-handlers.js`, eliminating duplicated UCI coordinate parsing (magic number `97` replaced with `'a'.charCodeAt(0)`).
 - Consolidated duplicated rate limiter logic from `server.js` and `server/ws-handlers.js` into shared `server/rate-limiter.js` (`createRateLimiter` factory).
 - Removed redundant `isFiftyMoveRule()` alias from `shared/chess.mjs` (identical to `canClaimDrawByFiftyMoves()`). Updated tests to use the canonical name.
+- Split `test/server/chess.test.js` (3,540 lines) into 10 focused test files by domain (`chess-engine`, `game-rules`, `fen-pgn`, `algebraic-notation`, `static-server`, `client-rebuild`, `build-regression`, `shared-route`, `tls-cli`, `game-state-api`).
 
 ### Fixed
 
