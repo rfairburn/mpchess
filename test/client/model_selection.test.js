@@ -31,28 +31,33 @@ vi.mock('../../client/controls.js', () => ({
 describe('loadPieceModels — model set selection', () => {
   // Use mutable objects so closures in mocks always reference the same container
   const state = { urls: [], scales: [] };
+  // Shared mock geometry so tests can modify it before import
+  const mockGeometry = {
+    computeBoundingBox: vi.fn(),
+    boundingBox: {
+      getSize: vi.fn().mockReturnValue({ x: 1, y: 1, z: 1 }),
+      min: { x: 0, y: 0, z: 0 },
+      max: { x: 1, y: 1, z: 1 },
+    },
+    scale: vi.fn((...args) => {
+      state.scales.push(args);
+    }),
+    translate: vi.fn(),
+    computeVertexNormals: vi.fn(),
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.resetModules();
     state.urls.length = 0;
     state.scales.length = 0;
+    // Restore mockGeometry defaults for test isolation
+    mockGeometry.boundingBox.getSize.mockReturnValue({ x: 1, y: 1, z: 1 });
+    delete mockGeometry.attributes;
+    mockGeometry.translate.mockReset();
 
     // Mock STLLoader to capture URLs and scale calls
     vi.doMock('three/addons/loaders/STLLoader.js', () => {
-      const mockGeometry = {
-        computeBoundingBox: vi.fn(),
-        boundingBox: {
-          getSize: vi.fn().mockReturnValue({ x: 1, y: 1, z: 1 }),
-          min: { x: 0, y: 0, z: 0 },
-          max: { x: 1, y: 1, z: 1 },
-        },
-        scale: vi.fn((...args) => {
-          state.scales.push(args);
-        }),
-        translate: vi.fn(),
-        computeVertexNormals: vi.fn(),
-      };
       return {
         STLLoader: vi.fn().mockImplementation(function () {
           return {
@@ -168,39 +173,22 @@ describe('loadPieceModels — model set selection', () => {
       positions.push(baseCx + 1.0 * Math.cos(a), 1, baseCz + 1.0 * Math.sin(a));
     }
 
-    const captured = { scales: [], translates: [] };
-    const geoWithPositions = {
-      computeBoundingBox: vi.fn(),
-      boundingBox: {
-        getSize: vi.fn().mockReturnValue({ x: 3, y: 1, z: 3 }),
-        min: { x: 0, y: 0, z: 0 },
-        max: { x: 3, y: 1, z: 3 },
+    const captured = { translates: [] };
+    // Configure shared mock geometry for this test
+    mockGeometry.boundingBox.getSize.mockReturnValue({ x: 3, y: 1, z: 3 });
+    mockGeometry.attributes = {
+      position: {
+        count: 12,
+        array: new Float32Array(positions),
+        getX: (i) => positions[i * 3],
+        getY: (i) => positions[i * 3 + 1],
+        getZ: (i) => positions[i * 3 + 2],
       },
-      attributes: {
-        position: {
-          count: 12,
-          array: new Float32Array(positions),
-          getX: (i) => positions[i * 3],
-          getY: (i) => positions[i * 3 + 1],
-          getZ: (i) => positions[i * 3 + 2],
-        },
-      },
-      scale: vi.fn(function (...args) {
-        captured.scales.push(args);
-        return this;
-      }),
-      translate: vi.fn(function (...args) {
-        captured.translates.push(args);
-        return this;
-      }),
-      computeVertexNormals: vi.fn(),
     };
-
-    vi.doMock('three/addons/loaders/STLLoader.js', () => ({
-      STLLoader: vi.fn().mockImplementation(function () {
-        return { load: vi.fn((_url, cb) => cb(geoWithPositions)) };
-      }),
-    }));
+    mockGeometry.translate.mockImplementation(function (...args) {
+      captured.translates.push(args);
+      return this;
+    });
 
     const pieces = await import('../../client/pieces.js');
     pieces.loadPieceModels({}, vi.fn());
@@ -210,7 +198,8 @@ describe('loadPieceModels — model set selection', () => {
 
     // Scale should use base diameter (0.5 * 2 = 1.0), not bbox width (3)
     // First piece loaded is "pawn" which uses targetSize 0.55
-    const scaleFactor = captured.scales[0][0];
+    const lastScales = state.scales.slice(-6);
+    const scaleFactor = lastScales[0][0];
     expect(scaleFactor).toBeCloseTo(0.55 / (baseR * 2), 4);
   });
 });

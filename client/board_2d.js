@@ -236,7 +236,79 @@ function renderBoard() {
     }
   }
 
-  container.appendChild(gridEl);
+  // Build wrapper with coordinate labels
+  const wrapper = document.createElement('div');
+  wrapper.className = 'board2d-wrapper';
+
+  // Rank labels (left column)
+  const rankLabels = document.createElement('div');
+  rankLabels.className = 'board2d-rank-labels';
+  for (let displayRank = 0; displayRank < 8; displayRank++) {
+    const actualRank = orientation === 'flipped' ? displayRank : 7 - displayRank;
+    const label = document.createElement('div');
+    label.className = 'board2d-rank-label';
+    label.textContent = String(actualRank + 1);
+    rankLabels.appendChild(label);
+  }
+
+  // File labels (top row)
+  const fileLabelsTop = document.createElement('div');
+  fileLabelsTop.className = 'board2d-file-labels-top';
+  const spacerTopL = document.createElement('div');
+  spacerTopL.className = 'board2d-file-label';
+  fileLabelsTop.appendChild(spacerTopL);
+  for (let file = 0; file < 8; file++) {
+    const actualFile = orientation === 'flipped' ? 7 - file : file;
+    const label = document.createElement('div');
+    label.className = 'board2d-file-label';
+    label.textContent = String.fromCharCode(97 + actualFile);
+    fileLabelsTop.appendChild(label);
+  }
+  const spacerTopR = document.createElement('div');
+  spacerTopR.className = 'board2d-file-label';
+  fileLabelsTop.appendChild(spacerTopR);
+
+  // File labels (bottom row) — spacers on both sides, 8 labels in between
+  const fileLabels = document.createElement('div');
+  fileLabels.className = 'board2d-file-labels';
+  const spacerBL = document.createElement('div');
+  spacerBL.className = 'board2d-file-label';
+  fileLabels.appendChild(spacerBL);
+  for (let file = 0; file < 8; file++) {
+    const actualFile = orientation === 'flipped' ? 7 - file : file;
+    const label = document.createElement('div');
+    label.className = 'board2d-file-label';
+    label.textContent = String.fromCharCode(97 + actualFile); // a-h
+    fileLabels.appendChild(label);
+  }
+  const spacerBR = document.createElement('div');
+  spacerBR.className = 'board2d-file-label';
+  fileLabels.appendChild(spacerBR);
+
+  // Rank labels (right column)
+  const rankLabelsRight = document.createElement('div');
+  rankLabelsRight.className = 'board2d-rank-labels-right';
+  for (let displayRank = 0; displayRank < 8; displayRank++) {
+    const actualRank = orientation === 'flipped' ? displayRank : 7 - displayRank;
+    const label = document.createElement('div');
+    label.className = 'board2d-rank-label';
+    label.textContent = String(actualRank + 1);
+    rankLabelsRight.appendChild(label);
+  }
+
+  // Corner spacer (top-left)
+  const corner = document.createElement('div');
+  corner.className = 'board2d-corner';
+  corner.style.gridRow = '1';
+  corner.style.gridColumn = '1';
+
+  wrapper.appendChild(fileLabelsTop);
+  wrapper.appendChild(rankLabels);
+  wrapper.appendChild(gridEl);
+  wrapper.appendChild(rankLabelsRight);
+  wrapper.appendChild(fileLabels);
+  wrapper.appendChild(corner);
+  container.appendChild(wrapper);
   boardEl.appendChild(container);
 
   // Re-apply highlights if something is selected

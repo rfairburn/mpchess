@@ -32,9 +32,29 @@ const Vector3 = class {
     return this;
   }
 };
+const Mesh = class {
+  constructor() {
+    this.children = [];
+    this.castShadow = false;
+    this.receiveShadow = false;
+  }
+  add() {}
+};
+const Group = class {
+  constructor() {
+    this.children = [];
+    this.position = new Vector3();
+    this.rotation = { y: 0 };
+  }
+  add(child) {
+    this.children.push(child);
+  }
+};
 vi.mock('three', () => ({
-  default: { Vector3 },
+  default: { Vector3, Mesh, Group },
   Vector3,
+  Mesh,
+  Group,
 }));
 
 // Create a mock geometry
@@ -76,6 +96,14 @@ describe('model loader — atomic, generation-aware', () => {
   beforeEach(() => {
     deferredCallbacks.length = 0;
     vi.resetModules();
+    // Stub WebSocket so network.js doesn't create a real undici WebSocket on import
+    globalThis.WebSocket = class {
+      constructor() {
+        this.readyState = 1;
+      }
+      send() {}
+      close() {}
+    };
   });
 
   it('should install geometries only on successful load', async () => {

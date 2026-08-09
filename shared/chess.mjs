@@ -965,7 +965,9 @@ class Game {
     }
 
     // Replace the =P placeholder with the actual promotion piece
-    const promoNotation = `=${pieceType[0].toUpperCase()}`;
+    // Use standard chess notation: N for knight (not K, which means king)
+    const promoLetters = { queen: 'Q', rook: 'R', bishop: 'B', knight: 'N' };
+    const promoNotation = `=${promoLetters[pieceType]}`;
     if (this.moveHistory.length > 0) {
       const last = this.moveHistory.length - 1;
       this.moveHistory[last] = this.moveHistory[last].slice(0, -2) + promoNotation;

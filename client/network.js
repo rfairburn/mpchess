@@ -140,6 +140,8 @@ function connect() {
   } catch {
     return;
   }
+  // Expose WebSocket for test control
+  if (typeof window !== 'undefined') window.__mpchess_ws = ws;
 
   ws.onopen = () => {
     // Only auto-reconnect if we were actively playing and got disconnected

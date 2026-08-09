@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Added comprehensive full-browser Playwright E2E coverage spanning join, moves, game-over, camera controls, and mobile flows.
 - Added shared localization framework (`shared/i18n.mjs`, `shared/locales/*.mjs`). All ~150 user-facing strings are resolved via `t(key, params?)` lookups. The server sends machine-readable keys (e.g., `game.checkmate_white`, `error.not_your_turn`) instead of display strings, keeping it locale-agnostic. Static HTML strings use `data-i18n`/`data-i18n-aria-label`/`data-i18n-placeholder` attributes resolved on page load and live refresh.
 - Added 4 new locales (Español, Français, Deutsch, 简体中文) with full translations verified against FIDE chess terminology sources. Language selector in Settings overlay with `localStorage` persistence and live UI refresh via `refreshI18n()` — no page reload required.
 - Added Settings menu (accessible from the main menu) with mouse sensitivity slider, virtual joystick toggle, and dropdown selectors for 2D piece set and 3D model set. Selections persist in `localStorage` and apply in-place without a page reload.

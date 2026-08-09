@@ -166,6 +166,22 @@ export function setModelsLoaded(value) {
 }
 
 /**
+ * Test-only: expose piece mesh positions on window for E2E assertions.
+ * Returns array of { file, rank, type, color, x, z } for each piece mesh.
+ */
+if (typeof window !== 'undefined') {
+  window.__testPiecePositions = () =>
+    pieceMeshes.map(({ file, rank, type, color, mesh }) => ({
+      file,
+      rank,
+      type,
+      color,
+      x: mesh.position.x,
+      z: mesh.position.z,
+    }));
+}
+
+/**
  * Process a loaded STL geometry: normalize scale, center, compute normals.
  * @param {import('three').BufferGeometry} geometry
  * @param {string} type
