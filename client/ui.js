@@ -71,6 +71,7 @@ import {
   initComputerMenu,
   refreshComputerThinking,
 } from './ui/computer.js';
+import { refreshEvaluation } from './ui/evaluation.js';
 
 // Initialize connection overlays
 import './ui/connection.js';
@@ -666,6 +667,7 @@ export function refreshI18n() {
   updateDrawInfo();
   refreshDisconnectedText();
   refreshComputerThinking();
+  refreshEvaluation();
 
   // Refresh draw offer if visible
   if (lastDrawOfferColor && drawOfferOverlay.classList.contains('visible')) {

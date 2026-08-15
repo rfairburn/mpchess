@@ -11,6 +11,8 @@ import { JSDOM } from 'jsdom';
 // ── Module mocks ──────────────────────────────────────────
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: 'white',
   serverBoard: null,
   serverTurn: 'white',

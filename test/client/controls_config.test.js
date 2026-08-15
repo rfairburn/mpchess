@@ -222,6 +222,8 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       onComputerSkillChanged: vi.fn(),
       onComputerThinking: vi.fn(),
       onComputerUnavailable: vi.fn(),
+      onEvaluation: vi.fn(),
+      serverEvaluation: null,
       debugEnabled: false,
     }));
 

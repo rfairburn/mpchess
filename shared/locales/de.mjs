@@ -184,6 +184,7 @@ export default {
   'ui.toggle_fullscreen': 'Vollbild',
   'ui.toggle_2d_board': '2D-Brett',
   'ui.toggle_status_drawer': 'Statusfeld',
+  'ui.eval_bar': 'Bewertungsbalken',
   'ui.spectate': 'Zuschauen',
   'ui.always_available': 'Immer verfügbar',
   'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

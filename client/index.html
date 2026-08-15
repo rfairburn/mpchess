@@ -50,6 +50,15 @@
       </div>
     </div>
 
+    <!-- Evaluation bar (mobile — wide horizontal, bottom-center above rank numbers) -->
+    <div id="eval-bar-mobile">
+      <span id="eval-score-mobile">–</span>
+      <div id="eval-bar-mobile-track">
+        <div id="eval-bar-mobile-fill"></div>
+        <div id="eval-bar-mobile-marker"></div>
+      </div>
+    </div>
+
     <!-- Desktop HUD elements (hidden on mobile landscape) -->
     <div id="desktop-hud">
       <div id="computer-thinking"></div>
@@ -86,13 +95,22 @@
       </button>
       <div id="role-badge" data-i18n="ui.spectator_role">Connecting...</div>
       <div id="player-count"></div>
-      <div id="captured-white">
-        <span class="cap-label" data-i18n="ui.white_captures">White's Captures</span
-        ><span class="cap-pieces"></span>
-      </div>
-      <div id="captured-black">
-        <span class="cap-label" data-i18n="ui.black_captures">Black's Captures</span
-        ><span class="cap-pieces"></span>
+      <div id="left-rail">
+        <div id="captured-white">
+          <span class="cap-label" data-i18n="ui.white_captures">White's Captures</span
+          ><span class="cap-pieces"></span>
+        </div>
+        <div id="captured-black">
+          <span class="cap-label" data-i18n="ui.black_captures">Black's Captures</span
+          ><span class="cap-pieces"></span>
+        </div>
+        <div id="eval-bar">
+          <div id="eval-bar-track">
+            <div id="eval-bar-fill"></div>
+            <div id="eval-bar-marker"></div>
+          </div>
+          <div id="eval-score">–</div>
+        </div>
       </div>
       <div id="move-log"></div>
       <div id="draw-info"></div>

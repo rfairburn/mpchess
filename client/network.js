@@ -33,6 +33,7 @@ export let halfmoveClock = 0;
 export let threefoldCount = 0;
 export let canClaimDraw = false;
 export let currentFen = '';
+export let serverEvaluation = null; // centipawns (positive = white) | null
 export let debugEnabled = false; // set by server in state message
 export let previousMove = null; // { fromFile, fromRank, toFile, toRank } | null
 
@@ -118,6 +119,9 @@ export function onPlayerLeft(fn) {
 }
 export function onFenImportWarning(fn) {
   emitter.on('fenImportWarning', fn);
+}
+export function onEvaluation(fn) {
+  emitter.on('evaluation', fn);
 }
 
 function clearReconnectTimer() {
@@ -232,6 +236,7 @@ export function handleServerMessage(event) {
       threefoldCount = msg.threefoldCount ?? 0;
       canClaimDraw = msg.canClaimDraw ?? false;
       currentFen = msg.fen || '';
+      serverEvaluation = msg.evaluation ?? null;
       previousMove = msg.lastMove || null;
       if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
       emitter.emit('stateUpdate', msg);
@@ -388,6 +393,11 @@ export function handleServerMessage(event) {
     }
     case 'fenImportWarning': {
       emitter.emit('fenImportWarning', msg);
+      break;
+    }
+    case 'evaluation': {
+      serverEvaluation = msg.score ?? null;
+      emitter.emit('evaluation', msg);
       break;
     }
   }

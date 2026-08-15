@@ -97,6 +97,8 @@ export function resetI18nMockState() {
 }
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: null,
   serverBoard: null,
   serverTurn: 'white',

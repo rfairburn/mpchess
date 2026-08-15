@@ -71,6 +71,67 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     gameRevision++;
   }
 
+  // ── Evaluation bar state ──
+  // Latest Stockfish evaluation in centipawns (positive = white advantage),
+  // or null when unknown / game over. Broadcast as { type: 'evaluation' }
+  // and included in every state message so new clients get it immediately.
+  let lastEvaluation = null;
+  let evalInFlight = false;
+
+  function broadcastEvaluation() {
+    broadcast({ type: 'evaluation', score: lastEvaluation, fen: game.currentFen() });
+  }
+
+  /**
+   * Schedule a position evaluation for the evaluation bar.
+   * - Game over: reset the bar to neutral (score null) and broadcast once.
+   * - Otherwise: run engine.getEvaluation() (spawning the engine if needed)
+   *   and broadcast the result if the position is still current.
+   * Stale results are discarded via the game revision guard. If a move
+   * lands while an evaluation is in flight, a fresh evaluation is chained
+   * so the bar always converges on the latest position.
+   */
+  function scheduleEvaluation() {
+    if (game.gameOver) {
+      if (lastEvaluation !== null) {
+        lastEvaluation = null;
+        broadcastEvaluation();
+      }
+      return;
+    }
+    if (evalInFlight) return;
+
+    const requestFen = game.currentFen();
+    const requestRevision = gameRevision;
+    evalInFlight = true;
+
+    (async () => {
+      try {
+        if (!engine.isReady) {
+          try {
+            await engine.spawn();
+          } catch {
+            // Engine unavailable — bar stays neutral, no error toast
+            return;
+          }
+        }
+        const score = await engine.getEvaluation(requestFen);
+        if (gameRevision === requestRevision && !game.gameOver) {
+          lastEvaluation = score;
+          broadcastEvaluation();
+        }
+      } catch {
+        // Evaluation failed — keep the last known value
+      } finally {
+        evalInFlight = false;
+        // Position changed while evaluating — evaluate the fresh position
+        if (!game.gameOver && gameRevision !== requestRevision) {
+          scheduleEvaluation();
+        }
+      }
+    })();
+  }
+
   // ── Draw offer state ──
   let drawOffer = null; // { from: ws, to: ws } or null
 
@@ -229,6 +290,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       disconnectedPlayers: buildDisconnectedPlayersArray(),
       computerPlayer: computerColor ? { color: computerColor, skill: computerSkill } : null,
       debug: DEBUG,
+      evaluation: lastEvaluation,
       ...state,
     });
   }
@@ -467,6 +529,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             });
           }
           broadcastState();
+          scheduleEvaluation();
           return true;
         } finally {
           game.players.delete(virtualWs);
@@ -674,6 +737,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
+      scheduleEvaluation();
     } else {
       send(offererWs, { type: 'drawResult', accepted: false, reason });
     }
@@ -748,6 +812,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
+      scheduleEvaluation();
     } else {
       // Declined — notify the offerer
       send(offererWs, {
@@ -805,6 +870,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     // Don't auto-assign players — just send state with seat info
     // Client will explicitly choose via 'join' message
     sendState(ws);
+
+    // First client to connect to a position with no evaluation yet (e.g.
+    // the starting position): evaluate it so the bar shows a value right
+    // away, before any move is played.
+    if (lastEvaluation === null) {
+      scheduleEvaluation();
+    }
 
     // Fallback timeout: if for some reason the client has no role, re-assign
     const joinTimeout = setTimeout(() => {
@@ -900,6 +972,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               to: { file: toFile, rank: toRank },
               message: `Move: ${result.notation}`,
             });
+            scheduleEvaluation();
             // If it's now the computer's turn, trigger its move
             if (computerColor && game.turn === computerColor && !game.gameOver) {
               executeComputerMove();
@@ -927,6 +1000,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               rank: promoRank,
             });
             broadcastState();
+            scheduleEvaluation();
             // If it's now the computer's turn, trigger its move
             if (computerColor && game.turn === computerColor && !game.gameOver) {
               executeComputerMove();
@@ -948,6 +1022,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             debugLog('Game restart: NEW board state:', game.board);
             broadcastState();
             broadcast({ type: 'restart' });
+            scheduleEvaluation();
             broadcastDebug({
               category: 'gameRestart',
               oldFen,
@@ -965,6 +1040,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             bumpRevision();
             clearDrawOffer();
             broadcastState();
+            scheduleEvaluation();
           }
           break;
         }
@@ -1025,6 +1101,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
             broadcastState();
             broadcast({ type: 'restart' });
+            scheduleEvaluation();
             broadcastDebug({
               category: 'fenImport',
               oldFen,
@@ -1101,6 +1178,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             bumpRevision();
             clearDrawOffer();
             broadcastState();
+            scheduleEvaluation();
           } else {
             send(ws, { type: 'error', reason: result.reason });
           }

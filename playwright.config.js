@@ -16,7 +16,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium-mobile',
-      testMatch: /(?:mobile|join|moves|gameover|camera-buttons)\.spec\.js/,
+      testMatch: /(?:mobile|join|moves|gameover|camera-buttons).*\.spec\.js/,
       use: {
         channel: 'chromium',
         viewport: { width: 844, height: 390 },
@@ -26,7 +26,7 @@ export default defineConfig({
     },
     {
       name: 'chromium-desktop',
-      testIgnore: /(?:mobile|camera-buttons)\.spec\.js/,
+      testIgnore: /(?:mobile|camera-buttons).*\.spec\.js/,
       use: {
         channel: 'chromium',
         viewport: { width: 1280, height: 720 },

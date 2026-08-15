@@ -31,6 +31,7 @@ const SERVER_TESTS = [
   'test/server/leave.test.js',
   'test/server/engine_serialization.test.js',
   'test/server/computer_player.test.js',
+  'test/server/evaluation.test.js',
   'test/server/security.test.js',
   'test/server/error_handling.test.js',
 ];

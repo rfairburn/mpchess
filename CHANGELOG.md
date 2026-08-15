@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Added
 
+- Added a live evaluation bar powered by the existing Stockfish connection: the server evaluates the position after every move, restart, and FEN import (spawning the engine on demand) and broadcasts an `evaluation` message (centipawns, positive = white) that is also included in every state message. Desktop shows a vertical bar on the left edge (white at bottom) with a slider marker and +/- score label (e.g. `+1.25`, `M`); mobile shows a compact horizontal bar in the top bar. The bar renders neutral (50%) until the first evaluation arrives, resets to neutral when the game ends, and degrades gracefully when the engine is unavailable.
 - Added comprehensive full-browser Playwright E2E coverage spanning join, moves, game-over, camera controls, and mobile flows.
 - Added shared localization framework (`shared/i18n.mjs`, `shared/locales/*.mjs`). All ~150 user-facing strings are resolved via `t(key, params?)` lookups. The server sends machine-readable keys (e.g., `game.checkmate_white`, `error.not_your_turn`) instead of display strings, keeping it locale-agnostic. Static HTML strings use `data-i18n`/`data-i18n-aria-label`/`data-i18n-placeholder` attributes resolved on page load and live refresh.
 - Added 4 new locales (Español, Français, Deutsch, 简体中文) with full translations verified against FIDE chess terminology sources. Language selector in Settings overlay with `localStorage` persistence and live UI refresh via `refreshI18n()` — no page reload required.

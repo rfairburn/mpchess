@@ -186,6 +186,7 @@ export default {
   'ui.toggle_fullscreen': 'Pantalla completa',
   'ui.toggle_2d_board': 'Tablero 2D',
   'ui.toggle_status_drawer': 'Panel de estado',
+  'ui.eval_bar': 'Barra de evaluación',
   'ui.spectate': 'Observar',
   'ui.always_available': 'Siempre disponible',
   'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

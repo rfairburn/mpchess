@@ -321,6 +321,8 @@ const stateListeners = [];
 const restartListeners = [];
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: 'white',
   serverBoard: null,
   serverTurn: 'white',

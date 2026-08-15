@@ -6,6 +6,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: 'black',
   serverBoard: null,
   serverTurn: 'white',

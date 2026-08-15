@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // ── Module mocks ──────────────────────────────────────────
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: null,
   serverTurn: 'white',
   serverPromotingPiece: null,

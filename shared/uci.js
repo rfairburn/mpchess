@@ -34,6 +34,16 @@ class UciTransport {
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      // The engine is a helper process — it must not keep the parent alive
+      // (e.g. test runners that finish without calling quit()). When the
+      // parent exits, the stdin pipe closes and Stockfish exits on EOF.
+      // Note: child.unref() alone is not enough — the stdio pipes are
+      // separate handles and must be unref'd too.
+      if (this.proc.unref) this.proc.unref();
+      for (const stream of [this.proc.stdin, this.proc.stdout, this.proc.stderr]) {
+        if (stream && stream.unref) stream.unref();
+      }
+
       this.proc.on('error', (err) => {
         // Reject any pending reader
         if (this._pending) {

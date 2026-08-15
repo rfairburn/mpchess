@@ -184,6 +184,7 @@ export default {
   'ui.toggle_fullscreen': 'Plein écran',
   'ui.toggle_2d_board': 'Échiquier 2D',
   'ui.toggle_status_drawer': "Panneau d'état",
+  'ui.eval_bar': 'Barre d’évaluation',
   'ui.spectate': 'Spectateur',
   'ui.always_available': 'Toujours disponible',
   'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

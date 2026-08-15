@@ -182,6 +182,7 @@ export default {
   'ui.toggle_fullscreen': 'Toggle fullscreen',
   'ui.toggle_2d_board': 'Toggle 2D board',
   'ui.toggle_status_drawer': 'Toggle status drawer',
+  'ui.eval_bar': 'Evaluation bar',
   'ui.spectate': 'Spectate',
   'ui.always_available': 'Always available',
   'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

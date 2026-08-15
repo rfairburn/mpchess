@@ -3,6 +3,8 @@ import { setupControlsDOM } from './mobile-test-helpers.js';
 
 // Mock dependencies so controls.js can load
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: null,
   serverBoard: null,
   serverTurn: 'white',

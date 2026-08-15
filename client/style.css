@@ -334,6 +334,172 @@ canvas {
 #drawer-draw-info.visible {
   display: block;
 }
+
+/* ═══ Evaluation bar (desktop — vertical, left edge) ═══ */
+#eval-bar {
+  /* Fills the remaining space in the left rail, below the black captures.
+     Left-aligned so the track sits at the rail's left edge (20px from the
+     screen edge, like before) instead of centering under the wider capture
+     boxes. The score label has a fixed width, so nothing shifts. */
+  flex: 1;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+#eval-bar-track {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 16px;
+  /* Center the track over the 52px score label below it:
+     (52 - 20) / 2 = 16px */
+  margin-left: 16px;
+  background: #3d2b1f; /* black side */
+  border: 2px solid rgba(181, 136, 99, 0.5);
+  border-radius: 8px;
+  overflow: hidden;
+}
+#eval-bar-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: #f0e6d0; /* white side */
+  transition: height 0.4s ease;
+}
+#eval-bar-marker {
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: 50%;
+  height: 2px;
+  background: #f0d9b5;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+  transition: bottom 0.4s ease;
+}
+#eval-score {
+  /* In-flow below the track with a fixed width, so label changes can
+     never move the centered track (no horizontal bounce). */
+  flex-shrink: 0;
+  color: #f0d9b5;
+  font:
+    bold 13px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  width: 52px;
+  text-align: center;
+}
+
+/* ═══ Evaluation bar (mobile) ═══
+   Portrait (base): wide horizontal bar, bottom-center, above the camera
+   position buttons (44px tall + 8px bottom offset → clear at 64px).
+   Landscape: vertical bar on the left edge (see media queries below).
+   The fill/marker read --eval-pct (set by client/ui/evaluation.js) so the
+   same markup works in both orientations. */
+#eval-bar-mobile {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+  transform: translateX(-50%);
+  width: 70%;
+  max-width: 480px;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  z-index: 20;
+  pointer-events: none;
+}
+#eval-bar-mobile-track {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  background: #3d2b1f; /* black side */
+  border: 1px solid rgba(181, 136, 99, 0.5);
+  border-radius: 5px;
+  overflow: hidden;
+}
+#eval-bar-mobile-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--eval-pct, 50%);
+  background: #f0e6d0; /* white side */
+  transition: width 0.4s ease;
+}
+#eval-bar-mobile-marker {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  left: var(--eval-pct, 50%);
+  width: 2px;
+  background: #f0d9b5;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+  transition: left 0.4s ease;
+}
+
+/* Landscape mobile: vertical bar on the left edge (like desktop) */
+@media (pointer: coarse) and (max-height: 480px),
+  (pointer: coarse) and (orientation: landscape) and (max-width: 900px) {
+  #eval-bar-mobile {
+    left: 20px;
+    top: 50%;
+    bottom: auto;
+    transform: translateY(-50%);
+    width: auto;
+    max-width: none;
+  }
+  #eval-bar-mobile-track {
+    width: 16px;
+    height: min(50vh, 420px);
+    border-width: 2px;
+    border-radius: 8px;
+  }
+  #eval-bar-mobile-fill {
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    height: var(--eval-pct, 50%);
+    transition: height 0.4s ease;
+  }
+  #eval-bar-mobile-marker {
+    left: -2px;
+    right: -2px;
+    top: auto;
+    bottom: var(--eval-pct, 50%);
+    width: auto;
+    height: 2px;
+    transition: bottom 0.4s ease;
+  }
+}
+#eval-score-mobile {
+  color: #f0d9b5;
+  font:
+    bold 13px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(20, 14, 8, 0.85);
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(181, 136, 99, 0.3);
+  white-space: nowrap;
+  /* Fixed width so the label never shifts as the score changes */
+  width: 52px;
+  text-align: center;
+}
+
 #turn-indicator {
   position: fixed;
   top: 20px;
@@ -560,10 +726,23 @@ canvas {
   pointer-events: none;
   z-index: 10;
 }
-#captured-white {
+/* Left rail: captured pieces + evaluation bar stacked in one column so
+   the eval bar's top always stays a fixed gap below the black captures,
+   whatever the window height (and never shifts left/right). */
+#left-rail {
   position: fixed;
-  top: 120px;
   left: 20px;
+  top: 120px;
+  /* Clear the camera position buttons (44px tall + 8px bottom offset) */
+  bottom: 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+#captured-white {
   background: rgba(20, 14, 8, 0.85);
   padding: 6px 12px;
   border-radius: 6px;
@@ -587,9 +766,6 @@ canvas {
   letter-spacing: 0.5px;
 }
 #captured-black {
-  position: fixed;
-  top: 190px;
-  left: 20px;
   background: rgba(20, 14, 8, 0.85);
   padding: 6px 12px;
   border-radius: 6px;
@@ -1555,6 +1731,12 @@ canvas {
   #top-bar {
     display: flex !important;
   }
+  #eval-bar {
+    display: none !important;
+  }
+  #eval-bar-mobile {
+    display: flex !important;
+  }
   /* Hide the instruction HUD on coarse-pointer devices — it describes
      keyboard controls that are not useful on mobile. */
   #hud {
@@ -1570,6 +1752,12 @@ canvas {
   #top-bar {
     display: flex !important;
   }
+  #eval-bar {
+    display: none !important;
+  }
+  #eval-bar-mobile {
+    display: flex !important;
+  }
   #hud {
     display: none !important;
   }
@@ -1579,12 +1767,18 @@ canvas {
 body.portrait-mobile #desktop-hud {
   display: none !important;
 }
+body.portrait-mobile #eval-bar {
+  display: none !important;
+}
 body.portrait-mobile #hud {
   display: none !important;
 }
 
 /* In portrait, show the top bar but simplified (no status drawer needed) */
 body.portrait-mobile #top-bar {
+  display: flex !important;
+}
+body.portrait-mobile #eval-bar-mobile {
   display: flex !important;
 }
 

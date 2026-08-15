@@ -68,6 +68,8 @@ vi.mock('../../client/sound.js', () => ({
 }));
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   onMove: vi.fn(),
   serverBoard: null,
   serverTurn: null,

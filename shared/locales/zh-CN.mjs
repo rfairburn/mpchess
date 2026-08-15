@@ -177,6 +177,7 @@ export default {
   'ui.toggle_fullscreen': '全屏',
   'ui.toggle_2d_board': '2D棋盘',
   'ui.toggle_status_drawer': '状态面板',
+  'ui.eval_bar': '评估条',
   'ui.spectate': '观战',
   'ui.always_available': '始终可用',
   'ui.fen_placeholder': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',

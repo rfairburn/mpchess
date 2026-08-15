@@ -5,6 +5,8 @@ import { setupControlsDOM } from './mobile-test-helpers.js';
 // ── Module mocks ──────────────────────────────────────────
 
 vi.mock('../../client/network.js', () => ({
+  onEvaluation: vi.fn(),
+  serverEvaluation: null,
   myRole: null,
   serverBoard: null,
   serverTurn: 'white',
