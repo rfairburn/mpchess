@@ -9,6 +9,22 @@
 import { test, expect } from '@playwright/test';
 import { joinGame, resetAndGiveUp, makeMove2d, waitForMoveLog } from './helpers.js';
 
+// boundingBox() can transiently return null right after page load while
+// the layout settles — poll until the element has a real box.
+async function waitForBox(page, selector) {
+  let box = null;
+  await expect
+    .poll(
+      async () => {
+        box = await page.locator(selector).boundingBox();
+        return box !== null;
+      },
+      { timeout: 10000 }
+    )
+    .toBe(true);
+  return box;
+}
+
 test.describe.serial('Evaluation bar (mobile)', () => {
   test.afterEach(async ({ page }) => {
     const url = page.url();
@@ -39,7 +55,7 @@ test.describe.serial('Evaluation bar (mobile)', () => {
     expect(mobileDisplay).toBe('flex');
 
     // It is a vertical bar anchored to the left edge, vertically centered
-    const box = await page.locator('#eval-bar-track').boundingBox();
+    const box = await waitForBox(page, '#eval-bar-mobile-track');
     expect(box.x).toBeLessThan(40);
     expect(box.height).toBeGreaterThan(box.width);
     const centerY = await page.evaluate(() => window.innerHeight / 2);
@@ -102,16 +118,14 @@ test.describe.serial('Evaluation bar (mobile)', () => {
     expect(mobileDisplay).toBe('flex');
 
     // It is horizontal (wider than tall) and centered at the bottom
-    const box = await page.locator('#eval-bar-track').boundingBox();
+    const box = await waitForBox(page, '#eval-bar-mobile-track');
     expect(box.width).toBeGreaterThan(box.height);
     const centerX = await page.evaluate(() => window.innerWidth / 2);
     expect(Math.abs(box.x + box.width / 2 - centerX)).toBeLessThan(20);
 
     // It clears the camera position buttons (44px tall, 8px from the bottom)
-    const camBox = await page.locator('#camera-positions').boundingBox();
-    if (camBox) {
-      expect(box.y + box.height).toBeLessThanOrEqual(camBox.y);
-    }
+    const camBox = await waitForBox(page, '#camera-positions');
+    expect(box.y + box.height).toBeLessThanOrEqual(camBox.y);
 
     // The bar updates after a move
     await joinGame(page, 'white');

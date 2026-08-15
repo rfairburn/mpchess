@@ -353,9 +353,10 @@ canvas {
   flex: 1;
   min-height: 0;
   width: 16px;
-  /* Center the track over the 52px score label below it:
-     (52 - 20) / 2 = 16px */
-  margin-left: 16px;
+  /* Center the track over the 52px score label below it. Both use the
+     global border-box sizing, so the track's total width is 16px (border
+     included): (52 - 16) / 2 = 18px */
+  margin-left: 18px;
   background: #3d2b1f; /* black side */
   border: 2px solid rgba(181, 136, 99, 0.5);
   border-radius: 8px;

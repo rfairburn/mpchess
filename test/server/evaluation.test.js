@@ -163,18 +163,20 @@ describe('evaluation -- broadcast after moves', () => {
 
     const white = joinAs(wss, 'white');
     const black = joinAs(wss, 'black');
-    makeMove(white, 4, 1, 4, 3); // e2e4
+    makeMove(white, 4, 1, 4, 3); // e2e4 → black to move
     await tick();
 
     const evals = white.getSent('evaluation');
     assert.strictEqual(evals.length, 1, 'white should receive one evaluation');
-    assert.strictEqual(evals[0].score, 150);
+    // Engine score is side-to-move relative (mock: +150 for black) →
+    // normalized to white perspective: -150
+    assert.strictEqual(evals[0].score, -150);
     assert.ok(typeof evals[0].fen === 'string' && evals[0].fen.length > 0, 'fen included');
 
     // Black (the other client) receives it too
     const evalsBlack = black.getSent('evaluation');
     assert.strictEqual(evalsBlack.length, 1, 'black should receive the evaluation');
-    assert.strictEqual(evalsBlack[0].score, 150);
+    assert.strictEqual(evalsBlack[0].score, -150);
   });
 
   test('computer move triggers evaluation broadcast', async () => {
@@ -236,7 +238,57 @@ describe('evaluation -- broadcast after moves', () => {
 
     const evals = white.getSent('evaluation');
     assert.strictEqual(evals.length, 1, 'FEN import should trigger one evaluation');
-    assert.strictEqual(evals[0].score, 400);
+    // Imported FEN is black to move → engine +400 (for black) flips to -400
+    assert.strictEqual(evals[0].score, -400);
+  });
+});
+
+describe('evaluation -- initial position', () => {
+  test('connecting to a fresh position triggers initial evaluation', async () => {
+    const mockEngine = createMockEngine({ evaluation: 42 });
+    const { wss } = createEnv({ mockEngine });
+
+    const ws = wss.simulateConnection();
+    await tick();
+
+    const evals = ws.getSent('evaluation');
+    assert.strictEqual(evals.length, 1, 'initial evaluation broadcast on connect');
+    assert.strictEqual(evals[0].score, 42);
+    assert.ok(evals[0].fen.startsWith('rnbqkbnr/'), 'starting position FEN');
+  });
+
+  test('second connection does not re-evaluate an already-evaluated position', async () => {
+    const mockEngine = createMockEngine({ evaluation: 42 });
+    const { wss } = createEnv({ mockEngine });
+
+    const first = wss.simulateConnection();
+    await tick();
+    const second = wss.simulateConnection();
+    await tick();
+
+    assert.strictEqual(first.getSent('evaluation').length, 1);
+    // The second client gets the evaluation via its state message, not a
+    // fresh engine call
+    const states = second.getSent('state');
+    assert.strictEqual(states[states.length - 1].evaluation, 42);
+  });
+
+  test('evaluation normalized to white perspective when black to move', async () => {
+    const mockEngine = createMockEngine({ evaluation: 150 });
+    const { wss } = createEnv({ mockEngine });
+
+    const white = joinAs(wss, 'white');
+    await tick(); // let the initial evaluation complete
+    const black = joinAs(wss, 'black');
+    makeMove(white, 4, 1, 4, 3); // e2e4 → black to move
+    await tick();
+
+    const evals = white.getSent('evaluation');
+    // Initial position (white to move): engine +150 → white perspective +150
+    assert.strictEqual(evals[0].score, 150);
+    // After e2e4 (black to move): engine +150 is from black's perspective →
+    // flipped to -150 from white's perspective
+    assert.strictEqual(evals[evals.length - 1].score, -150);
   });
 });
 
@@ -254,7 +306,8 @@ describe('evaluation -- state message inclusion', () => {
     const late = wss.simulateConnection();
     const states = late.getSent('state');
     assert.ok(states.length >= 1, 'late client should receive state');
-    assert.strictEqual(states[states.length - 1].evaluation, 150);
+    // Position is black to move → stored white-perspective value is -150
+    assert.strictEqual(states[states.length - 1].evaluation, -150);
   });
 
   test('state evaluation is null before any evaluation', async () => {

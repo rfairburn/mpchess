@@ -6,6 +6,22 @@
 import { test, expect } from '@playwright/test';
 import { joinGame, resetAndGiveUp, makeMove2d, waitForMoveLog } from './helpers.js';
 
+// boundingBox() can transiently return null right after page load while
+// the layout settles — poll until the element has a real box.
+async function waitForBox(page, selector) {
+  let box = null;
+  await expect
+    .poll(
+      async () => {
+        box = await page.locator(selector).boundingBox();
+        return box !== null;
+      },
+      { timeout: 10000 }
+    )
+    .toBe(true);
+  return box;
+}
+
 test.describe.serial('Evaluation bar (desktop)', () => {
   let page = null;
   let ctx = null;
@@ -46,9 +62,16 @@ test.describe.serial('Evaluation bar (desktop)', () => {
     expect(fillHeight).toBeLessThanOrEqual(100);
 
     // The bar's top stays below the black captures box (left-rail layout)
-    const barBox = await page.locator('#eval-bar-track').boundingBox();
-    const capBox = await page.locator('#captured-black').boundingBox();
+    const barBox = await waitForBox(page, '#eval-bar-track');
+    const capBox = await waitForBox(page, '#captured-black');
     expect(barBox.y).toBeGreaterThan(capBox.y + capBox.height);
+
+    // The track is horizontally centered over the score label (both use
+    // border-box sizing: 16px track, 52px label → 18px left margin).
+    const scoreBox = await waitForBox(page, '#eval-score');
+    const trackCenterX = barBox.x + barBox.width / 2;
+    const scoreCenterX = scoreBox.x + scoreBox.width / 2;
+    expect(Math.abs(trackCenterX - scoreCenterX)).toBeLessThanOrEqual(1);
   });
 
   test('Evaluation bar updates after a move', async ({ browser }) => {

@@ -117,7 +117,11 @@ function setupWebSocketHandlers(wss, game, options = {}) {
         }
         const score = await engine.getEvaluation(requestFen);
         if (gameRevision === requestRevision && !game.gameOver) {
-          lastEvaluation = score;
+          // Engine scores are from the side-to-move's perspective (UCI
+          // convention); normalize to White's perspective (positive =
+          // white advantage) for the evaluation bar.
+          const normalized = score != null && requestFen.split(' ')[1] === 'b' ? -score : score;
+          lastEvaluation = normalized;
           broadcastEvaluation();
         }
       } catch {
@@ -972,10 +976,16 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               to: { file: toFile, rank: toRank },
               message: `Move: ${result.notation}`,
             });
-            scheduleEvaluation();
-            // If it's now the computer's turn, trigger its move
+            // If it's now the computer's turn, trigger its move. Skip the
+            // evaluation of this transient position — the computer is about
+            // to change it, and queueing the evaluation ahead of the
+            // computer's move in the engine would delay the thinking
+            // indicator. The position after the computer's move is evaluated
+            // by executeComputerMove().
             if (computerColor && game.turn === computerColor && !game.gameOver) {
               executeComputerMove();
+            } else {
+              scheduleEvaluation();
             }
           } else {
             send(ws, { type: 'error', reason: result.reason });
@@ -1000,10 +1010,10 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               rank: promoRank,
             });
             broadcastState();
-            scheduleEvaluation();
-            // If it's now the computer's turn, trigger its move
             if (computerColor && game.turn === computerColor && !game.gameOver) {
               executeComputerMove();
+            } else {
+              scheduleEvaluation();
             }
           }
           break;

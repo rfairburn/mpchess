@@ -43,6 +43,12 @@ test.describe.serial('Reconnection', () => {
     await makeMove2d(page, 4, 1, 4, 3); // e2-e4
     await expect(page.locator('#move-log')).toContainText('e4', { timeout: 5000 });
 
+    // Let the post-move evaluation broadcast settle before dropping the
+    // connection. If we go offline while that message is still in flight,
+    // the un-ACKed segment delays the TCP close handshake (retransmission
+    // backoff) and the reconnect overlay appears later than expected.
+    await page.waitForTimeout(1500);
+
     // Simulate browser going offline, then force-close the WebSocket
     // (setOffline alone does not close the WS quickly enough in this environment)
     await page.context().setOffline(true);
