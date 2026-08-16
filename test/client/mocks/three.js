@@ -38,6 +38,12 @@ export class Vector3 {
     this.z += v.z * s;
     return this;
   }
+  distanceTo(v) {
+    const dx = this.x - v.x;
+    const dy = this.y - v.y;
+    const dz = this.z - v.z;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  }
   set(x, y, z) {
     this.x = x;
     this.y = y;
@@ -145,11 +151,15 @@ export class Scene {
     sceneInstances.push(this);
   }
   add(obj) {
+    // Match real three.js: track the parent so children can be removed via
+    // obj.parent.remove(obj) (e.g. board.js removeMoveDots).
+    obj.parent = this;
     this.children.push(obj);
   }
   remove(obj) {
     const idx = this.children.indexOf(obj);
     if (idx > -1) this.children.splice(idx, 1);
+    if (obj.parent === this) obj.parent = null;
   }
 }
 
@@ -161,7 +171,13 @@ export class Group {
     this.sortObjects = true;
   }
   add(obj) {
+    obj.parent = this;
     this.children.push(obj);
+  }
+  remove(obj) {
+    const idx = this.children.indexOf(obj);
+    if (idx > -1) this.children.splice(idx, 1);
+    if (obj.parent === this) obj.parent = null;
   }
 }
 
@@ -183,6 +199,9 @@ export class PlaneGeometry {
 }
 export class BoxGeometry {}
 
+// Track MeshBasicMaterial instances for resource-count tests
+export const meshBasicMaterialInstances = [];
+
 export class MeshBasicMaterial {
   constructor(opts = {}) {
     this.color = opts.color ? new Color(opts.color) : new Color(0xffffff);
@@ -190,7 +209,9 @@ export class MeshBasicMaterial {
     this.opacity = opts.opacity ?? 1;
     this.side = opts.side || 0;
     this.depthWrite = opts.depthWrite ?? true;
+    meshBasicMaterialInstances.push(this);
   }
+  dispose() {}
 }
 
 export class Mesh {
@@ -205,14 +226,25 @@ export class Mesh {
 
 export class Color {
   constructor(hex = 0xffffff) {
-    this.r = ((hex >> 16) & 255) / 255;
-    this.g = ((hex >> 8) & 255) / 255;
-    this.b = (hex & 255) / 255;
+    this.isColor = true;
+    // Match real Three.js: a Color instance is deep-copied (values, not
+    // reference); a number is interpreted as 0xrrggbb.
+    if (hex && hex.isColor) {
+      this.copy(hex);
+    } else {
+      this.r = ((hex >> 16) & 255) / 255;
+      this.g = ((hex >> 8) & 255) / 255;
+      this.b = (hex & 255) / 255;
+    }
   }
-  set(hex) {
-    this.r = ((hex >> 16) & 255) / 255;
-    this.g = ((hex >> 8) & 255) / 255;
-    this.b = (hex & 255) / 255;
+  set(value) {
+    if (value && value.isColor) {
+      this.copy(value);
+    } else {
+      this.r = ((value >> 16) & 255) / 255;
+      this.g = ((value >> 8) & 255) / 255;
+      this.b = (value & 255) / 255;
+    }
     return this;
   }
   copy(other) {
@@ -223,22 +255,43 @@ export class Color {
   }
 }
 
+// Track MeshStandardMaterial instances for resource-count tests
+export const meshStandardMaterialInstances = [];
+
 export class MeshStandardMaterial {
   constructor(opts = {}) {
+    // Deep-copy Color values from opts (real Three.js setValues copies, it
+    // never shares the caller's Color instance).
     this.color = opts.color ? new Color(opts.color) : new Color(0xffffff);
-    this.emissive = opts.emissive || new Color(0x000000);
+    this.emissive = opts.emissive ? new Color(opts.emissive) : new Color(0x000000);
     this.emissiveIntensity = opts.emissiveIntensity || 0;
     this.roughness = opts.roughness ?? 1;
     this.metalness = opts.metalness ?? 0;
+    // Real Three.js defaults: opaque, depth-writing.
+    this.transparent = opts.transparent || false;
+    this.opacity = opts.opacity ?? 1;
+    this.depthWrite = opts.depthWrite ?? true;
+    meshStandardMaterialInstances.push(this);
   }
   clone() {
-    return new MeshStandardMaterial(this);
+    // Real Three.js: a fresh instance whose values are copied (independent
+    // Color instances), not a reference-sharing constructor call.
+    return new MeshStandardMaterial().copy(this);
   }
   copy(other) {
-    this.color = other.color;
-    this.emissive = other.emissive;
+    // Deep-copy the Color values into this material's own Color instances and
+    // return this (real Three.js copy() is chainable and value-based).
+    this.color.copy(other.color);
+    this.emissive.copy(other.emissive);
     this.emissiveIntensity = other.emissiveIntensity;
+    this.roughness = other.roughness;
+    this.metalness = other.metalness;
+    this.transparent = other.transparent;
+    this.opacity = other.opacity;
+    this.depthWrite = other.depthWrite;
+    return this;
   }
+  dispose() {}
 }
 
 export class AmbientLight {
@@ -353,13 +406,25 @@ export class Float32BufferAttribute {
   constructor(array, itemSize) {
     this.array = array;
     this.itemSize = itemSize;
+    this.needsUpdate = false;
+  }
+  setXYZ(index, x, y, z) {
+    const i = index * this.itemSize;
+    this.array[i] = x;
+    this.array[i + 1] = y;
+    this.array[i + 2] = z;
+    return this;
   }
 }
+
+// Track BufferGeometry instances for resource-count tests
+export const bufferGeometryInstances = [];
 
 export class BufferGeometry {
   constructor() {
     this.attributes = {};
     this.index = null;
+    bufferGeometryInstances.push(this);
   }
   setAttribute(name, attr) {
     this.attributes[name] = attr;

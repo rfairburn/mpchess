@@ -41,6 +41,8 @@ vi.mock('../../client/board.js', () => ({
   highlightValidMoves: vi.fn(),
   highlightCheck: vi.fn(),
   highlightPreviousMove: vi.fn(),
+  highlightPremoveSelected: vi.fn(),
+  highlightPremoveMoves: vi.fn(),
 }));
 
 vi.mock('../../shared/chess.mjs', () => ({

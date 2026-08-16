@@ -77,6 +77,12 @@ export default {
   'ui.spectator_role': '👁 Spectator',
   'ui.white_turn': "⬤ White's Turn",
   'ui.black_turn': "⬤ Black's Turn",
+  // ── Premove ───────────────────────────────────────────
+  'premove.set': 'Premove set',
+  'premove.played': 'Premove played',
+  'premove.discarded': 'Premove no longer legal',
+  'premove.cancelled': 'Premove cancelled',
+  'premove.status': 'Premove: {move}',
   'ui.players_spectators': 'Players: {players} · Spectators: {spectators}',
   'ui.camera_mode': '🖱 Camera Mode',
   'ui.camera_help':

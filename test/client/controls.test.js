@@ -15,6 +15,9 @@ vi.mock('../../client/network.js', () => ({
   enPassantTarget: null,
   previousMove: null,
   sendMove: vi.fn(),
+  sendPremove: vi.fn(),
+  sendPremoveCancel: vi.fn(),
+  cancelPremove: vi.fn(),
   onRestart: vi.fn(),
   onStateUpdate: vi.fn(),
   onMove: vi.fn(),
@@ -44,6 +47,7 @@ vi.mock('../../client/ui.js', () => ({
   hideConcedeConfirm: vi.fn(),
   mouseSensitivity: 0.002,
   showError: vi.fn(),
+  showPromotionPicker: vi.fn(),
   setThreeScene: vi.fn(),
 }));
 
@@ -54,14 +58,24 @@ vi.mock('../../client/board.js', () => ({
   highlightValidMoves: vi.fn(),
   highlightCheck: vi.fn(),
   highlightPreviousMove: vi.fn(),
+  highlightPremoveSelected: vi.fn(),
+  highlightPremoveMoves: vi.fn(),
 }));
 
-vi.mock('../../shared/chess.mjs', () => ({
-  pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
-  getValidMoves: vi.fn(() => []),
-  findKing: vi.fn(() => null),
-  isInCheck: vi.fn(() => false),
-}));
+vi.mock('../../shared/chess.mjs', async () => {
+  // Use the real permissive premove generator and pieceType so candidate
+  // tests exercise the actual engine behavior; keep the mock legal-move
+  // generator (returns [] by default) used by the pre-existing on-turn tests.
+  const actual = await vi.importActual('../../shared/chess.mjs');
+  return {
+    pieceColor: vi.fn((piece) => (piece > 0 ? 'white' : 'black')),
+    getValidMoves: vi.fn(() => []),
+    getPremoveMoves: vi.fn(actual.getPremoveMoves),
+    pieceType: actual.pieceType,
+    findKing: vi.fn(() => null),
+    isInCheck: vi.fn(() => false),
+  };
+});
 
 const mockPieceMeshes = [];
 vi.mock('../../client/pieces.js', () => ({
@@ -394,6 +408,91 @@ describe('controls.js', () => {
       ui.menuOpen = true;
       document.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape' }));
       expect(ui.hideMenu).toHaveBeenCalled();
+    });
+
+    it('cancels a confirmed premove on Escape (instead of opening the menu)', async () => {
+      const premove = await import('../../client/premove.js');
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+      ui.menuOpen = false;
+      const showMenuCalls = ui.showMenu.mock.calls.length;
+
+      controls.handleKeyDown(new KeyboardEvent('keydown', { code: 'Escape' }));
+
+      expect(network.cancelPremove).toHaveBeenCalledTimes(1);
+      expect(ui.showMenu).toHaveBeenCalledTimes(showMenuCalls);
+      premove.clearPremove();
+    });
+
+    it('still opens the menu on Escape when no premove is pending', async () => {
+      const premove = await import('../../client/premove.js');
+      expect(premove.getPremove()).toBeNull();
+      ui.menuOpen = false;
+      const cancelCalls = network.cancelPremove.mock.calls.length;
+      const showMenuCalls = ui.showMenu.mock.calls.length;
+
+      controls.handleKeyDown(new KeyboardEvent('keydown', { code: 'Escape' }));
+
+      expect(network.cancelPremove).toHaveBeenCalledTimes(cancelCalls);
+      expect(ui.showMenu).toHaveBeenCalledTimes(showMenuCalls + 1);
+    });
+
+    it('closes the menu on Escape even when a premove is pending (menu takes priority)', async () => {
+      const premove = await import('../../client/premove.js');
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+      ui.menuOpen = true;
+      const cancelCalls = network.cancelPremove.mock.calls.length;
+
+      controls.handleKeyDown(new KeyboardEvent('keydown', { code: 'Escape' }));
+
+      expect(ui.hideMenu).toHaveBeenCalled();
+      expect(network.cancelPremove).toHaveBeenCalledTimes(cancelCalls);
+      premove.clearPremove();
+    });
+
+    it('closes Help on Escape even when a premove is pending (Help takes priority)', async () => {
+      const premove = await import('../../client/premove.js');
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+      ui.helpOpen = true;
+      ui.menuOpen = false;
+      const cancelCalls = network.cancelPremove.mock.calls.length;
+      const hideHelpCalls = ui.hideHelp.mock.calls.length;
+
+      try {
+        controls.handleKeyDown(new KeyboardEvent('keydown', { code: 'Escape' }));
+
+        // Only the Help overlay closes — the premove is NOT cancelled
+        expect(ui.hideHelp).toHaveBeenCalledTimes(hideHelpCalls + 1);
+        expect(network.cancelPremove).toHaveBeenCalledTimes(cancelCalls);
+        expect(premove.getPremove()).not.toBeNull(); // premove intact
+      } finally {
+        // Restore overlay state so later tests (e.g. drag handlers that guard
+        // on helpOpen/settingsOpen) are not affected.
+        ui.helpOpen = false;
+        premove.clearPremove();
+      }
+    });
+
+    it('closes Settings on Escape even when a premove is pending (Settings takes priority)', async () => {
+      const premove = await import('../../client/premove.js');
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+      ui.settingsOpen = true;
+      ui.menuOpen = false;
+      const cancelCalls = network.cancelPremove.mock.calls.length;
+      const hideSettingsCalls = ui.hideSettings.mock.calls.length;
+
+      try {
+        controls.handleKeyDown(new KeyboardEvent('keydown', { code: 'Escape' }));
+
+        // Only the Settings overlay closes — the premove is NOT cancelled
+        expect(ui.hideSettings).toHaveBeenCalledTimes(hideSettingsCalls + 1);
+        expect(network.cancelPremove).toHaveBeenCalledTimes(cancelCalls);
+        expect(premove.getPremove()).not.toBeNull(); // premove intact
+      } finally {
+        // Restore overlay state so later tests (e.g. drag handlers that guard
+        // on helpOpen/settingsOpen) are not affected.
+        ui.settingsOpen = false;
+        premove.clearPremove();
+      }
     });
 
     it('should toggle mouseLookOn on Tab', async () => {
@@ -994,6 +1093,664 @@ describe('controls.js', () => {
 
       expect(controls.selectedSquare).toBeNull();
       expect(controls.validMoves).toEqual([]);
+    });
+  });
+
+  // ── 3D premove interaction (Phase 3A) ──────────────────
+
+  describe('3D premove interaction', () => {
+    const W_PAWN = 1,
+      W_KNIGHT = 2,
+      W_BISHOP = 3,
+      W_ROOK = 4,
+      W_QUEEN = 5,
+      W_KING = 6;
+    const B_PAWN = 7,
+      B_KNIGHT = 8,
+      B_BISHOP = 9,
+      B_ROOK = 10,
+      B_QUEEN = 11,
+      B_KING = 12;
+
+    let premove, selection, highlights, arrows;
+
+    function rayPoint(file, rank) {
+      return { point: { x: file - 3.5, y: 0.041, z: 3.5 - rank } };
+    }
+
+    function setupBoard() {
+      for (let r = 0; r < 8; r++) {
+        board.squares[r] = [];
+        for (let f = 0; f < 8; f++) {
+          board.squares[r][f] = { rank: r, file: f };
+        }
+      }
+    }
+
+    function emptyBoard() {
+      return Array(8)
+        .fill(null)
+        .map(() => Array(8).fill(0));
+    }
+
+    function setupGame({ turn = 'black', myRole = 'white', boardArr = null, meshAt = null } = {}) {
+      setupBoard();
+      mockPieceMeshes.length = 0;
+
+      const camera = new THREE.PerspectiveCamera();
+      const renderer = { domElement: document.createElement('canvas') };
+      controls.setRenderer(renderer, camera);
+      controls.setClickHandler(renderer);
+      controls.setDragHandlers(renderer);
+
+      network.myRole = myRole;
+      network.serverTurn = turn;
+      network.serverBoard = boardArr || emptyBoard();
+      network.serverGameOver = false;
+      network.serverPromotingPiece = null;
+      ui.menuOpen = false;
+
+      chess.pieceColor.mockImplementation((p) => (p === 0 ? null : p >= 7 ? 'black' : 'white'));
+      chess.getValidMoves.mockReturnValue([]);
+      chess.getPremoveMoves.mockClear();
+      network.sendMove.mockClear();
+      network.sendPremove.mockClear();
+      network.cancelPremove.mockClear();
+      ui.showError.mockClear();
+      ui.showPromotionPicker.mockClear();
+
+      if (meshAt) mockPieceMeshes.push(mockPieceMesh(meshAt[0], meshAt[1]));
+
+      return renderer;
+    }
+
+    function click(renderer, file, rank) {
+      globalThis.__mockRaycasterResult = [rayPoint(file, rank)];
+      renderer.domElement.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
+
+    function rightClick(renderer, file, rank) {
+      globalThis.__mockRaycasterResult = [rayPoint(file, rank)];
+      renderer.domElement.dispatchEvent(
+        new MouseEvent('mousedown', { button: 2, clientX: 100, clientY: 100, bubbles: true })
+      );
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { button: 2, clientX: 100, clientY: 100, bubbles: true })
+      );
+    }
+
+    beforeEach(async () => {
+      premove = await import('../../client/premove.js');
+      selection = await import('../../client/selection.js');
+      highlights = await import('../../client/highlights.js');
+      arrows = await import('../../client/arrows.js');
+    });
+
+    afterEach(() => {
+      premove.clearPremove();
+    });
+
+    // ── Off-turn selection ────────────────────────────────
+
+    it('off-turn own-piece click selects in premove mode (no toast, no send)', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // a2
+
+      expect(controls.selectedSquare).toEqual({ file: 0, rank: 1 });
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(ui.showError).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    it('off-turn selection invokes only premove-specific highlight APIs', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+      controls.setScene({}); // enable the scene-gated moves-highlight wrappers
+
+      board.highlightPremoveSelected.mockClear();
+      board.highlightSelected.mockClear();
+      board.highlightPremoveMoves.mockClear();
+      board.highlightValidMoves.mockClear();
+
+      click(renderer, 0, 1); // a2 (off-turn → premove mode)
+
+      // Premove-specific highlight APIs are used
+      expect(board.highlightPremoveSelected).toHaveBeenCalledWith(0, 1);
+      expect(board.highlightPremoveMoves).toHaveBeenCalled();
+      // Normal highlight APIs are NOT used
+      expect(board.highlightSelected).not.toHaveBeenCalled();
+      expect(board.highlightValidMoves).not.toHaveBeenCalled();
+    });
+
+    it('on-turn selection invokes only normal highlight APIs', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ turn: 'white', boardArr: b, meshAt: [0, 1] });
+      chess.getValidMoves.mockReturnValue([{ file: 0, rank: 3 }]);
+      const mockScene = {};
+      controls.setScene(mockScene); // enable the scene-gated moves-highlight wrappers
+
+      board.highlightPremoveSelected.mockClear();
+      board.highlightSelected.mockClear();
+      board.highlightPremoveMoves.mockClear();
+      board.highlightValidMoves.mockClear();
+
+      click(renderer, 0, 1); // a2 (on-turn → legal mode)
+
+      // Normal highlight APIs are used
+      expect(board.highlightSelected).toHaveBeenCalledWith(0, 1);
+      expect(board.highlightValidMoves).toHaveBeenCalledWith(
+        mockScene,
+        expect.arrayContaining([expect.objectContaining({ file: 0, rank: 3 })])
+      );
+      // Premove-specific highlight APIs are NOT used
+      expect(board.highlightPremoveSelected).not.toHaveBeenCalled();
+      expect(board.highlightPremoveMoves).not.toHaveBeenCalled();
+    });
+
+    it('off-turn selection computes candidates with getPremoveMoves on a cloned board', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // a2
+
+      // Permissive generator used, legal generator not
+      expect(chess.getPremoveMoves).toHaveBeenCalledTimes(1);
+      expect(chess.getValidMoves).not.toHaveBeenCalled();
+      // The board passed is a defensive clone, not the live serverBoard
+      const passedBoard = chess.getPremoveMoves.mock.calls[0][0];
+      expect(passedBoard).not.toBe(network.serverBoard);
+      expect(passedBoard).toEqual(network.serverBoard);
+      // a2 pawn premove candidates include a3 and a4 (two-step from start rank)
+      expect(controls.validMoves).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ file: 0, rank: 2 }),
+          expect.objectContaining({ file: 0, rank: 3 }),
+        ])
+      );
+    });
+
+    it('off-turn premove candidates are permissive: a pinned piece still gets candidates', () => {
+      // White Ke1 + Nd2, black Ba5 on the a5–e1 diagonal → knight is pinned
+      const b = emptyBoard();
+      b[0][4] = W_KING; // e1
+      b[1][3] = W_KNIGHT; // d2
+      b[4][0] = B_BISHOP; // a5
+      b[7][4] = B_KING; // e8
+      const renderer = setupGame({ boardArr: b, meshAt: [3, 1] });
+
+      click(renderer, 3, 1); // d2
+
+      expect(controls.selectedSquare).toEqual({ file: 3, rank: 1 });
+      expect(selection.getSelectionMode()).toBe('premove');
+      // The pinned knight has 0 legal moves but 6 premove candidates
+      expect(controls.validMoves).toHaveLength(6);
+    });
+
+    it('off-turn enemy-piece click does not select and shows the not-your-turn toast', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2 (own)
+      b[6][0] = B_PAWN; // a7 (enemy)
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 6); // a7 (enemy)
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(ui.showError).toHaveBeenCalledTimes(1);
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('off-turn empty-square click does not select and shows no toast', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 4, 4); // e5 (empty)
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(ui.showError).not.toHaveBeenCalled();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    it('spectator cannot premove (no own-piece selection, no send)', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ myRole: 'spectator', boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // a2
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    // ── Off-turn completion (click / drag / touch) ────────
+
+    it('off-turn click on a candidate destination sends premove, not move', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // select a2 (premove)
+      expect(controls.selectedSquare).not.toBeNull();
+
+      click(renderer, 0, 3); // a4 (candidate)
+
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendMove).not.toHaveBeenCalled();
+      // Selection cleared after completion
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('off-turn click on a non-candidate own piece re-selects it (premove mode)', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      b[1][1] = W_PAWN; // b2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // select a2 (premove)
+      click(renderer, 1, 1); // b2 (not a candidate for a2)
+
+      expect(controls.selectedSquare).toEqual({ file: 1, rank: 1 });
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    it('off-turn drag on own piece completes as premove (mesh returned to square)', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+      const mesh = mockPieceMeshes[0];
+
+      // mousedown on a2
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new MouseEvent('mousedown', { button: 0, clientX: 100, clientY: 100, bubbles: true })
+      );
+
+      // mousemove beyond threshold — commits the drag (premove mode)
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 200, clientY: 200, bubbles: true })
+      );
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(mesh.mesh.position.y).toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // mouseup on a4 (candidate)
+      globalThis.__mockRaycasterResult = [rayPoint(0, 3)];
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { clientX: 300, clientY: 300, bubbles: true })
+      );
+
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendMove).not.toHaveBeenCalled();
+      // A stored premove never changes the board — mesh returned to its square
+      expect(mesh.mesh.position.y).toBe(0.01);
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    it('off-turn touch drag on own piece completes as premove', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      const touch = { identifier: 1, clientX: 100, clientY: 100 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new TouchEvent('touchstart', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch],
+          touches: [touch],
+        })
+      );
+
+      const moveTouch = { identifier: 1, clientX: 200, clientY: 200 };
+      document.dispatchEvent(
+        new TouchEvent('touchmove', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [moveTouch],
+          touches: [moveTouch],
+        })
+      );
+
+      // Committed drag in premove mode
+      expect(selection.getSelectionMode()).toBe('premove');
+
+      const endTouch = { identifier: 1, clientX: 300, clientY: 300 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 3)];
+      document.dispatchEvent(
+        new TouchEvent('touchend', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [endTouch],
+        })
+      );
+
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('late turn flip between selection and completion still sends premove', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      click(renderer, 0, 1); // select a2 off-turn (premove mode)
+      expect(selection.getSelectionMode()).toBe('premove');
+
+      // The turn has flipped on the server, but the client state is stale
+      // (no state update processed yet) — the selection is still in premove
+      // mode, so the completion must send `premove` (the server decides
+      // execute-now vs store).
+      network.serverTurn = 'white';
+
+      click(renderer, 0, 3); // complete on a4
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('state update during a drag cancels it and suppresses the release click', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+      const mesh = mockPieceMeshes[0];
+
+      // mousedown on a2
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new MouseEvent('mousedown', { button: 0, clientX: 100, clientY: 100, bubbles: true })
+      );
+
+      // mousemove beyond threshold — commits the drag (premove mode)
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 200, clientY: 200, bubbles: true })
+      );
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(mesh.mesh.position.y).toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // A state update (e.g. a turn flip) interrupts the active drag
+      const stateCb = network.onStateUpdate.mock.calls.at(-1)[0];
+      stateCb({});
+
+      // The mesh is restored to its canonical square position
+      expect(mesh.mesh.position.x).toBe(-3.5);
+      expect(mesh.mesh.position.y).toBe(0.01);
+      expect(mesh.mesh.position.z).toBe(2.5);
+
+      // Release on a4 (a valid premove candidate) — the drag was already
+      // canceled, so the release itself sends nothing
+      globalThis.__mockRaycasterResult = [rayPoint(0, 3)];
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { clientX: 300, clientY: 300, bubbles: true })
+      );
+
+      // The compatibility click from the release is suppressed — the stale
+      // selection must not execute a move or premove
+      click(renderer, 0, 3);
+
+      expect(network.sendMove).not.toHaveBeenCalled();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      // The mesh remains at its canonical position
+      expect(mesh.mesh.position.x).toBe(-3.5);
+      expect(mesh.mesh.position.y).toBe(0.01);
+      expect(mesh.mesh.position.z).toBe(2.5);
+    });
+
+    it('state update during a committed touch drag does not swallow the next tap', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+      const mesh = mockPieceMeshes[0];
+
+      // Begin a committed touch drag on a2
+      const touch = { identifier: 1, clientX: 100, clientY: 100 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new TouchEvent('touchstart', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch],
+          touches: [touch],
+        })
+      );
+
+      // Move beyond threshold — commits the drag (premove mode)
+      const moveTouch = { identifier: 1, clientX: 200, clientY: 200 };
+      document.dispatchEvent(
+        new TouchEvent('touchmove', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [moveTouch],
+          touches: [moveTouch],
+        })
+      );
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(mesh.mesh.position.y).toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // A state update (e.g. a turn flip) interrupts the active drag
+      const stateCb = network.onStateUpdate.mock.calls.at(-1)[0];
+      stateCb({});
+
+      // The mesh is restored to its canonical square position
+      expect(mesh.mesh.position.x).toBe(-3.5);
+      expect(mesh.mesh.position.y).toBe(0.01);
+      expect(mesh.mesh.position.z).toBe(2.5);
+
+      // End the touch — the release must not execute the stale selection
+      const endTouch = { identifier: 1, clientX: 300, clientY: 300 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 3)];
+      document.dispatchEvent(
+        new TouchEvent('touchend', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [endTouch],
+        })
+      );
+
+      // The interrupted drag sends nothing
+      expect(network.sendMove).not.toHaveBeenCalled();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+
+      // The next legitimate tap is processed (not eaten by a stale
+      // dragCompleted flag). With the stale a2 selection still active, tapping
+      // a4 (a valid premove candidate) completes the premove.
+      click(renderer, 0, 3);
+
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+    });
+
+    // ── On-turn regression ────────────────────────────────
+
+    it('on-turn click-to-move still sends move (regression)', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ turn: 'white', boardArr: b, meshAt: [0, 1] });
+      // On-turn: getValidMoves provides the legal candidates
+      chess.getValidMoves.mockReturnValue([{ file: 0, rank: 3 }]);
+
+      click(renderer, 0, 1); // select a2 (legal mode)
+      expect(selection.getSelectionMode()).toBe('legal');
+      expect(chess.getValidMoves).toHaveBeenCalledTimes(1);
+      expect(chess.getPremoveMoves).not.toHaveBeenCalled();
+
+      click(renderer, 0, 3); // a4 (legal)
+      expect(network.sendMove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    // ── Promotion premove ─────────────────────────────────
+
+    it('off-turn pawn premove to a promotion rank opens the picker in premove mode', () => {
+      const b = emptyBoard();
+      b[6][4] = W_PAWN; // e7
+      b[0][4] = W_KING; // e1
+      b[7][3] = B_KING; // d8
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 6] });
+
+      click(renderer, 4, 6); // select e7 (premove)
+      expect(controls.selectedSquare).toEqual({ file: 4, rank: 6 });
+
+      click(renderer, 4, 7); // e8 (promotion destination)
+
+      expect(ui.showPromotionPicker).toHaveBeenCalledWith(4, 7, 'white', {
+        mode: 'premove',
+        fromFile: 4,
+        fromRank: 6,
+        toFile: 4,
+        toRank: 7,
+      });
+      // Nothing is sent until the picker choice
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('off-turn drag of a pawn to a promotion rank opens the picker and returns the mesh', () => {
+      const b = emptyBoard();
+      b[6][4] = W_PAWN; // e7
+      b[0][4] = W_KING; // e1
+      b[7][3] = B_KING; // d8
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 6] });
+      const mesh = mockPieceMeshes[0];
+
+      // mousedown on e7
+      globalThis.__mockRaycasterResult = [rayPoint(4, 6)];
+      renderer.domElement.dispatchEvent(
+        new MouseEvent('mousedown', { button: 0, clientX: 100, clientY: 100, bubbles: true })
+      );
+
+      // mousemove beyond threshold — commits the drag (premove mode)
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 200, clientY: 200, bubbles: true })
+      );
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(mesh.mesh.position.y).toBe(controls.CONTROLS_CONFIG.dragHeight);
+
+      // mouseup on e8 (promotion destination)
+      globalThis.__mockRaycasterResult = [rayPoint(4, 7)];
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { clientX: 300, clientY: 300, bubbles: true })
+      );
+
+      // The picker opens in premove mode; nothing is sent until a piece is chosen
+      expect(ui.showPromotionPicker).toHaveBeenCalledWith(4, 7, 'white', {
+        mode: 'premove',
+        fromFile: 4,
+        fromRank: 6,
+        toFile: 4,
+        toRank: 7,
+      });
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+      // A stored premove never changes the board — mesh returned to its square
+      expect(mesh.mesh.position.y).toBe(0.01);
+      expect(controls.selectedSquare).toBeNull();
+    });
+
+    // ── Cancellation: origin re-click ─────────────────────
+
+    it('re-clicking the confirmed premove origin cancels it', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      // A confirmed premove e2–e4
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+      click(renderer, 4, 1); // re-click the origin e2
+
+      expect(network.cancelPremove).toHaveBeenCalledTimes(1);
+      // No selection was made (cancel takes priority over selection)
+      expect(controls.selectedSquare).toBeNull();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    it('re-clicking a non-origin square does not cancel the premove', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      b[1][5] = W_PAWN; // f2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+      click(renderer, 5, 1); // f2 (not the origin)
+
+      expect(network.cancelPremove).not.toHaveBeenCalled();
+      // f2 is an own piece off-turn → selected in premove mode
+      expect(controls.selectedSquare).toEqual({ file: 5, rank: 1 });
+      expect(premove.getPremove()).not.toBeNull(); // premove intact
+    });
+
+    // ── Cancellation: right-click priority ────────────────
+
+    it('same-square right-click on the premove origin cancels (priority over highlight)', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+      rightClick(renderer, 4, 1); // same-square right-click on the origin e2
+
+      expect(network.cancelPremove).toHaveBeenCalledTimes(1);
+      expect(highlights.addHighlight).not.toHaveBeenCalled();
+    });
+
+    it('same-square right-click on a NON-origin square still highlights (no cancel)', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+      rightClick(renderer, 0, 1); // same-square right-click on a2 (not the origin)
+
+      expect(network.cancelPremove).not.toHaveBeenCalled();
+      expect(highlights.addHighlight).toHaveBeenCalledWith(0, 1, '#ffdd00');
+    });
+
+    it('right-click drag ending on the premove origin still draws an arrow (no cancel)', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+      // Right-click mousedown on a2
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new MouseEvent('mousedown', { button: 2, clientX: 100, clientY: 100, bubbles: true })
+      );
+
+      // Release on e2 (the premove origin) — a drag (press ≠ release)
+      globalThis.__mockRaycasterResult = [rayPoint(4, 1)];
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { button: 2, clientX: 200, clientY: 100, bubbles: true })
+      );
+
+      expect(arrows.addArrow).toHaveBeenCalled();
+      expect(highlights.addHighlight).not.toHaveBeenCalled();
+      expect(network.cancelPremove).not.toHaveBeenCalled();
+      expect(premove.getPremove()).not.toBeNull(); // premove intact
+    });
+
+    it('right-click annotations are unchanged with no premove (regression)', () => {
+      const b = emptyBoard();
+      b[1][4] = W_PAWN; // e2
+      const renderer = setupGame({ boardArr: b, meshAt: [4, 1] });
+
+      // No premove set. Same-square right-click on a2 → highlight
+      rightClick(renderer, 0, 1);
+
+      expect(highlights.addHighlight).toHaveBeenCalledWith(0, 1, '#ffdd00');
+      expect(network.cancelPremove).not.toHaveBeenCalled();
     });
   });
 

@@ -79,6 +79,12 @@ export default {
   'ui.spectator_role': '👁 Espectador',
   'ui.white_turn': '⬤ Turno de las Blancas',
   'ui.black_turn': '⬤ Turno de las Negras',
+  // ── Premove ───────────────────────────────────────────
+  'premove.set': 'Premove establecido',
+  'premove.played': 'Premove jugado',
+  'premove.discarded': 'Premove ya no es legal',
+  'premove.cancelled': 'Premove cancelado',
+  'premove.status': 'Premove: {move}',
   'ui.players_spectators': 'Jugadores: {players} · Espectadores: {spectators}',
   'ui.camera_mode': '🖱 Modo cámara',
   'ui.camera_help':

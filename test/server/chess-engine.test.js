@@ -31,6 +31,7 @@ const {
   isAttacked,
   isInCheck,
   getValidMoves,
+  getPremoveMoves,
   hasAnyMoves,
   isInsufficientMaterial,
   Game,
@@ -668,6 +669,419 @@ describe('Defense-in-depth — tryMove handles garbage input gracefully', () => 
     assert.ok(!validTypes.includes('pawn'));
     assert.ok(!validTypes.includes(undefined));
     assert.ok(!validTypes.includes(''));
+  });
+});
+
+describe('getPremoveMoves — premove candidate generator', () => {
+  const NO_RIGHTS = { wK: false, wQ: false, bK: false, bQ: false };
+
+  // Build an empty board and place pieces via a map of "file,rank":piece.
+  function boardWith(pieces) {
+    const b = Array.from({ length: 8 }, () => Array(8).fill(0));
+    for (const [key, p] of Object.entries(pieces)) {
+      const [f, r] = key.split(',').map(Number);
+      b[r][f] = p;
+    }
+    return b;
+  }
+
+  function hasTarget(moves, f, r) {
+    return moves.some((m) => m.file === f && m.rank === r);
+  }
+
+  test('premoved recapture: friendly-occupied destination is a candidate (not legal)', () => {
+    // White rook d1, friendly pawn d2 blocks the d-file.
+    const b = boardWith({
+      '4,0': W_KING,
+      '3,0': W_ROOK,
+      '3,1': W_PAWN,
+      '4,7': B_KING,
+    });
+    const legal = getValidMoves(b, 3, 0, NO_RIGHTS, null);
+    const pre = getPremoveMoves(b, 3, 0, NO_RIGHTS, null);
+    assert.ok(!hasTarget(legal, 3, 1), 'd2 (friendly) must not be a legal move');
+    assert.ok(hasTarget(pre, 3, 1), 'd2 (friendly) must be a premove candidate');
+  });
+
+  test('pin that disappears: pinned piece off-line moves are candidates (not legal)', () => {
+    // White rook e4 pinned to king e1 by black queen e8.
+    const b = boardWith({
+      '4,0': W_KING,
+      '4,3': W_ROOK,
+      '4,7': B_QUEEN,
+      '0,7': B_KING,
+    });
+    const legal = getValidMoves(b, 4, 3, NO_RIGHTS, null);
+    const pre = getPremoveMoves(b, 4, 3, NO_RIGHTS, null);
+    assert.ok(!hasTarget(legal, 3, 3), 'd4 (off the pin line) must not be legal');
+    assert.ok(!hasTarget(legal, 5, 3), 'f4 (off the pin line) must not be legal');
+    assert.ok(hasTarget(pre, 3, 3), 'd4 must be a premove candidate');
+    assert.ok(hasTarget(pre, 5, 3), 'f4 must be a premove candidate');
+  });
+
+  test('pawn destination vacated: one-step onto enemy-occupied square is a candidate', () => {
+    // White pawn d2, black knight d3 (the one-step destination).
+    const b = boardWith({
+      '4,0': W_KING,
+      '3,1': W_PAWN,
+      '3,2': B_KNIGHT,
+      '4,7': B_KING,
+    });
+    const legal = getValidMoves(b, 3, 1, NO_RIGHTS, null);
+    const pre = getPremoveMoves(b, 3, 1, NO_RIGHTS, null);
+    assert.ok(!hasTarget(legal, 3, 2), 'd3 (enemy-occupied) must not be a legal pawn advance');
+    assert.ok(hasTarget(pre, 3, 2), 'd3 must be a premove candidate (opponent may vacate)');
+  });
+
+  test('pawn one-step onto friendly-occupied square is NOT a candidate', () => {
+    // White pawn e2, friendly pawn e3.
+    const b = boardWith({
+      '4,0': W_KING,
+      '4,1': W_PAWN,
+      '4,2': W_PAWN,
+      '4,7': B_KING,
+    });
+    const pre = getPremoveMoves(b, 4, 1, NO_RIGHTS, null);
+    assert.ok(!hasTarget(pre, 4, 2), 'e3 (friendly) must not be a premove candidate');
+  });
+
+  test('pawn capture appears for every diagonal occupancy (empty/enemy/friendly)', () => {
+    // White pawn e4; test the d5 and f5 diagonals under each occupancy.
+    for (const diag of [3, 5]) {
+      for (const [label, piece] of [
+        ['empty', 0],
+        ['enemy', B_KNIGHT],
+        ['friendly', W_KNIGHT],
+      ]) {
+        const b = boardWith({
+          '4,0': W_KING,
+          '4,3': W_PAWN,
+          '4,7': B_KING,
+        });
+        if (piece !== 0) b[4][diag] = piece; // rank 4, file = diag
+        const pre = getPremoveMoves(b, 4, 3, NO_RIGHTS, null);
+        assert.ok(hasTarget(pre, diag, 4), `(${label}) diagonal must be a premove candidate`);
+      }
+    }
+  });
+
+  test('pawn two-step occupancy: emitted set matches the rule exactly', () => {
+    // White pawn e2 (starting rank). Intermediate e3 (4,2), destination e4 (4,3).
+    const E = EMPTY;
+    const EN = B_KNIGHT;
+    const OW = W_KNIGHT;
+    const cases = [
+      [E, E, true], // empty/empty
+      [EN, E, true], // enemy/empty
+      [E, EN, true], // empty/enemy
+      [EN, EN, false], // enemy/enemy — one move cannot vacate two squares
+      [OW, E, false], // friendly path square
+      [E, OW, false], // friendly path square
+      [OW, OW, false], // friendly path squares
+      [OW, EN, false], // friendly path square
+      [EN, OW, false], // friendly path square
+    ];
+    for (const [mid, dest, expected] of cases) {
+      const b = boardWith({ '0,0': W_KING, '0,7': B_KING, '4,1': W_PAWN });
+      if (mid !== E) b[2][4] = mid;
+      if (dest !== E) b[3][4] = dest;
+      const pre = getPremoveMoves(b, 4, 1, NO_RIGHTS, null);
+      const emitted = hasTarget(pre, 4, 3);
+      assert.strictEqual(
+        emitted,
+        expected,
+        `two-step e4 with mid=${mid}, dest=${dest} should be ${expected ? 'emitted' : 'not emitted'}`
+      );
+    }
+  });
+
+  test('still excluded: sliding blocker and off-board squares are not candidates', () => {
+    // Rook d1 behind friendly pawns d2 and d3 — slide stops at d2.
+    const b = boardWith({
+      '4,0': W_KING,
+      '3,0': W_ROOK,
+      '3,1': W_PAWN,
+      '3,2': W_PAWN,
+      '4,7': B_KING,
+    });
+    const pre = getPremoveMoves(b, 3, 0, NO_RIGHTS, null);
+    assert.ok(hasTarget(pre, 3, 1), 'd2 (first friendly blocker) is a candidate');
+    assert.ok(!hasTarget(pre, 3, 2), 'd3 (behind the blocker) is not a candidate');
+
+    // Rook a1 — no off-board candidates.
+    const b2 = boardWith({
+      '0,0': W_ROOK,
+      '4,0': W_KING,
+      '4,7': B_KING,
+    });
+    const pre2 = getPremoveMoves(b2, 0, 0, NO_RIGHTS, null);
+    for (const m of pre2) {
+      assert.ok(m.file >= 0 && m.file < 8 && m.rank >= 0 && m.rank < 8, 'no off-board candidate');
+    }
+  });
+
+  test('castling while in check: castle candidates present (structural checks only)', () => {
+    // White king e1 in check from black queen b4; rooks a1 and h1, rights intact.
+    const b = boardWith({
+      '4,0': W_KING,
+      '0,0': W_ROOK,
+      '7,0': W_ROOK,
+      '1,3': B_QUEEN,
+      '4,7': B_KING,
+    });
+    const rights = { wK: true, wQ: true, bK: false, bQ: false };
+    const legal = getValidMoves(b, 4, 0, rights, null);
+    const pre = getPremoveMoves(b, 4, 0, rights, null);
+    assert.ok(!legal.some((m) => m.castle), 'no legal castle while in check');
+    assert.ok(
+      pre.some((m) => m.castle === 'K'),
+      'king-side castle must be a premove candidate'
+    );
+    assert.ok(
+      pre.some((m) => m.castle === 'Q'),
+      'queen-side castle must be a premove candidate'
+    );
+  });
+
+  test('en passant is a premove candidate when the target is set', () => {
+    // White pawn f4, black pawn e4 just pushed; EP target e5.
+    const b = boardWith({
+      '4,0': W_KING,
+      '5,3': W_PAWN,
+      '4,3': B_PAWN,
+      '4,7': B_KING,
+    });
+    const ep = { file: 4, rank: 4 };
+    const pre = getPremoveMoves(b, 5, 3, NO_RIGHTS, ep);
+    assert.ok(
+      pre.some((m) => m.enPassant === true && m.file === 4 && m.rank === 4),
+      'en passant must be a premove candidate'
+    );
+  });
+
+  test('non-drift battery: premove − legal is exactly the intended permissive set, per piece', () => {
+    const ALL_RIGHTS = { wK: true, wQ: true, bK: true, bQ: true };
+    // For each position, `expected` maps a piece square "file,rank" to the exact
+    // sorted set of premove-only moves (getPremoveMoves − getValidMoves). Every
+    // entry is a legitimate permissive addition per plan §4.1: a friendly-occupied
+    // recapture, a king-safety-skipped move, a permissive pawn move, a pin-removed
+    // move, or castling-while-in-check. Empty arrays assert there are NO unexpected
+    // extras for that piece. Every occupied square must appear in `expected`.
+    const positions = [
+      // open: starting position (blocked pieces → recaptures; pawns → empty diagonals)
+      {
+        name: 'open',
+        board: startingBoard(),
+        rights: ALL_RIGHTS,
+        ep: null,
+        expected: {
+          '0,0': ['0,1', '1,0'],
+          '1,0': ['3,1'],
+          '2,0': ['1,1', '3,1'],
+          '3,0': ['2,0', '2,1', '3,1', '4,0', '4,1'],
+          '4,0': ['3,0', '3,1', '4,1', '5,0', '5,1'],
+          '5,0': ['4,1', '6,1'],
+          '6,0': ['4,1'],
+          '7,0': ['6,0', '7,1'],
+          '0,1': ['1,2'],
+          '1,1': ['0,2', '2,2'],
+          '2,1': ['1,2', '3,2'],
+          '3,1': ['2,2', '4,2'],
+          '4,1': ['3,2', '5,2'],
+          '5,1': ['4,2', '6,2'],
+          '6,1': ['5,2', '7,2'],
+          '7,1': ['6,2'],
+          '0,6': ['1,5'],
+          '1,6': ['0,5', '2,5'],
+          '2,6': ['1,5', '3,5'],
+          '3,6': ['2,5', '4,5'],
+          '4,6': ['3,5', '5,5'],
+          '5,6': ['4,5', '6,5'],
+          '6,6': ['5,5', '7,5'],
+          '7,6': ['6,5'],
+          '0,7': ['0,6', '1,7'],
+          '1,7': ['3,6'],
+          '2,7': ['1,6', '3,6'],
+          '3,7': ['2,6', '2,7', '3,6', '4,6', '4,7'],
+          '4,7': ['3,6', '3,7', '4,6', '5,6', '5,7'],
+          '5,7': ['4,6', '6,6'],
+          '6,7': ['4,6'],
+          '7,7': ['6,7', '7,6'],
+        },
+      },
+      // midgame
+      {
+        name: 'midgame',
+        board: boardWith({
+          '4,0': W_KING,
+          '7,0': W_ROOK,
+          '3,0': W_QUEEN,
+          '4,3': W_PAWN,
+          '6,3': W_BISHOP,
+          '4,7': B_KING,
+          '0,7': B_ROOK,
+          '3,4': B_QUEEN,
+          '3,3': B_PAWN,
+          '1,2': B_KNIGHT,
+        }),
+        rights: { wK: true, wQ: false, bK: true, bQ: false },
+        ep: null,
+        expected: {
+          '3,0': ['4,0', '6,3'],
+          '4,0': ['3,0', '3,1'],
+          '7,0': ['4,0'],
+          '1,2': ['3,3'],
+          '3,3': ['2,2', '4,2'],
+          '4,3': ['5,4'],
+          '6,3': ['3,0'],
+          '3,4': ['0,7', '1,2', '3,3'],
+          '0,7': ['4,7'],
+          '4,7': ['3,6'],
+        },
+      },
+      // endgame
+      {
+        name: 'endgame',
+        board: boardWith({
+          '0,0': W_KING,
+          '2,1': W_BISHOP,
+          '7,7': B_KING,
+          '5,6': B_KNIGHT,
+        }),
+        rights: NO_RIGHTS,
+        ep: null,
+        expected: {
+          '0,0': [],
+          '2,1': [],
+          '5,6': ['7,7'],
+          '7,7': ['7,6'],
+        },
+      },
+      // pinned
+      {
+        name: 'pinned',
+        board: boardWith({
+          '4,0': W_KING,
+          '4,3': W_ROOK,
+          '4,7': B_QUEEN,
+          '0,7': B_KING,
+        }),
+        rights: NO_RIGHTS,
+        ep: null,
+        expected: {
+          '4,0': [],
+          '4,3': ['0,3', '1,3', '2,3', '3,3', '4,0', '5,3', '6,3', '7,3'],
+          '0,7': [],
+          '4,7': ['0,7'],
+        },
+      },
+      // in check (castling available)
+      {
+        name: 'incheck',
+        board: boardWith({
+          '4,0': W_KING,
+          '0,0': W_ROOK,
+          '7,0': W_ROOK,
+          '1,3': B_QUEEN,
+          '4,7': B_KING,
+        }),
+        rights: { wK: true, wQ: true, bK: false, bQ: false },
+        ep: null,
+        expected: {
+          '0,0': ['0,1', '0,2', '0,3', '0,4', '0,5', '0,6', '0,7', '1,0', '2,0', '3,0', '4,0'],
+          '4,0': ['2,0,Q', '3,1', '6,0,K'],
+          '7,0': ['4,0', '5,0', '6,0', '7,1', '7,2', '7,3', '7,4', '7,5', '7,6', '7,7'],
+          '1,3': [],
+          '4,7': [],
+        },
+      },
+      // en passant available
+      {
+        name: 'ep',
+        board: boardWith({
+          '4,0': W_KING,
+          '5,3': W_PAWN,
+          '4,3': B_PAWN,
+          '4,7': B_KING,
+        }),
+        rights: NO_RIGHTS,
+        ep: { file: 4, rank: 4 },
+        expected: {
+          '4,0': [],
+          '4,3': ['3,2', '5,2'],
+          '5,3': ['6,4'],
+          '4,7': [],
+        },
+      },
+    ];
+
+    const key = (m) =>
+      `${m.file},${m.rank}${m.enPassant ? ',ep' : ''}${m.castle ? ',' + m.castle : ''}`;
+
+    for (const { name, board, rights, ep, expected } of positions) {
+      // The expected map must cover exactly the occupied squares: no silent
+      // fallback for a forgotten piece, no stale/typo'd keys left behind.
+      const occupied = [];
+      for (let r = 0; r < 8; r++)
+        for (let f = 0; f < 8; f++) if (board[r][f] !== 0) occupied.push(`${f},${r}`);
+      assert.deepStrictEqual(
+        Object.keys(expected).sort(),
+        [...occupied].sort(),
+        `[${name}] expected map keys must match the occupied squares exactly`
+      );
+      for (let r = 0; r < 8; r++) {
+        for (let f = 0; f < 8; f++) {
+          if (board[r][f] === 0) continue;
+          const sq = `${f},${r}`;
+          const legal = getValidMoves(board, f, r, rights, ep);
+          const pre = getPremoveMoves(board, f, r, rights, ep);
+          const preKeys = new Set(pre.map(key));
+          // Direction 1: every legal move is a premove candidate (no missing legal moves).
+          for (const m of legal) {
+            assert.ok(
+              preKeys.has(key(m)),
+              `[${name}] legal move ${key(m)} for piece at ${sq} missing from premove set`
+            );
+          }
+          // Direction 2: the premove-only moves are exactly the intended permissive set.
+          const legalKeys = new Set(legal.map(key));
+          const actual = pre
+            .filter((m) => !legalKeys.has(key(m)))
+            .map(key)
+            .sort();
+          const want = [...expected[sq]].sort();
+          assert.deepStrictEqual(
+            actual,
+            want,
+            `[${name}] premove−legal for piece at ${sq} = [${actual.join(', ')}], expected [${want.join(', ')}]`
+          );
+        }
+      }
+    }
+  });
+
+  test('non-drift: premove set adds only permissive moves (exact set on a recapture position)', () => {
+    // Rook d1 with friendly pawn d2. The white king sits on e3, off the rook's
+    // d-file / rank-1 paths, so the only friendly-occupied candidate is d2.
+    // Premove = legal rook moves + d2 (the recapture). Nothing else.
+    const b = boardWith({
+      '4,2': W_KING,
+      '3,0': W_ROOK,
+      '3,1': W_PAWN,
+      '4,7': B_KING,
+    });
+    const legal = getValidMoves(b, 3, 0, NO_RIGHTS, null);
+    const pre = getPremoveMoves(b, 3, 0, NO_RIGHTS, null);
+    const legalKeys = new Set(legal.map((m) => `${m.file},${m.rank}`));
+    const extra = pre
+      .filter((m) => !legalKeys.has(`${m.file},${m.rank}`))
+      .map((m) => `${m.file},${m.rank}`)
+      .sort();
+    assert.deepStrictEqual(
+      extra,
+      ['3,1'],
+      'the only extra premove candidate must be the d2 recapture'
+    );
   });
 });
 

@@ -4,11 +4,19 @@
 
 import * as THREE from 'three';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { serverBoard, debugEnabled, onStateUpdate, onRestart, onPromotion } from './network.js';
+import {
+  serverBoard,
+  myRole,
+  debugEnabled,
+  onStateUpdate,
+  onRestart,
+  onPromotion,
+} from './network.js';
 import { clearHighlights, highlightCheck, highlightPreviousMove } from './board.js';
 import { diffBoardState } from './board_diff.js';
 import { pieceColor, pieceType } from '../shared/chess.mjs';
 import { playMove } from './sound.js';
+import { getPremove, onPremoveChange } from './premove.js';
 
 // 3D model set name — directory under files/pieces/3d/
 export const MODEL_SETS = [
@@ -243,6 +251,11 @@ function processGeometry(geometry, type) {
  * @param {Object<string, import('three').BufferGeometry>} tempCache
  */
 function installCache(scene, tempCache) {
+  // The old cache geometries are about to be disposed below — detach the
+  // premove ghost (which references one of them) first. rebuildPieces at
+  // the end of this function re-renders the ghost from the fresh cache.
+  removePremoveGhost();
+
   // Remove all existing piece meshes from the scene
   while (pieceMeshes.length > 0) {
     const pm = pieceMeshes.pop();
@@ -253,7 +266,7 @@ function installCache(scene, tempCache) {
       // Material is shared (matWhite/matBlack) except when animateCapture
       // cloned it — check by identity before disposing.
       if (child.material && child.material !== matWhite && child.material !== matBlack) {
-        child.material.dispose();
+        disposeMaterialOnce(child.material);
       }
     }
   }
@@ -268,11 +281,12 @@ function installCache(scene, tempCache) {
   for (const key of Object.keys(tempCache)) PIECE_CACHE[key] = tempCache[key];
   modelsLoaded = true;
 
-  // Cancel any in-flight animations
-  animations.length = 0;
-  animatingPieces.clear();
+  // Cancel any in-flight animations — their completion callbacks never
+  // fire, so they can no longer touch the freshly rebuilt meshes.
+  cancelAnimations();
 
-  // Rebuild pieces if we have board state
+  // Rebuild pieces if we have board state (a pending premove ghost is
+  // re-rendered from the fresh cache at the end of rebuildPieces)
   if (serverBoard) rebuildPieces(scene);
 }
 
@@ -419,6 +433,9 @@ export function rebuildPieces(scene, force = false) {
   const toRemoveSet = new Set(toRemove);
   for (const pm of toRemove) {
     scene.remove(pm.mesh);
+    // A mid-fade mesh carries a cloned material — dispose it here since
+    // the fade's completion path will no longer own the removal.
+    disposeCapturedMaterial(pm.mesh);
     if (debugEnabled && typeof console !== 'undefined' && console.debug) {
       console.debug('[rebuildPieces] REMOVED (no longer on board):', `${pm.file},${pm.rank}`);
     }
@@ -435,8 +452,13 @@ export function rebuildPieces(scene, force = false) {
     const pm = entry.piece;
     {
       scene.remove(pm.mesh);
+      // The replaced mesh may carry a cloned capture-fade material.
+      disposeCapturedMaterial(pm.mesh);
       const newMesh = createPiece(entry.newType, entry.newColor);
-      newMesh.position.copy(pm.mesh.position);
+      // Keep the square position but snap to the canonical base height:
+      // the old mesh may be mid-arc (slide) or mid-lift (capture fade),
+      // and the replacement must not inherit a floating y.
+      newMesh.position.set(pm.mesh.position.x, 0.01, pm.mesh.position.z);
       newMesh.rotation.y = pm.mesh.rotation.y;
       scene.add(newMesh);
       pm.mesh = newMesh;
@@ -490,6 +512,7 @@ export function rebuildPieces(scene, force = false) {
         if (existing) {
           // Duplicate at same position — remove the losing mesh from the scene
           scene.remove(existing.mesh);
+          disposeCapturedMaterial(existing.mesh);
         }
         byPosition.set(key, pm);
       }
@@ -506,6 +529,11 @@ export function rebuildPieces(scene, force = false) {
     }
     console.debug('[rebuildPieces] FINAL pieceMeshes:', finalState);
   }
+
+  // Board/piece rebuild (state update, promotion, restart, model-set
+  // change): re-render the confirmed premove ghost so it tracks the
+  // fresh geometry cache and board state without duplicating nodes.
+  renderPremoveGhost();
 }
 
 /**
@@ -529,8 +557,65 @@ export const animations = [];
 // which would cause duplicate pieces or kill capture fade-out animations.
 const animatingPieces = new Set();
 
+// Reference count of in-flight animation operations (slide / capture fade)
+// per piece entry. A piece stays protected from rebuildPieces until EVERY
+// operation it owns has completed or been cancelled: one operation
+// finishing must never unprotect a piece another operation still owns
+// (e.g. a capture fade overlapping the capturer's slide into the same
+// square during a chained-capture race).
+const animOpCounts = new Map();
+
+function beginAnim(piece) {
+  animOpCounts.set(piece, (animOpCounts.get(piece) || 0) + 1);
+  animatingPieces.add(piece);
+}
+
+function endAnim(piece) {
+  const n = (animOpCounts.get(piece) || 0) - 1;
+  if (n <= 0) {
+    animOpCounts.delete(piece);
+    animatingPieces.delete(piece);
+  } else {
+    animOpCounts.set(piece, n);
+  }
+}
+
+// Cancel all in-flight animations (model-set swap, restart). Completion
+// callbacks never fire after this; cloned capture materials owned by the
+// cancelled fades are disposed by the caller's mesh teardown, which runs
+// immediately after.
+function cancelAnimations() {
+  animations.length = 0;
+  animatingPieces.clear();
+  animOpCounts.clear();
+}
+
+// Dispose a material exactly once across all cleanup paths (fade
+// completion, rebuild removal, model-set swap, restart).
+function disposeMaterialOnce(mat) {
+  if (!mat || mat.__mpchessDisposed) return;
+  mat.__mpchessDisposed = true;
+  mat.dispose();
+}
+
+// Dispose a cloned capture-fade material on a mesh a rebuild is removing
+// (the fade's own completion is the other disposal site). Shared
+// matWhite/matBlack are never disposed; shared PIECE_CACHE geometry is
+// never disposed.
+function disposeCapturedMaterial(mesh) {
+  const child = mesh?.children?.[0];
+  if (child && child.material && child.material !== matWhite && child.material !== matBlack) {
+    disposeMaterialOnce(child.material);
+  }
+}
+
 // Test-only access to the animating pieces set.
 export { animatingPieces as _animatingPieces };
+
+// Test-only access to a piece's in-flight animation operation count.
+export function _animOpCount(piece) {
+  return animOpCounts.get(piece) || 0;
+}
 
 // Create a slide animation for a piece from one square to another.
 // arcHeight adds a vertical arc (default 0 = flat slide).
@@ -546,6 +631,10 @@ function createSlideAnimation(
   duration,
   arcHeight = 0
 ) {
+  // Move piece.mesh (the CURRENT mesh) each frame: if a force rebuild
+  // replaces it mid-flight (promotion), the replacement continues the
+  // slide to the destination. Slide completion never removes a mesh, so
+  // this can never delete a rebuilt replacement.
   animations.push({
     update(time) {
       const t = Math.min((time - startTime) / duration, 1);
@@ -556,7 +645,7 @@ function createSlideAnimation(
         startZ + (endZ - startZ) * ease
       );
       if (t >= 1) {
-        animatingPieces.delete(piece);
+        endAnim(piece);
         playMove();
         return true;
       }
@@ -590,10 +679,11 @@ export function animateMove(
   if (!fromPiece) return;
 
   // Update logical position immediately so rebuildPieces sees the piece at
-  // its destination. Mark as animating so rebuildPieces skips it entirely.
+  // its destination. Mark as animating (reference-counted) so
+  // rebuildPieces skips it until every operation on it has finished.
   fromPiece.file = toFile;
   fromPiece.rank = toRank;
-  animatingPieces.add(fromPiece);
+  beginAnim(fromPiece);
 
   const startX = fromFile - 3.5,
     startY = 0.01,
@@ -625,7 +715,7 @@ export function animateMove(
     if (rook) {
       rook.file = castled.to;
       rook.rank = castled.rank;
-      animatingPieces.add(rook);
+      beginAnim(rook);
       createSlideAnimation(
         rook,
         castled.from - 3.5,
@@ -643,8 +733,12 @@ export function animateMove(
   // Animate captured piece fading out
   function animateCapture(target) {
     if (!target) return;
-    const startY = target.mesh.position.y;
-    const child = target.mesh.children[0];
+    // The mesh instance this fade started with. Completion may only
+    // remove/mutate THIS mesh — if a rebuild replaced or removed it in
+    // the meantime, the replacement must survive the fade.
+    const startedMesh = target.mesh;
+    const startY = startedMesh.position.y;
+    const child = startedMesh.children[0];
     // Clone the material so the shared matWhite/matBlack is not mutated
     // (all pieces of the same color share one material instance)
     child.material = child.material.clone();
@@ -652,16 +746,22 @@ export function animateMove(
     animations.push({
       update(time) {
         const t = Math.min((time - startTime) / duration, 1);
-        target.mesh.position.y = startY + t * 2;
+        startedMesh.position.y = startY + t * 2;
         child.material.opacity = 1 - t;
         if (t >= 1) {
-          // Dispose Three.js resources to avoid memory leaks
-          child.geometry?.dispose();
-          child.material?.dispose();
-          scene.remove(target.mesh);
-          const idx = pieceMeshes.indexOf(target);
-          if (idx > -1) pieceMeshes.splice(idx, 1);
-          animatingPieces.delete(target);
+          // Only remove the mesh instance this fade started with, and
+          // only if the entry is still tracked — a rebuild may have
+          // replaced or removed it, in which case the replacement must
+          // survive.
+          if (target.mesh === startedMesh && pieceMeshes.includes(target)) {
+            scene.remove(startedMesh);
+            const idx = pieceMeshes.indexOf(target);
+            if (idx > -1) pieceMeshes.splice(idx, 1);
+          }
+          // Dispose the owned material clone exactly once. The geometry
+          // is shared (PIECE_CACHE) — never dispose it here.
+          disposeMaterialOnce(child.material);
+          endAnim(target);
           return true;
         }
         return false;
@@ -670,25 +770,126 @@ export function animateMove(
   }
 
   if (captured && !enPassant) {
-    // Exclude fromPiece — its file/rank was already updated to destination
-    const capPiece = pieceMeshes.find(
-      (p) => p !== fromPiece && p.file === toFile && p.rank === toRank
-    );
-    // Mark captured piece as animating IMMEDIATELY so rebuildPieces won't
-    // remove it from the scene before the fade-out animation starts.
-    if (capPiece) animatingPieces.add(capPiece);
-    animateCapture(capPiece);
+    // The server broadcasts `move` before `state`, so serverBoard still
+    // reflects the PRE-move position: the victim is the piece the server
+    // says occupied the destination square. Match destination AND expected
+    // type/color — during overlapping animations a fading victim from an
+    // earlier capture can still sit on the destination alongside the
+    // incoming capturer, and position alone would pick whichever entry
+    // happens to be first in pieceMeshes (the stale-mesh race).
+    let capPiece = null;
+    const victimId = serverBoard?.[toRank]?.[toFile];
+    if (victimId) {
+      capPiece = pieceMeshes.find(
+        (p) =>
+          p !== fromPiece &&
+          p.file === toFile &&
+          p.rank === toRank &&
+          p.type === pieceType(victimId) &&
+          p.color === pieceColor(victimId)
+      );
+    }
+    if (!capPiece) {
+      // Safe fallback (no board state yet, or client desync): any other
+      // piece at the destination.
+      capPiece = pieceMeshes.find((p) => p !== fromPiece && p.file === toFile && p.rank === toRank);
+    }
+    // Mark captured piece as animating IMMEDIATELY (reference-counted) so
+    // rebuildPieces won't remove it from the scene before the fade-out
+    // animation completes.
+    if (capPiece) {
+      beginAnim(capPiece);
+      animateCapture(capPiece);
+    }
   }
 
   if (enPassant) {
     const epRank = fromPiece.color === 'white' ? toRank - 1 : toRank + 1;
     const epPawn = pieceMeshes.find(
-      (p) => p.file === toFile && p.rank === epRank && p.type === 'pawn'
+      (p) => p !== fromPiece && p.file === toFile && p.rank === epRank && p.type === 'pawn'
     );
-    if (epPawn) animatingPieces.add(epPawn);
-    animateCapture(epPawn);
+    if (epPawn) {
+      beginAnim(epPawn);
+      animateCapture(epPawn);
+    }
   }
 }
+
+// ── Confirmed premove ghost (3D) ─────────────────────────
+// A semi-transparent visual clone of the premoved piece at the
+// destination square. The geometry is the shared PIECE_CACHE geometry
+// (never disposed here); the material is a per-ghost clone of
+// matWhite/matBlack with transparent/opacity/depthWrite set, so the
+// real pieces' shared material state is never mutated or shared.
+// Non-interactive: the mesh's raycast is disabled and the ghost is
+// never added to pieceMeshes, so raycasting, rebuildPieces, and move
+// animations can never touch it. A small constant vertical offset keeps
+// it clear of a piece already on the destination (no z-fighting).
+//
+// State is driven solely by premove.js (server confirmation echo,
+// reconnect restore, discard/clear/execution). Spectators/opponents
+// never see it: their premove state stays null.
+
+const PREMOVE_GHOST_OPACITY = 0.45;
+const PREMOVE_GHOST_Y_OFFSET = 0.02; // above the piece base (y = 0.01)
+const PREMOVE_GHOST_RENDER_ORDER = 10; // above pieces, below the premove arrow (100)
+
+let premoveGhost = null; // { group, mesh, material } | null
+let premoveGhostKey = null; // identity of the rendered ghost
+
+function removePremoveGhost() {
+  if (!premoveGhost) return;
+  const { group, material } = premoveGhost;
+  if (group.parent) group.parent.remove(group);
+  material.dispose(); // owned clone — safe to dispose
+  // geometry is shared (PIECE_CACHE) — never dispose
+  premoveGhost = null;
+  premoveGhostKey = null;
+}
+
+function renderPremoveGhost() {
+  const pre = getPremove();
+  if (!pre || !_scene || !modelsLoaded) {
+    removePremoveGhost();
+    return;
+  }
+  const piece = serverBoard?.[pre.fromRank]?.[pre.fromFile];
+  if (!piece || piece === 0 || pieceColor(piece) !== myRole) {
+    // Origin piece gone, or the source square now holds the opponent's
+    // capturing piece (a state update can arrive before premoveDiscarded)
+    // — nothing to ghost.
+    removePremoveGhost();
+    return;
+  }
+  const type = pieceType(piece);
+  const color = pieceColor(piece);
+  const key = `${pre.toFile},${pre.toRank},${type},${color}`;
+  if (premoveGhost && premoveGhostKey === key) return; // idempotent
+  removePremoveGhost();
+  const geo = PIECE_CACHE[type];
+  if (!geo) return;
+  const material = (color === 'white' ? matWhite : matBlack).clone();
+  material.transparent = true;
+  material.opacity = PREMOVE_GHOST_OPACITY;
+  material.depthWrite = false;
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  mesh.renderOrder = PREMOVE_GHOST_RENDER_ORDER;
+  mesh.raycast = () => {}; // never a raycast target
+  const group = new THREE.Group();
+  group.name = 'premoveGhost';
+  group.add(mesh);
+  group.position.set(pre.toFile - 3.5, 0.01 + PREMOVE_GHOST_Y_OFFSET, 3.5 - pre.toRank);
+  group.rotation.y = color === 'black' ? 0 : Math.PI;
+  _scene.add(group);
+  premoveGhost = { group, mesh, material };
+  premoveGhostKey = key;
+}
+
+// Re-render the ghost on every premove state change: confirmation echo,
+// reconnect restore, replace, discard/clear/execution.
+onPremoveChange(renderPremoveGhost);
 
 // ── State update handlers ────────────────────────────────
 
@@ -696,10 +897,15 @@ let _scene = null;
 
 /**
  * Set the Three.js scene reference for state update handlers.
+ * A scene switch detaches the ghost from the old scene (disposing its
+ * owned material) and restores it in the new scene.
  * @param {import('three').Scene} scene
  */
 export function setScene(scene) {
+  if (_scene === scene) return;
+  removePremoveGhost();
   _scene = scene;
+  renderPremoveGhost();
 }
 
 onStateUpdate(() => {
@@ -714,10 +920,10 @@ onRestart(() => {
   // server state. This prevents duplicate pieces on the same square (a
   // client-only desync that can occur after promotions).
   if (_scene && serverBoard && modelsLoaded) {
-    // Cancel in-flight animations — their callbacks won't fire, so any
-    // cloned capture materials won't get their normal dispose() path.
-    animations.length = 0;
-    animatingPieces.clear();
+    // Cancel in-flight animations — their callbacks won't fire, so they
+    // can no longer touch the freshly rebuilt meshes. Cloned capture
+    // materials are disposed by the teardown loop below.
+    cancelAnimations();
 
     // Remove every piece mesh from the scene with proper cleanup
     while (pieceMeshes.length > 0) {
@@ -729,7 +935,7 @@ onRestart(() => {
       const child = pm.mesh.children[0];
       if (child) {
         if (child.material && child.material !== matWhite && child.material !== matBlack) {
-          child.material.dispose();
+          disposeMaterialOnce(child.material);
         }
       }
     }

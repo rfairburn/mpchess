@@ -77,6 +77,12 @@ export default {
   'ui.spectator_role': '👁 Zuschauer',
   'ui.white_turn': '⬤ Weiß am Zug',
   'ui.black_turn': '⬤ Schwarz am Zug',
+  // ── Premove ───────────────────────────────────────────
+  'premove.set': 'Premove gesetzt',
+  'premove.played': 'Premove gespielt',
+  'premove.discarded': 'Premove nicht mehr legal',
+  'premove.cancelled': 'Premove abgebrochen',
+  'premove.status': 'Premove: {move}',
   'ui.players_spectators': 'Spieler: {players} · Zuschauer: {spectators}',
   'ui.camera_mode': '🖱 Kamera-Modus',
   'ui.camera_help':

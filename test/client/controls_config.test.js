@@ -225,6 +225,8 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       onEvaluation: vi.fn(),
       serverEvaluation: null,
       debugEnabled: false,
+      onPremoveSet: vi.fn(),
+      onPremovePlayed: vi.fn(),
     }));
 
     vi.doMock('../../client/board.js', () => ({
@@ -234,6 +236,8 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       highlightValidMoves: vi.fn(),
       highlightCheck: vi.fn(),
       highlightPreviousMove: vi.fn(),
+      highlightPremoveSelected: vi.fn(),
+      highlightPremoveMoves: vi.fn(),
     }));
 
     vi.doMock('../../shared/chess.mjs', () => ({

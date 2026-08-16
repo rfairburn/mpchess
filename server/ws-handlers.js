@@ -1,5 +1,11 @@
 const crypto = require('crypto');
-const { validateFenForEngine, fromFen } = require('../shared/chess.mjs');
+const {
+  validateFenForEngine,
+  fromFen,
+  getPremoveMoves,
+  pieceColor,
+  pieceType,
+} = require('../shared/chess.mjs');
 const { getStockfishEngine } = require('../shared/stockfish_engine');
 const { createRateLimiter } = require('./rate-limiter');
 
@@ -284,9 +290,37 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     return seats;
   }
 
+  // ── Premove state (Phase 1C) ──
+  // One premove per color, keyed by color (not ws) so it survives
+  // reconnection (a reconnect creates a new ws; the color is stable).
+  // Value: { fromFile, fromRank, toFile, toRank, promotion: string|null }
+  // Declared before sendState (which reads premoves) so the binding is
+  // initialized before any state send, regardless of call order.
+  const premoves = { white: null, black: null };
+
+  // Clear ONE color's premove (single-owner paths). Sends the owner a
+  // premoveCleared so they can drop the visual; no broadcast. The full
+  // lifecycle reset/terminal/seat call sites are wired in a later subtask.
+  function clearPremove(color) {
+    if (!premoves[color]) return;
+    const ws = [...game.players.entries()].find(([, c]) => c === color)?.[0];
+    if (ws) send(ws, { type: 'premoveCleared' });
+    premoves[color] = null;
+  }
+
+  // Clear BOTH colors (whole-game reset/terminal paths only).
+  function clearPremoves() {
+    clearPremove('white');
+    clearPremove('black');
+  }
+
   function sendState(ws) {
     const role = getRole(ws);
     const state = game.getState();
+    // Premove is private to its owner: a seated player sees only their own
+    // premove (explicit null when none), spectators/unassigned clients see
+    // null. Including it in every state enables reconnect restoration.
+    const premove = role === 'white' || role === 'black' ? premoves[role] : null;
     send(ws, {
       type: 'state',
       role,
@@ -296,6 +330,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       debug: DEBUG,
       evaluation: lastEvaluation,
       ...state,
+      premove,
     });
   }
 
@@ -329,6 +364,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       }
       // Clear all disconnected player entries
       disconnectedPlayers.clear();
+      // Whole-game reset — clear any stale premoves so they can't execute
+      // under a new occupant's WebSocket after the reset.
+      clearPremoves();
       game.reset();
       broadcastState();
       for (const c of wss.clients) {
@@ -349,6 +387,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
   function freeDisconnectedSeat(token) {
     const entry = disconnectedPlayers.get(token);
     if (!entry) return;
+    // Permanent seat release — the old owner can no longer reconnect, so their
+    // premove is cleared (single-color: the connected opponent's is preserved).
+    clearPremove(entry.color);
     disconnectedPlayers.delete(token);
     stopBothDisconnectedTimer();
     broadcastState();
@@ -414,6 +455,153 @@ function setupWebSocketHandlers(wss, game, options = {}) {
 
   function isColorFree(color) {
     return seatStatusForColor(color).status === 'free';
+  }
+
+  // ── Shared move application / post-turn finalization ──
+  //
+  // applyAndBroadcastMove is the single path for applying a human move and
+  // broadcasting it (live moves and premoves). It validates any supplied
+  // promotion BEFORE tryMove can mutate the board, runs tryMove, atomically
+  // completes a supplied promotion, and broadcasts move + state. It does NOT
+  // decide what happens next — that is finishTurn()'s job.
+
+  // Snapshot/restore for the atomic-promotion invariant: if completePromotion
+  // ever fails after tryMove mutated the board (unreachable after the enum
+  // validation in applyAndBroadcastMove), we restore the pre-move state so the
+  // server never holds a mutated, unbroadcast position.
+  function snapshotGameState() {
+    return {
+      board: game.board.map((row) => [...row]),
+      turn: game.turn,
+      castlingRights: { ...game.castlingRights },
+      enPassantTarget: game.enPassantTarget,
+      promotingPiece: game.promotingPiece ? { ...game.promotingPiece } : null,
+      moveHistory: [...game.moveHistory],
+      capturedPieces: {
+        white: [...game.capturedPieces.white],
+        black: [...game.capturedPieces.black],
+      },
+      gameOver: game.gameOver,
+      gameResult: game.gameResult,
+      lastMove: game.lastMove,
+      halfmoveClock: game.halfmoveClock,
+      fullmoveNumber: game.fullmoveNumber,
+      positionHistory: [...game.positionHistory],
+      positionCounts: new Map(game.positionCounts),
+    };
+  }
+
+  function restoreGameState(snap) {
+    game.board = snap.board;
+    game.turn = snap.turn;
+    game.castlingRights = snap.castlingRights;
+    game.enPassantTarget = snap.enPassantTarget;
+    game.promotingPiece = snap.promotingPiece;
+    game.moveHistory = snap.moveHistory;
+    game.capturedPieces = snap.capturedPieces;
+    game.gameOver = snap.gameOver;
+    game.gameResult = snap.gameResult;
+    game.lastMove = snap.lastMove;
+    game.halfmoveClock = snap.halfmoveClock;
+    game.fullmoveNumber = snap.fullmoveNumber;
+    game.positionHistory = snap.positionHistory;
+    game.positionCounts = snap.positionCounts;
+  }
+  function applyAndBroadcastMove(
+    ws,
+    fromFile,
+    fromRank,
+    toFile,
+    toRank,
+    { promotion = null, isPremove = false } = {}
+  ) {
+    const moverColor = game.players.get(ws);
+    // Validate the promotion value BEFORE any mutation: an invalid value must
+    // not reach completePromotion() after tryMove() has already changed the board.
+    if (promotion !== null && !['queen', 'rook', 'bishop', 'knight'].includes(promotion)) {
+      return { ok: false, reason: 'error.invalid_move' };
+    }
+    // A supplied promotion must complete atomically. Snapshot only on the
+    // premove path (promotion !== null) — live moves leave the promotion
+    // pending, so no atomicity is required there.
+    const preMoveSnapshot = promotion !== null ? snapshotGameState() : null;
+    const result = game.tryMove(ws, fromFile, fromRank, toFile, toRank);
+    if (!result.ok) return result;
+    let completedPromotion = null;
+    if (result.promotion) {
+      if (promotion) {
+        // A premove already chose the piece: complete now, no picker.
+        // completePromotion failure is unreachable after the enum validation
+        // above; if it ever happens, restore the pre-move snapshot so we never
+        // leave a mutated, unbroadcast state (invariant-failure strategy).
+        const ok = game.completePromotion(ws, promotion);
+        if (!ok) {
+          if (preMoveSnapshot) restoreGameState(preMoveSnapshot);
+          console.error(
+            '[Premove] invariant violation: completePromotion failed after a validated tryMove; game state restored'
+          );
+          return { ok: false, reason: 'error.invalid_move' };
+        }
+        completedPromotion = promotion;
+      }
+      // else: normal live move — leave pending; the 'promotion' message completes it.
+    }
+    bumpRevision();
+    noteMoveBroadcast(); // preserve MIN_MOVE_DELAY timing for a following computer move
+    broadcast({ type: 'move', ...result, color: moverColor, premove: isPremove });
+    if (completedPromotion) {
+      broadcast({
+        type: 'promotion',
+        pieceType: completedPromotion,
+        color: moverColor,
+        file: result.toFile,
+        rank: result.toRank,
+      });
+    }
+    broadcastState();
+    return result;
+  }
+
+  // Post-turn finalizer: the single decision point for "whose action or
+  // evaluation comes next" after a completed turn. Drains any stored premoves
+  // now that the turn has flipped (a successful premove may expose the OTHER
+  // player's premove, hence the loop — it terminates because each iteration
+  // consumes one premove), then hands off to the computer or schedules an
+  // evaluation. No recursion: maybeExecutePremove() never calls finishTurn().
+  function finishTurn() {
+    while (maybeExecutePremove()) {
+      /* each success may expose the other premove */
+    }
+    if (computerColor && game.turn === computerColor && !game.gameOver) {
+      executeComputerMove();
+    } else {
+      scheduleEvaluation();
+    }
+  }
+
+  // Premove execution hook: invoked ONLY from finishTurn()'s loop. Returns
+  // true if a stored premove was executed (so the loop can drain a chained
+  // premove), false otherwise.
+  function maybeExecutePremove() {
+    if (game.gameOver) {
+      clearPremoves();
+      return false;
+    }
+    const color = game.turn;
+    const pre = premoves[color];
+    if (!pre) return false;
+    const ws = [...game.players.entries()].find(([, c]) => c === color)?.[0];
+    if (!ws) {
+      premoves[color] = null; // owner disconnected & not reconnected — discard
+      return false;
+    }
+    premoves[color] = null; // consume before applying so a re-entrant hook can't double-fire
+    const result = applyAndBroadcastMove(ws, pre.fromFile, pre.fromRank, pre.toFile, pre.toRank, {
+      promotion: pre.promotion,
+      isPremove: true,
+    });
+    if (!result.ok) send(ws, { type: 'premoveDiscarded', reason: result.reason });
+    return result.ok;
   }
 
   // ── Computer player helpers ──
@@ -499,10 +687,12 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       /**
        * Apply a parsed UCI move for the computer player.
        * Registers virtualWs, attempts the move (with optional queen promotion),
-       * broadcasts the result, and cleans up virtualWs.
+       * broadcasts the result, and cleans up virtualWs. Does NOT finalize the
+       * turn — finalization (evaluation / next computer move) happens exactly
+       * once, after the retry loop, via finishTurn().
        * @returns {boolean} true if the move was applied successfully
        */
-      function applyMove(fromFile, fromRank, toFile, toRank) {
+      function applyComputerMove(fromFile, fromRank, toFile, toRank) {
         game.players.set(virtualWs, thinkingColor);
         try {
           const result = game.tryMove(virtualWs, fromFile, fromRank, toFile, toRank);
@@ -533,14 +723,15 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             });
           }
           broadcastState();
-          scheduleEvaluation();
+          // NOTE: no scheduleEvaluation() here — finalization is done once,
+          // after the retry loop, via finishTurn().
           return true;
         } finally {
           game.players.delete(virtualWs);
         }
       }
 
-      let moveApplied = applyMove(fromFile, fromRank, toFile, toRank);
+      let moveApplied = applyComputerMove(fromFile, fromRank, toFile, toRank);
       if (!moveApplied) {
         debugLog('Computer move failed, will retry', { uciMove });
       }
@@ -561,16 +752,21 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             continue;
           }
           const { fromFile: rf, fromRank: rr, toFile: tf, toRank: tr } = parseUciMove(retryMove);
-          if (applyMove(rf, rr, tf, tr)) {
+          if (applyComputerMove(rf, rr, tf, tr)) {
             moveApplied = true;
             break;
           }
         }
       }
 
-      // All attempts (primary + 2 retries) failed — engine cannot make a legal move.
-      // This can happen with impossible FEN positions or engine bugs.
-      if (!moveApplied) {
+      if (moveApplied) {
+        // Finalize exactly once, after the final successful move. A failed
+        // attempt (primary or retry) must not finalize — the turn is still the
+        // computer's and nothing has changed.
+        finishTurn();
+      } else {
+        // All attempts (primary + 2 retries) failed — engine cannot make a legal move.
+        // This can happen with impossible FEN positions or engine bugs.
         console.error(
           `[Stockfish] All move attempts failed for ${thinkingColor}; marking unavailable`
         );
@@ -738,6 +934,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       if (game.gameOver || gameRevision !== requestRevision) return;
       game.gameOver = true;
       game.gameResult = 'game.draw_agreement';
+      clearPremoves();
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
@@ -813,6 +1010,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
       // Both players agree — end the game as a draw
       game.gameOver = true;
       game.gameResult = 'game.draw_agreement';
+      clearPremoves();
       bumpRevision();
       broadcast({ type: 'drawResult', accepted: true });
       broadcastState();
@@ -832,7 +1030,13 @@ function setupWebSocketHandlers(wss, game, options = {}) {
     const { color } = data;
     if (color !== 'white' && color !== 'black' && color !== 'spectator') return;
 
-    // Remove from any previous assignment
+    // Remove from any previous assignment. If the player was seated in a
+    // different color, that color's premove is cleared (the seat becomes
+    // available to another occupant); a same-color rejoin preserves it.
+    const previousColor = game.players.get(ws);
+    if (previousColor && previousColor !== color) {
+      clearPremove(previousColor);
+    }
     game.players.delete(ws);
     game.spectators.delete(ws);
     sessions.delete(ws);
@@ -958,7 +1162,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             )
           )
             return;
-          const result = game.tryMove(ws, fromFile, fromRank, toFile, toRank);
+          const result = applyAndBroadcastMove(ws, fromFile, fromRank, toFile, toRank, {});
           if (result.ok) {
             debugLog('Move:', {
               from: { file: fromFile, rank: fromRank },
@@ -966,26 +1170,17 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               result,
             });
             debugLog('Board after move:', game.board);
-            bumpRevision();
-            noteMoveBroadcast();
-            broadcast({ type: 'move', ...result });
-            broadcastState();
             broadcastDebug({
               category: 'move',
               from: { file: fromFile, rank: fromRank },
               to: { file: toFile, rank: toRank },
               message: `Move: ${result.notation}`,
             });
-            // If it's now the computer's turn, trigger its move. Skip the
-            // evaluation of this transient position — the computer is about
-            // to change it, and queueing the evaluation ahead of the
-            // computer's move in the engine would delay the thinking
-            // indicator. The position after the computer's move is evaluated
-            // by executeComputerMove().
-            if (computerColor && game.turn === computerColor && !game.gameOver) {
-              executeComputerMove();
-            } else {
-              scheduleEvaluation();
+            // A live move awaiting promotion has not flipped the turn yet —
+            // defer finalization until completePromotion() succeeds (the
+            // 'promotion' handler). Otherwise the turn flipped: finalize now.
+            if (!result.promotion) {
+              finishTurn();
             }
           } else {
             send(ws, { type: 'error', reason: result.reason });
@@ -1010,12 +1205,127 @@ function setupWebSocketHandlers(wss, game, options = {}) {
               rank: promoRank,
             });
             broadcastState();
-            if (computerColor && game.turn === computerColor && !game.gameOver) {
-              executeComputerMove();
-            } else {
-              scheduleEvaluation();
-            }
+            // The turn has now flipped — finalize (computer move or evaluation).
+            finishTurn();
           }
+          break;
+        }
+        case 'premove': {
+          // Rule 1: seated players only — a spectator or non-player receives a
+          // silent no-op (no response, no state change, no broadcast).
+          const senderColor = game.players.get(ws);
+          if (!senderColor) break;
+
+          // Rule 2: game over
+          if (game.gameOver) {
+            send(ws, { type: 'error', reason: 'error.game_over' });
+            break;
+          }
+
+          // Rule 3: own pending-promotion guard — a late premove arriving while
+          // the sender's live promotion is still awaiting the 'promotion'
+          // message is dropped, not queued behind it. Does not store or replace
+          // any premove.
+          if (game.promotingPiece && game.promotingPiece.color === senderColor) {
+            send(ws, { type: 'error', reason: 'error.promotion_in_progress' });
+            break;
+          }
+
+          const { fromFile, fromRank, toFile, toRank } = msg;
+
+          // Rule 4: coordinate validation identical to the move handler
+          // (integers 0–7) — malformed coordinates are a silent no-op there,
+          // so they are here too.
+          if (
+            ![fromFile, fromRank, toFile, toRank].every(
+              (v) => Number.isInteger(v) && v >= 0 && v <= 7
+            )
+          )
+            break;
+
+          // Rule 5: source-piece validation — must be the sender's own piece
+          const prePiece = game.board[fromRank][fromFile];
+          if (prePiece === 0 || pieceColor(prePiece) !== senderColor) {
+            send(ws, { type: 'error', reason: 'error.invalid_move' });
+            break;
+          }
+
+          // Rule 6: candidate validation via the permissive premove set
+          // (tryMove at execution remains the final authority)
+          const preCandidates = getPremoveMoves(
+            game.board,
+            fromFile,
+            fromRank,
+            game.castlingRights,
+            game.enPassantTarget
+          );
+          if (!preCandidates.some((m) => m.file === toFile && m.rank === toRank)) {
+            send(ws, { type: 'error', reason: 'error.invalid_move' });
+            break;
+          }
+
+          // Rule 7: promotion validation (before any mutation)
+          const isPawnPromotion = pieceType(prePiece) === 'pawn' && (toRank === 0 || toRank === 7);
+          let normalizedPromotion = null;
+          if (msg.promotion !== undefined && msg.promotion !== null) {
+            if (!['queen', 'rook', 'bishop', 'knight'].includes(msg.promotion)) {
+              send(ws, { type: 'error', reason: 'error.invalid_move' });
+              break;
+            }
+            normalizedPromotion = msg.promotion;
+          }
+          if (isPawnPromotion && !normalizedPromotion) {
+            send(ws, { type: 'error', reason: 'error.invalid_move' });
+            break;
+          }
+          if (!isPawnPromotion) normalizedPromotion = null; // normalize to null
+
+          // Rule 8: execute-now branch (late-arriving premove) — the turn is
+          // already the sender's, so replace/consume any stale stored premove,
+          // play this one immediately with atomic promotion, then finalize.
+          if (game.turn === senderColor) {
+            premoves[senderColor] = null;
+            const result = applyAndBroadcastMove(ws, fromFile, fromRank, toFile, toRank, {
+              promotion: normalizedPromotion,
+              isPremove: true,
+            });
+            if (result.ok) {
+              finishTurn();
+            } else {
+              send(ws, { type: 'error', reason: result.reason });
+            }
+            break;
+          }
+
+          // Rule 9: store/replace branch — private confirmation echo, no
+          // broadcast (the premove is private to its owner).
+          premoves[senderColor] = {
+            fromFile,
+            fromRank,
+            toFile,
+            toRank,
+            promotion: normalizedPromotion,
+          };
+          send(ws, {
+            type: 'premove',
+            fromFile,
+            fromRank,
+            toFile,
+            toRank,
+            promotion: normalizedPromotion,
+          });
+          break;
+        }
+        case 'premoveCancel': {
+          // Seated players only — a spectator or non-player receives a silent
+          // no-op (no response, no state change, no broadcast).
+          const cancelColor = game.players.get(ws);
+          if (!cancelColor) break;
+          // Idempotent: nothing to cancel → no-op (no error, no message).
+          if (!premoves[cancelColor]) break;
+          // clearPremove sends the owner's premoveCleared (no broadcast);
+          // do not send a second one.
+          clearPremove(cancelColor);
           break;
         }
         case 'restart': {
@@ -1025,6 +1335,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             // Evict computer player on restart
             evictComputerPlayer();
             clearDrawOffer();
+            clearPremoves();
             game.reset();
             bumpRevision();
             const newFen = game.currentFen();
@@ -1049,6 +1360,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (ok) {
             bumpRevision();
             clearDrawOffer();
+            clearPremoves();
             broadcastState();
             scheduleEvaluation();
           }
@@ -1091,6 +1403,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
             clearDrawOffer();
             // Evict computer player — FEN import is treated as a new game
             evictComputerPlayer();
+            clearPremoves();
 
             const oldFen = game.currentFen();
             debugLog('FEN import: OLD FEN:', oldFen);
@@ -1187,6 +1500,7 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           if (result.ok) {
             bumpRevision();
             clearDrawOffer();
+            clearPremoves();
             broadcastState();
             scheduleEvaluation();
           } else {
@@ -1209,6 +1523,9 @@ function setupWebSocketHandlers(wss, game, options = {}) {
           // Player voluntarily gives up their seat — no 60s hold
           const playerColor = game.players.get(ws);
           if (playerColor) {
+            // Owner explicitly gone — clear only their color's premove so the
+            // connected opponent's pending premove is preserved.
+            clearPremove(playerColor);
             game.players.delete(ws);
             const session = sessions.get(ws);
             if (session) {

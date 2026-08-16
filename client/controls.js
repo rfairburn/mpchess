@@ -12,9 +12,12 @@ import {
   castlingRights,
   enPassantTarget,
   sendMove,
+  sendPremove,
+  cancelPremove,
   onRestart,
   onStateUpdate,
 } from './network.js';
+import { getPremove } from './premove.js';
 import {
   menuOpen,
   helpOpen,
@@ -28,6 +31,7 @@ import {
   hideConcedeConfirm,
   mouseSensitivity,
   showError,
+  showPromotionPicker,
 } from './ui.js';
 import { t } from '../shared/i18n.mjs';
 import { saveAndHide2DBoard, restore2DBoard } from './board_2d.js';
@@ -38,9 +42,11 @@ import {
   highlightValidMoves as highlightValidMoves3D,
   highlightCheck as highlightCheck3D,
   highlightPreviousMove as highlightPreviousMove3D,
+  highlightPremoveSelected as highlightPremoveSelected3D,
+  highlightPremoveMoves as highlightPremoveMoves3D,
 } from './board.js';
 import { createHighlightOrchestrator, bindSelectionChange } from './highlight-orchestration.js';
-import { pieceColor, getValidMoves } from '../shared/chess.mjs';
+import { pieceColor, pieceType, getValidMoves, getPremoveMoves } from '../shared/chess.mjs';
 import { pieceMeshes } from './pieces.js';
 import { playMove } from './sound.js';
 import { addArrow, clearArrows, getArrowColor } from './arrows.js';
@@ -53,6 +59,7 @@ import {
   setSelectedSquare,
   getSelectedSquare,
   getValidMovesList,
+  getSelectionMode,
   onSelectionChange,
 } from './selection.js';
 
@@ -209,7 +216,7 @@ export function clearHeldKeys() {
   }
 }
 
-document.addEventListener('keydown', (e) => {
+export function handleKeyDown(e) {
   // When settings is open, only Escape closes it; all other game shortcuts
   // and movement keys are suppressed. Tab navigates the form naturally.
   if (settingsOpen) {
@@ -230,6 +237,11 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Escape') {
     if (menuOpen) {
       hideMenu();
+    } else if (getPremove()) {
+      // ESC cancels a confirmed premove (instead of opening the menu).
+      // Existing behavior is preserved: an open menu still closes, and with
+      // no premove pending ESC still opens the menu.
+      cancelPremove();
     } else {
       showMenu();
     }
@@ -246,7 +258,9 @@ document.addEventListener('keydown', (e) => {
     warpCamera(digitKey);
     return;
   }
-});
+}
+
+document.addEventListener('keydown', handleKeyDown);
 
 document.addEventListener('keyup', (e) => {
   keys[e.code] = false;
@@ -305,6 +319,13 @@ const orchestrator = createHighlightOrchestrator({
     if (_scene) highlightValidMoves3D(_scene, moves);
   },
   highlightCheck: highlightCheck3D,
+  // Off-turn (premode) selection uses the dedicated deep-blue premove
+  // materials; on-turn rendering keeps the normal selected/valid/capture
+  // highlights.
+  highlightPremoveSelected: highlightPremoveSelected3D,
+  highlightPremoveMoves: (moves) => {
+    if (_scene) highlightPremoveMoves3D(_scene, moves);
+  },
 });
 bindSelectionChange(orchestrator, () => !!_scene);
 
@@ -327,11 +348,11 @@ onSelectionChange(syncSelectionExports);
 let dragging = false; // true once drag threshold is crossed
 let dragCandidate = null; // { file, rank } — piece under mousedown (not yet committed)
 let dragPiece = null; // { file, rank } — committed drag piece (after threshold)
-let dragStartPos = null; // { x, y, z } — original 3D position of committed piece
 let dragStartX = 0; // clientX at mousedown
 let dragStartY = 0; // clientY at mousedown
 let dragCompleted = false; // true after a committed drag mouseup (suppresses click)
 let dragTouchId = null; // touch identifier that owns the board drag gesture
+let touchDragCommitted = false; // true once a touch drag crosses the threshold
 
 // ── Arrow drawing state (3D) ─────────────────────────────
 
@@ -352,6 +373,66 @@ function getBoardSquareFromRay(event) {
     if (file >= 0 && file < 8 && rank >= 0 && rank < 8) return { file, rank };
   }
   return null;
+}
+
+// ── Selection helpers (3D) ───────────────────────────────
+
+/**
+ * Select a piece on-turn and show its legal moves (getValidMoves).
+ */
+function selectPiece(file, rank) {
+  const moves = getValidMoves(
+    serverBoard.map((r) => [...r]),
+    file,
+    rank,
+    castlingRights,
+    enPassantTarget
+  );
+  setSelectedSquare({ file, rank }, moves);
+  orchestrator.selectPiece(file, rank, moves);
+}
+
+/**
+ * Select an own piece off-turn and show its premove candidate moves.
+ * Candidates use the permissive getPremoveMoves() on a cloned board —
+ * getValidMoves() is too restrictive for premoves (it rejects recaptures
+ * onto currently friendly-occupied squares, pinned pieces, and pawn
+ * destinations the opponent will vacate).
+ */
+function selectPremovePiece(file, rank) {
+  const moves = getPremoveMoves(
+    serverBoard.map((r) => [...r]),
+    file,
+    rank,
+    castlingRights,
+    enPassantTarget
+  );
+  setSelectedSquare({ file, rank }, moves, 'premove');
+  orchestrator.selectPremove(file, rank, moves);
+}
+
+/**
+ * Complete a premove: sends `premove` (the server decides execute-now vs
+ * store, so a late turn flip between click and send is safe). A pawn
+ * promotion destination opens the promotion picker in premove mode instead
+ * of sending immediately — the chosen piece is then sent atomically with
+ * the premove.
+ */
+function executePremove(fromFile, fromRank, toFile, toRank) {
+  const piece = serverBoard[fromRank][fromFile];
+  if (pieceType(piece) === 'pawn' && (toRank === 0 || toRank === 7)) {
+    orchestrator.deselect();
+    showPromotionPicker(toFile, toRank, pieceColor(piece), {
+      mode: 'premove',
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+    });
+    return;
+  }
+  sendPremove(fromFile, fromRank, toFile, toRank);
+  orchestrator.deselect();
 }
 
 // ── Click handler ────────────────────────────────────────
@@ -385,6 +466,17 @@ export function setClickHandler(renderer) {
     const { file, rank } = sq;
     const piece = serverBoard[rank][file];
 
+    // Re-clicking the confirmed premove's origin cancels it (sends
+    // premoveCancel + clears local state optimistically). This takes priority
+    // over selection: the origin is always the user's own piece, and clicking
+    // it while a premove is confirmed is the cancel gesture.
+    const pre = getPremove();
+    if (pre && pre.fromFile === file && pre.fromRank === rank) {
+      cancelPremove();
+      return;
+    }
+
+    const offTurn = myRole && myRole !== serverTurn;
     const sel = getSelectedSquare();
     const vm = getValidMovesList();
     if (sel) {
@@ -395,41 +487,36 @@ export function setClickHandler(renderer) {
       }
       const isValid = vm.some((m) => m.file === file && m.rank === rank);
       if (!isValid) {
-        // Clicked an invalid square — if it's one of our pieces on our turn, select it instead
-        if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
-          const moves = getValidMoves(
-            serverBoard.map((r) => [...r]),
-            file,
-            rank,
-            castlingRights,
-            enPassantTarget
-          );
-          setSelectedSquare({ file, rank }, moves);
-          orchestrator.selectPiece(file, rank, moves);
+        // Clicked an invalid square — if it's one of our pieces, select it
+        // instead (premove mode off-turn, normal mode on-turn)
+        if (piece !== 0 && pieceColor(piece) === myRole) {
+          if (offTurn) selectPremovePiece(file, rank);
+          else selectPiece(file, rank);
         } else {
           orchestrator.deselect();
         }
         return;
       }
-      sendMove(sel.file, sel.rank, file, rank);
-      orchestrator.deselect();
+      // The message type follows the selection mode, not the turn at send
+      // time: a premove selection always sends `premove`, so a late turn
+      // flip between click and send still sends `premove` (the server
+      // decides execute-now vs store).
+      if (getSelectionMode() === 'premove') {
+        executePremove(sel.file, sel.rank, file, rank);
+      } else {
+        sendMove(sel.file, sel.rank, file, rank);
+        orchestrator.deselect();
+      }
       return;
     }
 
-    if (piece !== 0 && pieceColor(piece) === myRole && myRole === serverTurn) {
-      const moves = getValidMoves(
-        serverBoard.map((r) => [...r]),
-        file,
-        rank,
-        castlingRights,
-        enPassantTarget
-      );
-      setSelectedSquare({ file, rank }, moves);
-      orchestrator.selectPiece(file, rank, moves);
+    if (piece !== 0 && pieceColor(piece) === myRole) {
+      if (offTurn) selectPremovePiece(file, rank);
+      else selectPiece(file, rank);
     } else {
       orchestrator.deselect();
-      // Immediate local feedback when clicking on own piece but it's not your turn
-      if (myRole && piece !== 0 && pieceColor(piece) === myRole && myRole !== serverTurn) {
+      // Immediate local feedback when clicking an enemy piece off-turn
+      if (offTurn && piece !== 0) {
         showError(t('error.not_your_turn'));
       }
     }
@@ -446,15 +533,10 @@ function commitDrag() {
   if (!dragCandidate) return;
   const { file, rank } = dragCandidate;
 
-  const moves = getValidMoves(
-    serverBoard.map((r) => [...r]),
-    file,
-    rank,
-    castlingRights,
-    enPassantTarget
-  );
-  setSelectedSquare({ file, rank }, moves);
-  orchestrator.selectPiece(file, rank, moves);
+  // Off-turn drags select in premove mode (permissive candidates);
+  // on-turn drags keep the normal legal selection.
+  if (myRole && myRole !== serverTurn) selectPremovePiece(file, rank);
+  else selectPiece(file, rank);
 
   const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
   if (!pm) {
@@ -465,10 +547,29 @@ function commitDrag() {
 
   dragging = true;
   dragPiece = { file, rank };
-  dragStartPos = { x: pm.mesh.position.x, y: pm.mesh.position.y, z: pm.mesh.position.z };
+  // Remember that a touch gesture committed so a state-interrupted release
+  // can still suppress its compatibility click (see touchEndHandler).
+  if (dragTouchId !== null) touchDragCommitted = true;
   pm.mesh.position.y = DRAG_HEIGHT;
   playMove();
   dragCandidate = null;
+}
+
+// Return the dragged piece's mesh to its canonical square position and clear
+// the committed-drag state. The position is derived from the piece's
+// (file, rank) rather than a captured snapshot, so restoration is correct even
+// if the mesh was already displaced when the drag committed. Every
+// completion/cancel/error path that leaves the board unchanged goes through
+// this helper, so a lifted mesh can never be stranded at drag height.
+function restoreDraggedMesh() {
+  if (dragPiece) {
+    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
+    if (pm) {
+      pm.mesh.position.set(dragPiece.file - 3.5, 0.01, 3.5 - dragPiece.rank);
+    }
+  }
+  dragging = false;
+  dragPiece = null;
 }
 
 function onDragMove(event) {
@@ -525,28 +626,34 @@ function onDragEnd(event) {
     return;
   }
 
-  dragging = false;
   dragCompleted = true;
+
+  // Capture the drag coordinates before restoreDraggedMesh() clears them.
+  const fromFile = dragPiece.file;
+  const fromRank = dragPiece.rank;
 
   // Find the square under the cursor
   const sq = getBoardSquareFromRay(event);
-  const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
 
   const vm = getValidMovesList();
   if (sq && vm.some((m) => m.file === sq.file && m.rank === sq.rank)) {
-    // Valid drop — execute the move
-    sendMove(dragPiece.file, dragPiece.rank, sq.file, sq.rank);
-    orchestrator.deselect();
+    // Valid drop — execute the move (or premove, per the selection mode
+    // chosen at drag start: a late turn flip still sends `premove`). The
+    // lifted mesh is always returned to its square first: a stored premove
+    // never changes the board (no re-render to fix the mesh), and a live
+    // move's animation starts from the canonical origin anyway.
+    restoreDraggedMesh();
+    if (getSelectionMode() === 'premove') {
+      executePremove(fromFile, fromRank, sq.file, sq.rank);
+    } else {
+      sendMove(fromFile, fromRank, sq.file, sq.rank);
+      orchestrator.deselect();
+    }
   } else {
     // Invalid drop — return piece to original position
-    if (pm && dragStartPos) {
-      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
-    }
+    restoreDraggedMesh();
     orchestrator.deselect();
   }
-
-  dragPiece = null;
-  dragStartPos = null;
 }
 
 // ── Touch helpers for drag-to-move ──────────────────────
@@ -580,7 +687,9 @@ function touchStartHandler(event) {
   const { file, rank } = sq;
   const piece = serverBoard[rank][file];
 
-  if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+  // Own pieces are touch-draggable on- and off-turn (off-turn drags
+  // complete as premoves); enemy pieces and empty squares are ignored.
+  if (piece === 0 || pieceColor(piece) !== myRole) return;
 
   // Only assign ownership when creating a valid drag candidate.
   dragTouchId = t.identifier;
@@ -589,7 +698,6 @@ function touchStartHandler(event) {
   dragCandidate = { file, rank };
   dragging = false;
   dragPiece = null;
-  dragStartPos = null;
 }
 
 function touchMoveHandler(event) {
@@ -620,7 +728,10 @@ function touchMoveHandler(event) {
 }
 
 function touchEndHandler(event) {
-  if (!dragging && !dragCandidate) return;
+  // Also proceed when a state update interrupted the drag: dragging and
+  // dragCandidate are cleared, but dragTouchId is preserved so the owning
+  // touch release can still be cleaned up.
+  if (!dragging && !dragCandidate && dragTouchId === null) return;
 
   // Find the owning touch in changedTouches.
   // TouchList is array-like but lacks .find() — iterate by index.
@@ -638,19 +749,23 @@ function touchEndHandler(event) {
     return;
   }
 
-  const wasCommittedDrag = dragging;
+  // A state-interrupted committed drag has dragging cleared but
+  // touchDragCommitted set, so it still suppresses its compatibility click.
+  const wasCommittedDrag = dragging || touchDragCommitted;
   onDragEnd(t);
 
-  // If this was a committed drag, suppress the compatibility click by
-  // calling preventDefault() on touchend, and clear dragCompleted so
-  // the next tap's click is not discarded.
+  // If this was a committed drag (normal or state-interrupted), suppress the
+  // compatibility click by calling preventDefault() on touchend.
   if (wasCommittedDrag) {
     event.preventDefault();
-    dragCompleted = false;
   }
   // For below-threshold taps (candidate only), do NOT call preventDefault()
   // so the browser fires a compatibility click for normal tap-to-select.
 
+  // Clear any pending click suppression and the committed flag so the next
+  // legitimate tap is not eaten and no stale flag remains.
+  dragCompleted = false;
+  touchDragCommitted = false;
   dragTouchId = null;
 }
 
@@ -672,15 +787,12 @@ function touchCancelHandler(event) {
 
   dragTouchId = null;
   dragCandidate = null;
-  if (dragging && dragPiece) {
-    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
-    if (pm && dragStartPos) {
-      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
-    }
-    dragging = false;
-    dragPiece = null;
-    dragStartPos = null;
-  }
+  // A touchcancel generates no compatibility click, so clear any pending
+  // click suppression (e.g. from a state-interrupted drag) so the next
+  // legitimate tap is not eaten.
+  dragCompleted = false;
+  touchDragCommitted = false;
+  restoreDraggedMesh();
   orchestrator.deselect();
 }
 
@@ -708,13 +820,14 @@ export function setDragHandlers(renderer) {
     const { file, rank } = sq;
     const piece = serverBoard[rank][file];
 
-    if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+    // Own pieces are draggable on- and off-turn (off-turn drags complete as
+    // premoves); enemy pieces and empty squares are ignored.
+    if (piece === 0 || pieceColor(piece) !== myRole) return;
 
     // Store as candidate — do NOT select yet (click handler will handle that)
     dragCandidate = { file, rank };
     dragging = false;
     dragPiece = null;
-    dragStartPos = null;
   });
 
   // ── Touch handlers for drag-to-move ──
@@ -752,14 +865,30 @@ export function setDragHandlers(renderer) {
       return;
     }
 
-    // If release square differs from start, always draw an arrow regardless of pixel distance
+    // If release square differs from start, always draw an arrow regardless of pixel distance.
+    // A drag (press ≠ release) NEVER cancels the premove — including a drag that
+    // ends on the premove origin — it always draws its annotation arrow.
     if (sq.file !== arrowStart.file || sq.rank !== arrowStart.rank) {
       const color = getArrowColor(event);
       addArrow(arrowStart, sq, color);
     } else {
-      // Same square — highlight it
-      const color = getHighlightColor(event);
-      addHighlight(arrowStart.file, arrowStart.rank, color);
+      // Same square (press === release). The ONLY right-click that cancels: a
+      // same-square right-click whose press AND release are both the confirmed
+      // premove's origin. It takes priority over the highlight gesture.
+      const pre = getPremove();
+      if (
+        pre &&
+        arrowStart.file === pre.fromFile &&
+        arrowStart.rank === pre.fromRank &&
+        sq.file === pre.fromFile &&
+        sq.rank === pre.fromRank
+      ) {
+        cancelPremove();
+      } else {
+        // Same square — highlight it
+        const color = getHighlightColor(event);
+        addHighlight(arrowStart.file, arrowStart.rank, color);
+      }
     }
     arrowStart = null;
   });
@@ -768,17 +897,23 @@ export function setDragHandlers(renderer) {
 // ── Cancel drag on board state change ────────────────────
 
 onStateUpdate(() => {
-  if (dragging && dragPiece) {
-    const pm = pieceMeshes.find((p) => p.file === dragPiece.file && p.rank === dragPiece.rank);
-    if (pm && dragStartPos) {
-      pm.mesh.position.set(dragStartPos.x, dragStartPos.y, dragStartPos.z);
-    }
-    dragging = false;
-    dragPiece = null;
-    dragStartPos = null;
-  }
-  dragTouchId = null;
+  // A state update cancels an active drag, but the pointer is still down.
+  // When it is released, the browser generates a compatibility click that
+  // would otherwise execute the (now stale) selection.
+  const wasDragging = dragging;
+  const wasTouch = dragTouchId !== null;
+  restoreDraggedMesh();
   dragCandidate = null;
+  if (wasTouch) {
+    // Touch gesture: keep dragTouchId so the matching touchend/touchcancel
+    // can preventDefault() (suppressing the compatibility click) and clean
+    // up. Do NOT set dragCompleted — a committed touch drag generates no
+    // compatibility click, so a stale dragCompleted would swallow the next
+    // legitimate tap.
+  } else if (wasDragging) {
+    // Mouse gesture: suppress the release click via the click handler.
+    dragCompleted = true;
+  }
 });
 
 // ── Restart handler ──────────────────────────────────────
@@ -787,11 +922,10 @@ onRestart(() => {
   orchestrator.deselect();
   hidePromotionPicker();
   hideConcedeConfirm();
-  dragging = false;
+  restoreDraggedMesh();
   dragCandidate = null;
-  dragPiece = null;
-  dragStartPos = null;
   dragCompleted = false;
+  touchDragCommitted = false;
   dragTouchId = null;
 });
 

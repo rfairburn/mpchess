@@ -78,6 +78,12 @@ export default {
   'ui.spectator_role': '👁 Spectateur',
   'ui.white_turn': '⬤ Tour des Blancs',
   'ui.black_turn': '⬤ Tour des Noirs',
+  // ── Premove ───────────────────────────────────────────
+  'premove.set': 'Premove défini',
+  'premove.played': 'Premove joué',
+  'premove.discarded': 'Premove non plus légal',
+  'premove.cancelled': 'Premove annulé',
+  'premove.status': 'Premove: {move}',
   'ui.players_spectators': 'Joueurs : {players} · Spectateurs : {spectators}',
   'ui.camera_mode': '🖱 Mode caméra',
   'ui.camera_help':

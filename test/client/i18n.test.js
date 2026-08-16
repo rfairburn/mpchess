@@ -315,6 +315,31 @@ describe('i18n — dynamic UI refresh across locale changes', () => {
     }
   });
 
+  test('refreshI18n updates the premove status chip text on locale change', async () => {
+    const { refreshI18n } = await import('../../client/ui.js');
+    const { setPremove, clearPremove } = await import('../../client/premove.js');
+    const chip = document.getElementById('premove-chip');
+    const topChip = document.getElementById('top-bar-premove-chip');
+
+    setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+
+    setLocale('en-US');
+    refreshI18n();
+    expect(chip.classList).toContain('visible');
+    expect(chip.textContent).toBe('Premove: e2–e4');
+    expect(topChip.textContent).toBe('Premove: e2–e4');
+
+    setLocale('zh-CN');
+    refreshI18n();
+    expect(chip.textContent).toBe('预走：e2–e4');
+    expect(topChip.textContent).toBe('预走：e2–e4');
+
+    // Clearing the premove hides the chip again (state-driven, not locale-driven)
+    clearPremove();
+    expect(chip.classList).not.toContain('visible');
+    setLocale('en-US');
+  });
+
   test('non-English translations differ from English', () => {
     const keys = [
       'game.checkmate_white',

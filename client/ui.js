@@ -16,6 +16,7 @@ import {
   threefoldCount,
   canClaimDraw,
   sendPromotion,
+  sendPremove,
   sendRestart,
   sendConcede,
   sendLeave,
@@ -35,6 +36,7 @@ import {
   onPlayerLeft,
   onFenImportWarning,
 } from './network.js';
+import { getPremove, onPremoveChange } from './premove.js';
 import {
   setCameraForRole,
   toggleMouseMode,
@@ -76,6 +78,9 @@ import { refreshEvaluation } from './ui/evaluation.js';
 // Initialize connection overlays
 import './ui/connection.js';
 
+// Initialize premove feedback (owner-only toasts + sound)
+import './ui/premove.js';
+
 // Help overlay
 import { showHelp, hideHelp, helpOpen, closeHelpForMenu } from './ui/help.js';
 export { helpOpen, hideHelp };
@@ -97,6 +102,9 @@ let lastGameResult = null; // machine-readable key
 const roleBadge = domRef('role-badge');
 const playerCountEl = domRef('player-count');
 const turnIndicator = domRef('turn-indicator');
+// Premove status chip (optional — absent in minimal test DOMs)
+const premoveChip = domRefOptional('premove-chip');
+const topBarPremoveChip = domRefOptional('top-bar-premove-chip');
 const mouseModeEl = domRef('mouse-mode');
 const btnMenuToggle = domRef('btn-menu-toggle');
 const btnClaimDraw = domRefOptional('btn-claim-draw');
@@ -658,6 +666,7 @@ export function refreshI18n() {
   updateMouseModeDisplay(mouseLookOn);
   updateRoleBadge();
   updateTurnIndicator();
+  updatePremoveChip();
   updateSoundButtons();
   updateJoinButtons();
   updateMenuComputerSections();
@@ -732,6 +741,37 @@ function updateTurnIndicator() {
     topBarTurn.className = cls;
   }
 }
+
+/**
+ * Convert board coordinates to a square name (e.g. file 4, rank 1 → "e2").
+ */
+function squareName(file, rank) {
+  return String.fromCharCode(97 + file) + (rank + 1);
+}
+
+/**
+ * Update the premove status chip from the premove state. Shows a small blue
+ * chip ("Premove: e2–e4") next to the turn indicator while a premove is
+ * pending; hidden when none. Text is localization-ready via t().
+ */
+function updatePremoveChip() {
+  const chips = [premoveChip, topBarPremoveChip].filter(Boolean);
+  const pre = getPremove();
+  if (!pre) {
+    for (const el of chips) el.classList.remove('visible');
+    return;
+  }
+  const move = `${squareName(pre.fromFile, pre.fromRank)}–${squareName(pre.toFile, pre.toRank)}`;
+  const text = t('premove.status', { move });
+  for (const el of chips) {
+    el.textContent = text;
+    el.classList.add('visible');
+  }
+}
+
+// Keep the chip in sync with the premove state (server confirmation echo,
+// state restore/clear on reconnect, premoveCleared, optimistic cancel).
+onPremoveChange(() => updatePremoveChip());
 
 export function updateMoveLog() {
   const el = domRef('move-log');
@@ -992,7 +1032,27 @@ btnNewGame.addEventListener('click', () => {
 
 // ── Promotion picker ────────────────────────────────────
 
-export function showPromotionPicker(file, rank, color) {
+// Picker context — decides what a button choice sends:
+//   null — picker inactive (hidden); button activations are ignored.
+//   { mode: 'live' } — a pending live promotion; choice sends `promotion`.
+//   { mode: 'premove', fromFile, fromRank, toFile, toRank } — an off-turn
+//     promotion premove; choice sends one atomic `premove` carrying the
+//     selected piece type (no separate `promotion` message).
+let promoContext = null;
+
+export function getPromotionPickerContext() {
+  return promoContext;
+}
+
+/**
+ * Show the promotion picker.
+ * @param {number} file — destination file (for display/symbols)
+ * @param {number} rank — destination rank (for display/symbols)
+ * @param {'white'|'black'} color — color of the promoting pawn
+ * @param {{mode: 'live'}|{mode: 'premove', fromFile: number, fromRank: number, toFile: number, toRank: number}} [context]
+ *   Picker mode; defaults to live promotion (existing behavior).
+ */
+export function showPromotionPicker(file, rank, color, context) {
   const symbols =
     color === 'white'
       ? { queen: '♕', rook: '♖', bishop: '♗', knight: '♘' }
@@ -1001,15 +1061,43 @@ export function showPromotionPicker(file, rank, color) {
     const t = btn.dataset.type;
     btn.textContent = symbols[t];
   });
+  promoContext =
+    context && context.mode === 'premove'
+      ? {
+          mode: 'premove',
+          fromFile: context.fromFile,
+          fromRank: context.fromRank,
+          toFile: context.toFile,
+          toRank: context.toRank,
+        }
+      : { mode: 'live' };
   promoOverlay.classList.add('visible');
 }
 
 export function hidePromotionPicker() {
   promoOverlay.classList.remove('visible');
+  // Fail closed: an inactive picker can never send a stale premove (or a
+  // live promotion) from a queued/stale button activation.
+  promoContext = null;
 }
 
 promoButtons.forEach((btn) => {
-  btn.addEventListener('click', () => sendPromotion(btn.dataset.type));
+  btn.addEventListener('click', () => {
+    if (!promoContext) return; // picker inactive — ignore stale activations
+    if (promoContext.mode === 'premove') {
+      // Atomic premove: coordinates + chosen piece in one message.
+      sendPremove(
+        promoContext.fromFile,
+        promoContext.fromRank,
+        promoContext.toFile,
+        promoContext.toRank,
+        btn.dataset.type
+      );
+      hidePromotionPicker();
+    } else {
+      sendPromotion(btn.dataset.type);
+    }
+  });
 });
 
 // ── Concede ──────────────────────────────────────────────

@@ -35,6 +35,8 @@ vi.mock('../../client/network.js', () => ({
   onPlayerLeft: vi.fn(),
   onFenImportWarning: vi.fn(),
   onPromotion: vi.fn(),
+  onPremoveSet: vi.fn(),
+  onPremovePlayed: vi.fn(),
 }));
 
 vi.mock('../../client/pieces.js', () => ({
@@ -149,6 +151,8 @@ function createMinimalDOM() {
     'game-over-overlay',
     'error-toast',
     'sensitivity-value',
+    'premove-chip',
+    'top-bar-premove-chip',
   ];
   for (const id of ids) {
     const el = document.createElement('div');
@@ -390,5 +394,57 @@ describe('ui.js — captured pieces SVG rendering', () => {
 
     expect(captured.white).toEqual(whiteCopy);
     expect(captured.black).toEqual(blackCopy);
+  });
+});
+
+describe('ui.js — premove status chip', () => {
+  let premove;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    createMinimalDOM();
+    // Importing ui.js registers the onPremoveChange → updatePremoveChip
+    // callback and captures the chip elements created above.
+    await import('../../client/ui.js');
+    premove = await import('../../client/premove.js');
+  });
+
+  function chip() {
+    return document.getElementById('premove-chip');
+  }
+
+  it('is hidden when no premove is pending', () => {
+    expect(chip().classList.contains('visible')).toBe(false);
+    expect(chip().textContent).toBe('');
+  });
+
+  it('shows the premove move when a premove is set (update)', () => {
+    premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+    expect(chip().classList.contains('visible')).toBe(true);
+    expect(chip().textContent).toBe('Premove: e2–e4');
+  });
+
+  it('hides the chip when the premove is cleared', () => {
+    premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+    expect(chip().classList.contains('visible')).toBe(true);
+    premove.clearPremove();
+    expect(chip().classList.contains('visible')).toBe(false);
+  });
+
+  it('updates the chip text when the premove is replaced', () => {
+    premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+    expect(chip().textContent).toBe('Premove: e2–e4');
+    premove.setPremove({ fromFile: 0, fromRank: 1, toFile: 0, toRank: 3 });
+    expect(chip().textContent).toBe('Premove: a2–a4');
+  });
+
+  it('updates the top-bar chip in sync with the desktop chip', () => {
+    const topChip = document.getElementById('top-bar-premove-chip');
+    premove.setPremove({ fromFile: 4, fromRank: 1, toFile: 4, toRank: 3 });
+    expect(topChip.classList.contains('visible')).toBe(true);
+    expect(topChip.textContent).toBe('Premove: e2–e4');
+    premove.clearPremove();
+    expect(topChip.classList.contains('visible')).toBe(false);
   });
 });

@@ -90,6 +90,34 @@ const matPreviousMove = new THREE.MeshStandardMaterial({
   emissive: new THREE.Color(0xe8a830),
   emissiveIntensity: 0.45,
 });
+// Premove family — deep royal blue 0x1e5ac8 (same hue as 2D), clearly
+// darker than the bright Alt annotation blue 0x4488ff. The confirmed
+// origin/destination fill is the full-intensity variant; the choosing
+// (selected) state is a dimmer variant of the same hue.
+const matPremoveSelected = new THREE.MeshStandardMaterial({
+  color: 0xf0d9b5,
+  roughness: 0.7,
+  emissive: new THREE.Color(0x1e5ac8),
+  emissiveIntensity: 0.5,
+});
+const matPremoveMove = new THREE.MeshStandardMaterial({
+  color: 0xf0d9b5,
+  roughness: 0.7,
+  emissive: new THREE.Color(0x1e5ac8),
+  emissiveIntensity: 0.5,
+});
+const matPremoveCapture = new THREE.MeshStandardMaterial({
+  color: 0xb58863,
+  roughness: 0.7,
+  emissive: new THREE.Color(0x1e5ac8),
+  emissiveIntensity: 0.5,
+});
+const matPremoveConfirmed = new THREE.MeshStandardMaterial({
+  color: 0xf0d9b5,
+  roughness: 0.7,
+  emissive: new THREE.Color(0x1e5ac8),
+  emissiveIntensity: 0.8,
+});
 
 // Share materials with other modules
 setBoardMaterials(
@@ -99,7 +127,11 @@ setBoardMaterials(
   matValidMove,
   matCaptureMove,
   matCheck,
-  matPreviousMove
+  matPreviousMove,
+  matPremoveSelected,
+  matPremoveMove,
+  matPremoveCapture,
+  matPremoveConfirmed
 );
 setPieceMaterials(matWhite, matBlack);
 

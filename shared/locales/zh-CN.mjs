@@ -75,6 +75,12 @@ export default {
   'ui.spectator_role': '👁 观战者',
   'ui.white_turn': '⬤ 白方回合',
   'ui.black_turn': '⬤ 黑方回合',
+  // ── Premove ───────────────────────────────────────────
+  'premove.set': '预走已设置',
+  'premove.played': '预走已执行',
+  'premove.discarded': '预走不再合法',
+  'premove.cancelled': '预走已取消',
+  'premove.status': '预走：{move}',
   'ui.players_spectators': '玩家：{players} · 观战者：{spectators}',
   'ui.camera_mode': '🖱 视角模式',
   'ui.camera_help': '点击环顾四周 · WASD移动 · Q/E上下 · TAB切换鼠标视角 · ESC菜单',

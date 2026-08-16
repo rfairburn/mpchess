@@ -117,3 +117,34 @@ describe('captured pieces — light inner box styling', () => {
     expect(style.padding).toBe('3px');
   });
 });
+
+describe('premove — exact deep-blue (#1e5ac8) styling values', () => {
+  beforeEach(() => {
+    clearDOM();
+    loadCSS();
+  });
+
+  it('.premove-selected uses the pale premove-blue tint rgba(30, 90, 200, 0.25)', () => {
+    expect(cssText).toMatch(
+      /\.board2d-square\.premove-selected\s*\{[^}]*background-color:\s*rgba\(30,\s*90,\s*200,\s*0\.25\)/
+    );
+  });
+
+  it('.premove-move dot uses rgba(30, 90, 200, 0.55)', () => {
+    expect(cssText).toMatch(
+      /\.board2d-square\.premove-move::after\s*\{[^}]*background-color:\s*rgba\(30,\s*90,\s*200,\s*0\.55\)/
+    );
+  });
+
+  it('.premove-capture ring uses rgba(30, 90, 200, 0.55)', () => {
+    expect(cssText).toMatch(
+      /\.board2d-square\.premove-capture::after\s*\{[^}]*border:\s*3px\s+solid\s+rgba\(30,\s*90,\s*200,\s*0\.55\)/
+    );
+  });
+
+  it('.premove-from and .premove-to use the solid premove-blue fill rgba(30, 90, 200, 0.45)', () => {
+    expect(cssText).toMatch(
+      /\.board2d-square\.premove-from,\s*\.board2d-square\.premove-to\s*\{[^}]*background-color:\s*rgba\(30,\s*90,\s*200,\s*0\.45\)/
+    );
+  });
+});

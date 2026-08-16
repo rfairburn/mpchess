@@ -39,6 +39,7 @@ export let previousMove = null; // { fromFile, fromRank, toFile, toRank } | null
 
 // Event emitter — replaces 25 callback arrays
 import { EventEmitter } from './event_emitter.js';
+import { setPremove, clearPremove } from './premove.js';
 const emitter = new EventEmitter();
 
 /** @typedef {(msg: object) => void} NetworkCallback */
@@ -122,6 +123,12 @@ export function onFenImportWarning(fn) {
 }
 export function onEvaluation(fn) {
   emitter.on('evaluation', fn);
+}
+export function onPremoveSet(fn) {
+  emitter.on('premoveSet', fn);
+}
+export function onPremovePlayed(fn) {
+  emitter.on('premovePlayed', fn);
 }
 
 function clearReconnectTimer() {
@@ -239,11 +246,40 @@ export function handleServerMessage(event) {
       serverEvaluation = msg.evaluation ?? null;
       previousMove = msg.lastMove || null;
       if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
+      // Sync the owner's premove (explicit null when none): restores a
+      // pending premove on reconnect and clears it when absent/null.
+      setPremove(msg.premove ?? null);
       emitter.emit('stateUpdate', msg);
       break;
     }
     case 'move': {
+      // An executed premove clears our local pending premove. The color
+      // guard is required: premove:true alone must never clear state for
+      // an opponent's or spectator's client, and only the owner gets the
+      // "Premove played" feedback. Every client still receives the public
+      // move event below (ordinary animation/sound, exactly once).
+      if (msg.premove === true && msg.color === myRole) {
+        clearPremove();
+        emitter.emit('premovePlayed', msg);
+      }
       emitter.emit('move', msg);
+      break;
+    }
+    case 'premove': {
+      // Private confirmation echo from the server (sent only to the owner) —
+      // set local state and signal the owner for "Premove set" feedback.
+      setPremove(msg);
+      emitter.emit('premoveSet', msg);
+      break;
+    }
+    case 'premoveDiscarded': {
+      // Our stored premove became illegal and was discarded — clear silently.
+      clearPremove();
+      break;
+    }
+    case 'premoveCleared': {
+      // Our premove was cleared server-side (cancel/reset/seat) — clear silently.
+      clearPremove();
       break;
     }
     case 'promotion': {
@@ -283,6 +319,7 @@ export function handleServerMessage(event) {
     case 'restart': {
       moveHistory = [];
       previousMove = null;
+      clearPremove();
       emitter.emit('restart', msg);
       break;
     }
@@ -326,6 +363,7 @@ export function handleServerMessage(event) {
       pendingToken = null;
       reconnectAttempts = 0;
       reconnecting = false;
+      clearPremove();
       emitter.emit('reconnectFailed', msg);
       break;
     }
@@ -384,6 +422,7 @@ export function handleServerMessage(event) {
     }
     case 'left': {
       myRole = null;
+      clearPremove();
       emitter.emit('left', msg);
       break;
     }
@@ -480,6 +519,37 @@ export function sendMove(fromFile, fromRank, toFile, toRank) {
  */
 export function sendPromotion(pieceType) {
   sendToServer({ type: 'promotion', pieceType });
+}
+
+/**
+ * Send a premove request to the server.
+ * @param {number} fromFile
+ * @param {number} fromRank
+ * @param {number} toFile
+ * @param {number} toRank
+ * @param {'queen'|'rook'|'bishop'|'knight'} [promotion]
+ */
+export function sendPremove(fromFile, fromRank, toFile, toRank, promotion) {
+  const msg = { type: 'premove', fromFile, fromRank, toFile, toRank };
+  if (promotion) msg.promotion = promotion;
+  sendToServer(msg);
+}
+
+/**
+ * Cancel the pending premove.
+ */
+export function sendPremoveCancel() {
+  sendToServer({ type: 'premoveCancel' });
+}
+
+/**
+ * Cancel the pending premove: send the cancel message and clear local state
+ * optimistically. The server's `premoveCleared` echo is a safety net, not a
+ * dependency — the local visual drops immediately.
+ */
+export function cancelPremove() {
+  sendPremoveCancel();
+  clearPremove();
 }
 
 export function sendRestart() {

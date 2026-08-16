@@ -6,6 +6,7 @@ import {
   clearSelection,
   getSelectedSquare,
   getValidMovesList,
+  getSelectionMode,
   onSelectionChange,
 } from './selection.js';
 
@@ -20,7 +21,11 @@ import {
  * @param {Function} renderers.highlightSelected(file, rank) — highlight selected square
  * @param {Function} renderers.highlightValidMoves(moves) — highlight valid move squares
  * @param {Function} renderers.highlightCheck — highlight king in check
- * @returns {{ deselect: Function, selectPiece: Function, updateHighlights: Function }}
+ * @param {Function} [renderers.highlightPremoveSelected(file, rank)] — highlight a
+ *   premove-selected square (falls back to highlightSelected when absent)
+ * @param {Function} [renderers.highlightPremoveMoves(moves)] — highlight premove
+ *   candidate squares (falls back to highlightValidMoves when absent)
+ * @returns {{ deselect: Function, selectPiece: Function, selectPremove: Function, updateHighlights: Function }}
  */
 export function createHighlightOrchestrator(renderers) {
   const {
@@ -29,6 +34,8 @@ export function createHighlightOrchestrator(renderers) {
     highlightSelected,
     highlightValidMoves,
     highlightCheck,
+    highlightPremoveSelected,
+    highlightPremoveMoves,
   } = renderers;
 
   /**
@@ -52,6 +59,28 @@ export function createHighlightOrchestrator(renderers) {
     highlightPreviousMove();
     highlightSelected(file, rank);
     highlightValidMoves(moves);
+    // An active check persists during selection: clearHighlights() resets the
+    // checked king to base, and check outranks selection in the square-state
+    // precedence, so re-apply it after the redraw.
+    highlightCheck();
+  }
+
+  /**
+   * Select a piece in premove mode (off-turn) and show its premove candidates.
+   * Uses the premove-specific highlight callbacks when the renderer provides
+   * them, so premove selection/candidates are visually distinguishable from a
+   * normal legal selection.
+   * @param {number} file
+   * @param {number} rank
+   * @param {Array} moves
+   */
+  function selectPremove(file, rank, moves) {
+    clearHighlights();
+    highlightPreviousMove();
+    (highlightPremoveSelected || highlightSelected)(file, rank);
+    (highlightPremoveMoves || highlightValidMoves)(moves);
+    // An active check persists during selection (see selectPiece).
+    highlightCheck();
   }
 
   /**
@@ -63,15 +92,22 @@ export function createHighlightOrchestrator(renderers) {
     clearHighlights();
     if (sel) {
       highlightPreviousMove();
-      highlightSelected(sel.file, sel.rank);
-      highlightValidMoves(getValidMovesList());
+      if (getSelectionMode() === 'premove') {
+        (highlightPremoveSelected || highlightSelected)(sel.file, sel.rank);
+        (highlightPremoveMoves || highlightValidMoves)(getValidMovesList());
+      } else {
+        highlightSelected(sel.file, sel.rank);
+        highlightValidMoves(getValidMovesList());
+      }
+      // An active check persists during selection (see selectPiece).
+      highlightCheck();
     } else {
       highlightPreviousMove();
       highlightCheck();
     }
   }
 
-  return { deselect, selectPiece, updateHighlights };
+  return { deselect, selectPiece, selectPremove, updateHighlights };
 }
 
 /**

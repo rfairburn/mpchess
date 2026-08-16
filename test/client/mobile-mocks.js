@@ -133,6 +133,8 @@ vi.mock('../../client/network.js', () => ({
   onPlayerLeft: vi.fn(),
   onFenImportWarning: vi.fn(),
   onPromotion: vi.fn(),
+  onPremoveSet: vi.fn(),
+  onPremovePlayed: vi.fn(),
 }));
 
 vi.mock('../../client/pieces.js', () => ({

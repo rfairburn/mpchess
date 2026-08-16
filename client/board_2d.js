@@ -13,13 +13,23 @@ import {
   castlingRights,
   enPassantTarget,
   sendMove,
+  sendPremove,
+  cancelPremove,
   previousMove,
 } from './network.js';
+import { getPremove, onPremoveChange } from './premove.js';
 import { isMobileLayout } from './capabilities.js';
-import { pieceColor, getValidMoves, findKing, isInCheck } from '../shared/chess.mjs';
+import {
+  pieceColor,
+  pieceType,
+  getValidMoves,
+  getPremoveMoves,
+  findKing,
+  isInCheck,
+} from '../shared/chess.mjs';
 import { getPieceSvgUrl } from './pieces.js';
 import { playMove } from './sound.js';
-import { showError } from './ui.js';
+import { showError, showPromotionPicker } from './ui.js';
 import { t } from '../shared/i18n.mjs';
 import {
   getArrows,
@@ -41,6 +51,7 @@ import {
   clearSelection,
   getSelectedSquare,
   getValidMovesList,
+  getSelectionMode,
 } from './selection.js';
 import { createHighlightOrchestrator, bindSelectionChange } from './highlight-orchestration.js';
 
@@ -57,6 +68,11 @@ let arrowStart = null; // { file, rank } — right-click start square
 const ARROW_STROKE_RATIO = 0.25; // stroke as fraction of square size (2x)
 const ARROW_HEAD_LENGTH_RATIO = 0.25; // head length as fraction of square
 const ARROW_HEAD_WIDTH_RATIO = 0.36; // head base width matches thick line * 1.5
+
+// Confirmed-premove arrow — deep royal blue, dashed. Rendered as an
+// independent system overlay derived from premove.js, never from the
+// mutable annotation arrows list.
+const PREMOVE_ARROW_COLOR = 'rgba(30, 90, 200, 0.9)';
 
 // ── Selection state is now in selection.js ───────────────
 
@@ -89,7 +105,16 @@ function getOrientation() {
 function clearHighlights() {
   if (!gridEl) return;
   for (const sq of gridEl.children) {
-    sq.classList.remove('selected', 'valid-move', 'capture-move', 'in-check', 'previous-move');
+    sq.classList.remove(
+      'selected',
+      'valid-move',
+      'capture-move',
+      'in-check',
+      'previous-move',
+      'premove-selected',
+      'premove-move',
+      'premove-capture'
+    );
   }
 }
 
@@ -126,6 +151,26 @@ function highlightSelected(file, rank) {
 }
 
 /**
+ * Highlight a premove-selected square (off-turn own-piece selection).
+ */
+function highlightPremoveSelected(file, rank) {
+  highlightSquare(file, rank, 'premove-selected');
+}
+
+/**
+ * Highlight premove candidate destinations for the selected piece.
+ */
+function highlightPremoveMoves(moves) {
+  for (const m of moves) {
+    if (serverBoard && (serverBoard[m.rank][m.file] !== 0 || m.enPassant)) {
+      highlightSquare(m.file, m.rank, 'premove-capture');
+    } else {
+      highlightSquare(m.file, m.rank, 'premove-move');
+    }
+  }
+}
+
+/**
  * Highlight the king in check — only when the side to move is actually in check.
  */
 function highlightCheck() {
@@ -147,6 +192,63 @@ function highlightPreviousMove() {
   highlightSquare(toFile, toRank, 'previous-move');
 }
 
+/**
+ * Render the confirmed-premove square fills (premove-from / premove-to).
+ * These are driven solely by the premove state (premove.js) and are
+ * independent of the selection highlights: they persist while the premove
+ * is confirmed and are removed when it is cleared, executed, or replaced.
+ */
+function renderPremoveSquares() {
+  if (!gridEl) return;
+  for (const sq of gridEl.children) {
+    sq.classList.remove('premove-from', 'premove-to');
+  }
+  const pre = getPremove();
+  if (!pre) return;
+  highlightSquare(pre.fromFile, pre.fromRank, 'premove-from');
+  highlightSquare(pre.toFile, pre.toRank, 'premove-to');
+}
+
+// ── Confirmed premove ghost (2D) ─────────────────────────
+// A semi-transparent clone of the premoved piece at the destination
+// square. Non-interactive (pointer-events: none via CSS), ~0.5 opacity,
+// and drawn above any piece already on the destination (captures and
+// friendly-occupied recapture squares) so it stays readable. Sourced
+// from premove.js + serverBoard and re-emitted on every board render
+// and premove state change — never from a mutable list, so no
+// duplicates can accumulate. The real origin piece is never moved or
+// hidden.
+
+let premoveGhost = null; // <img> inside the destination square
+
+function renderPremoveGhost() {
+  if (premoveGhost) {
+    premoveGhost.remove();
+    premoveGhost = null;
+  }
+  if (!gridEl) return;
+  const pre = getPremove();
+  if (!pre) return;
+  const piece = serverBoard?.[pre.fromRank]?.[pre.fromFile];
+  // The origin must still hold OUR piece. After an opponent capture the
+  // source square holds the opponent's capturing piece (not 0) during the
+  // state update that precedes premoveDiscarded — never ghost that.
+  if (!piece || piece === 0 || pieceColor(piece) !== myRole) return;
+  const orientation = getOrientation();
+  const displayRank = orientation === 'flipped' ? pre.toRank : 7 - pre.toRank;
+  const displayFile = orientation === 'flipped' ? 7 - pre.toFile : pre.toFile;
+  const sq = gridEl.children[displayRank * 8 + displayFile];
+  if (!sq) return;
+  const ghost = document.createElement('img');
+  ghost.className = 'board2d-piece board2d-premove-ghost';
+  ghost.src = getPieceSvgUrl(piece);
+  ghost.alt = '';
+  ghost.draggable = false;
+  ghost.dataset.premoveGhost = 'true';
+  sq.appendChild(ghost);
+  premoveGhost = ghost;
+}
+
 // ── Highlight orchestrator (2D) ──────────────────────────
 
 const orchestrator = createHighlightOrchestrator({
@@ -155,6 +257,8 @@ const orchestrator = createHighlightOrchestrator({
   highlightSelected,
   highlightValidMoves,
   highlightCheck,
+  highlightPremoveSelected,
+  highlightPremoveMoves,
 });
 bindSelectionChange(orchestrator, () => mode > 0);
 
@@ -181,6 +285,25 @@ function selectPiece(file, rank) {
 }
 
 /**
+ * Select an own piece off-turn and show its premove candidate moves.
+ * Candidates use the permissive getPremoveMoves() on a cloned board —
+ * getValidMoves() is too restrictive for premoves (it rejects recaptures
+ * onto currently friendly-occupied squares, pinned pieces, and pawn
+ * destinations the opponent will vacate).
+ */
+function selectPremovePiece(file, rank) {
+  const moves = getPremoveMoves(
+    serverBoard.map((r) => [...r]),
+    file,
+    rank,
+    castlingRights,
+    enPassantTarget
+  );
+  setSelectedSquare({ file, rank }, moves, 'premove');
+  orchestrator.selectPremove(file, rank, moves);
+}
+
+/**
  * Check if a move is valid for the current selection.
  */
 function isValidMove(file, rank) {
@@ -192,6 +315,30 @@ function isValidMove(file, rank) {
  */
 function executeMove(fromFile, fromRank, toFile, toRank) {
   sendMove(fromFile, fromRank, toFile, toRank);
+  deselect();
+}
+
+/**
+ * Complete a premove: sends `premove` (the server decides execute-now vs
+ * store, so a late turn flip between click and send is safe). A pawn
+ * promotion destination opens the promotion picker in premove mode instead
+ * of sending immediately — the chosen piece is then sent atomically with
+ * the premove.
+ */
+function executePremove(fromFile, fromRank, toFile, toRank) {
+  const piece = serverBoard[fromRank][fromFile];
+  if (pieceType(piece) === 'pawn' && (toRank === 0 || toRank === 7)) {
+    deselect();
+    showPromotionPicker(toFile, toRank, pieceColor(piece), {
+      mode: 'premove',
+      fromFile,
+      fromRank,
+      toFile,
+      toRank,
+    });
+    return;
+  }
+  sendPremove(fromFile, fromRank, toFile, toRank);
   deselect();
 }
 
@@ -320,6 +467,12 @@ function renderBoard() {
 
   // Render square highlights
   renderHighlights2D();
+
+  // Render confirmed-premove square fills (independent of selection)
+  renderPremoveSquares();
+
+  // Render the confirmed-premove destination ghost (independent of selection)
+  renderPremoveGhost();
 }
 
 // ── Arrow rendering (2D) ────────────────────────────────
@@ -388,65 +541,140 @@ function renderArrows2D() {
 
   const containerRect = container.getBoundingClientRect();
   const firstSquareRect = gridEl.children[0]?.getBoundingClientRect();
-  if (!containerRect.width || !containerRect.height || !firstSquareRect) return;
+  const hasLayout = Boolean(containerRect.width && containerRect.height && firstSquareRect);
 
-  arrowSvg.setAttribute('viewBox', `0 0 ${containerRect.width} ${containerRect.height}`);
+  arrowSvg.setAttribute('viewBox', `0 0 ${containerRect.width || 0} ${containerRect.height || 0}`);
   arrowSvg.setAttribute('preserveAspectRatio', 'none');
   arrowSvg.replaceChildren();
 
-  const squareSize = Math.min(firstSquareRect.width, firstSquareRect.height);
+  const squareSize = hasLayout ? Math.min(firstSquareRect.width, firstSquareRect.height) : 0;
   const strokeWidth = squareSize * ARROW_STROKE_RATIO;
   const headLength = squareSize * ARROW_HEAD_LENGTH_RATIO;
   const headHalfWidth = (squareSize * ARROW_HEAD_WIDTH_RATIO) / 2;
 
-  for (const arrow of getArrows()) {
-    const path = getArrowPath(arrow.from, arrow.to);
-    const points = path.map((p) => getSquareCenter(p.file, p.rank));
-    if (points.length < 2 || points.some((p) => p === null)) continue;
+  if (hasLayout) {
+    for (const arrow of getArrows()) {
+      const path = getArrowPath(arrow.from, arrow.to);
+      const points = path.map((p) => getSquareCenter(p.file, p.rank));
+      if (points.length < 2 || points.some((p) => p === null)) continue;
 
-    const tip = points.at(-1);
-    const previous = points.at(-2);
-    const dx = tip.x - previous.x;
-    const dy = tip.y - previous.y;
-    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-    const fx = dx / len;
-    const fy = dy / len;
-    const px = -fy;
-    const py = fx;
-    const base = {
-      x: tip.x - fx * headLength,
-      y: tip.y - fy * headLength,
-    };
+      const tip = points.at(-1);
+      const previous = points.at(-2);
+      const dx = tip.x - previous.x;
+      const dy = tip.y - previous.y;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const fx = dx / len;
+      const fy = dy / len;
+      const px = -fy;
+      const py = fx;
+      const base = {
+        x: tip.x - fx * headLength,
+        y: tip.y - fy * headLength,
+      };
 
-    // Line body: from start to arrowhead base
-    const bodyPoints = [...points.slice(0, -1), base];
-    const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    body.setAttribute(
-      'd',
-      bodyPoints.map((p, index) => `${index === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
-    );
-    body.setAttribute('fill', 'none');
-    body.setAttribute('stroke', arrow.color);
-    body.setAttribute('stroke-width', strokeWidth);
-    body.setAttribute('stroke-linecap', 'butt');
-    body.setAttribute('stroke-linejoin', 'round');
+      // Line body: from start to arrowhead base
+      const bodyPoints = [...points.slice(0, -1), base];
+      const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      body.setAttribute(
+        'd',
+        bodyPoints.map((p, index) => `${index === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+      );
+      body.setAttribute('fill', 'none');
+      body.setAttribute('stroke', arrow.color);
+      body.setAttribute('stroke-width', strokeWidth);
+      body.setAttribute('stroke-linecap', 'butt');
+      body.setAttribute('stroke-linejoin', 'round');
 
-    // Arrowhead: filled triangle
-    const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-    head.setAttribute(
-      'points',
-      [
-        `${base.x + px * headHalfWidth},${base.y + py * headHalfWidth}`,
-        `${base.x - px * headHalfWidth},${base.y - py * headHalfWidth}`,
-        `${tip.x},${tip.y}`,
-      ].join(' ')
-    );
-    head.setAttribute('fill', arrow.color);
+      // Arrowhead: filled triangle
+      const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      head.setAttribute(
+        'points',
+        [
+          `${base.x + px * headHalfWidth},${base.y + py * headHalfWidth}`,
+          `${base.x - px * headHalfWidth},${base.y - py * headHalfWidth}`,
+          `${tip.x},${tip.y}`,
+        ].join(' ')
+      );
+      head.setAttribute('fill', arrow.color);
 
-    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    group.append(body, head);
-    arrowSvg.appendChild(group);
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.append(body, head);
+      arrowSvg.appendChild(group);
+    }
   }
+
+  // Confirmed-premove arrow — independent system overlay derived from
+  // premove.js. It is re-rendered here on every pass (after the annotation
+  // loop) so annotation add/remove/clear can never hide or replace it, and a
+  // full board re-render can never lose it: it is always re-emitted from the
+  // premove state, even before the container has a layout (degenerate
+  // geometry is invisible and self-corrects on the next layout pass).
+  renderPremoveArrow2D(strokeWidth, headLength, headHalfWidth);
+}
+
+/**
+ * Render the confirmed-premove dashed arrow (origin → destination) into the
+ * shared arrow SVG. This is a system overlay sourced from premove.js, NOT
+ * from the mutable annotation arrows list: addArrow/removeArrow/clearArrows
+ * and ordinary left-clicks (which call clearArrows) only affect the
+ * annotation loop above, so they cannot clear, replace, or hide this arrow.
+ * An annotation with identical endpoints coexists alongside it.
+ */
+function renderPremoveArrow2D(strokeWidth, headLength, headHalfWidth) {
+  const pre = getPremove();
+  if (!pre) return;
+
+  const path = getArrowPath(
+    { file: pre.fromFile, rank: pre.fromRank },
+    { file: pre.toFile, rank: pre.toRank }
+  );
+  const points = path.map((p) => getSquareCenter(p.file, p.rank));
+  if (points.length < 2 || points.some((p) => p === null)) return;
+
+  const tip = points.at(-1);
+  const previous = points.at(-2);
+  const dx = tip.x - previous.x;
+  const dy = tip.y - previous.y;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const fx = dx / len;
+  const fy = dy / len;
+  const px = -fy;
+  const py = fx;
+  const base = {
+    x: tip.x - fx * headLength,
+    y: tip.y - fy * headLength,
+  };
+
+  // Dashed line body: from origin to arrowhead base
+  const bodyPoints = [...points.slice(0, -1), base];
+  const body = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  body.setAttribute(
+    'd',
+    bodyPoints.map((p, index) => `${index === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+  );
+  body.setAttribute('fill', 'none');
+  body.setAttribute('stroke', PREMOVE_ARROW_COLOR);
+  body.setAttribute('stroke-width', strokeWidth);
+  body.setAttribute('stroke-linecap', 'butt');
+  body.setAttribute('stroke-linejoin', 'round');
+  body.setAttribute('stroke-dasharray', `${strokeWidth * 2} ${strokeWidth}`);
+
+  // Solid arrowhead at the destination
+  const head = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+  head.setAttribute(
+    'points',
+    [
+      `${base.x + px * headHalfWidth},${base.y + py * headHalfWidth}`,
+      `${base.x - px * headHalfWidth},${base.y - py * headHalfWidth}`,
+      `${tip.x},${tip.y}`,
+    ].join(' ')
+  );
+  head.setAttribute('fill', PREMOVE_ARROW_COLOR);
+
+  const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  group.setAttribute('data-premove-arrow', 'true');
+  group.append(body, head);
+  arrowSvg.appendChild(group);
 }
 
 // ── Highlight rendering (2D) ─────────────────────────────
@@ -510,6 +738,11 @@ function findSquareUnderEvent(event) {
 
 /**
  * Handle a click on a square.
+ *
+ * Turn guard: off-turn, only the player's own pieces may be selected —
+ * they enter premove mode (candidates from getPremoveMoves, completion
+ * sends `premove`). Clicking an enemy piece off-turn keeps the
+ * "not your turn" toast; empty/non-candidate squares just deselect.
  */
 function handleSquareClick(sq) {
   if (!serverBoard || serverPromotingPiece || serverGameOver) return;
@@ -519,14 +752,19 @@ function handleSquareClick(sq) {
   const { file, rank } = coords;
   const piece = serverBoard[rank][file];
 
-  // Enforce turn guard before any interaction
-  if (myRole && myRole !== serverTurn) {
-    deselect();
-    showError(t('error.not_your_turn'));
+  // Re-clicking the confirmed premove's origin cancels it (sends
+  // premoveCancel + clears local state optimistically). This takes priority
+  // over selection: the origin is always the user's own piece, and clicking
+  // it while a premove is confirmed is the cancel gesture.
+  const pre = getPremove();
+  if (pre && pre.fromFile === file && pre.fromRank === rank) {
+    cancelPremove();
     return;
   }
 
+  const offTurn = myRole && myRole !== serverTurn;
   const sel = getSelectedSquare();
+
   if (sel) {
     // Clicking the same piece again deselects it
     if (sel.file === file && sel.rank === rank) {
@@ -534,24 +772,42 @@ function handleSquareClick(sq) {
       return;
     }
 
-    const isValid = isValidMove(file, rank);
-    if (!isValid) {
-      // Clicked an invalid square — if it's one of our pieces, select it instead
-      if (piece !== 0 && pieceColor(piece) === myRole) {
-        selectPiece(file, rank);
+    if (isValidMove(file, rank)) {
+      // The message type follows the selection mode, not the turn at send
+      // time: a premove selection always sends `premove`, so a late turn
+      // flip between click and send still sends `premove` (the server
+      // decides execute-now vs store).
+      if (getSelectionMode() === 'premove') {
+        executePremove(sel.file, sel.rank, file, rank);
       } else {
-        deselect();
+        executeMove(sel.file, sel.rank, file, rank);
       }
       return;
     }
 
-    executeMove(sel.file, sel.rank, file, rank);
+    // Clicked a non-candidate square — if it's one of our pieces, select it
+    // instead (premove mode off-turn, normal mode on-turn)
+    if (piece !== 0 && pieceColor(piece) === myRole) {
+      if (offTurn) selectPremovePiece(file, rank);
+      else selectPiece(file, rank);
+      return;
+    }
+    deselect();
     return;
   }
 
   // No selection — try to select a piece
   if (piece !== 0 && pieceColor(piece) === myRole) {
-    selectPiece(file, rank);
+    if (offTurn) selectPremovePiece(file, rank);
+    else selectPiece(file, rank);
+    return;
+  }
+
+  if (offTurn) {
+    // Nonsense off-turn click (enemy piece or empty square): keep the toast
+    // for enemy pieces, plain deselect for empty squares.
+    if (piece !== 0) showError(t('error.not_your_turn'));
+    deselect();
   } else {
     deselect();
   }
@@ -571,7 +827,9 @@ function onMouseDown(event) {
   const { file, rank } = coords;
   const piece = serverBoard[rank][file];
 
-  if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+  // Own pieces are draggable on- and off-turn (off-turn drags complete as
+  // premoves); enemy pieces and empty squares are ignored.
+  if (piece === 0 || pieceColor(piece) !== myRole) return;
 
   dragStartX = event.clientX;
   dragStartY = event.clientY;
@@ -610,7 +868,11 @@ function onMouseUp(event) {
   if (sq) {
     const coords = getSquareCoords(sq);
     if (coords && isValidMove(coords.file, coords.rank)) {
-      executeMove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+      if (getSelectionMode() === 'premove') {
+        executePremove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+      } else {
+        executeMove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+      }
       dragPiece = null;
       return;
     }
@@ -633,7 +895,10 @@ function onMouseUp(event) {
 function commitDrag() {
   if (!dragCandidate) return;
   const { file, rank } = dragCandidate;
-  selectPiece(file, rank);
+  // Off-turn drags select in premove mode (permissive candidates);
+  // on-turn drags keep the normal legal selection.
+  if (myRole && myRole !== serverTurn) selectPremovePiece(file, rank);
+  else selectPiece(file, rank);
   dragging = true;
   dragPiece = { file, rank };
   playMove();
@@ -696,7 +961,9 @@ function onTouchStart(event) {
   const { file, rank } = coords;
   const piece = serverBoard[rank][file];
 
-  if (piece === 0 || pieceColor(piece) !== myRole || myRole !== serverTurn) return;
+  // Own pieces are touch-draggable on- and off-turn (off-turn drags
+  // complete as premoves); enemy pieces and empty squares are ignored.
+  if (piece === 0 || pieceColor(piece) !== myRole) return;
 
   dragTouchId = t.identifier;
   dragStartX = t.clientX;
@@ -759,7 +1026,11 @@ function onTouchEnd(event) {
     if (sq) {
       const coords = getSquareCoords(sq);
       if (coords && isValidMove(coords.file, coords.rank)) {
-        executeMove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+        if (getSelectionMode() === 'premove') {
+          executePremove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+        } else {
+          executeMove(dragPiece.file, dragPiece.rank, coords.file, coords.rank);
+        }
         dragPiece = null;
         if (wasCommittedDrag) event.preventDefault();
         dragTouchId = null;
@@ -847,14 +1118,30 @@ function onRightMouseUp(event) {
     return;
   }
 
-  // If release square differs from start, always draw an arrow regardless of pixel distance
+  // If release square differs from start, always draw an arrow regardless of pixel distance.
+  // A drag (press ≠ release) NEVER cancels the premove — including a drag that
+  // ends on the premove origin — it always draws its annotation arrow.
   if (coords.file !== arrowStart.file || coords.rank !== arrowStart.rank) {
     const color = getArrowColor(event);
     addArrow(arrowStart, coords, color);
   } else {
-    // Same square — highlight it
-    const color = getHighlightColor(event);
-    addHighlight(arrowStart.file, arrowStart.rank, color);
+    // Same square (press === release). The ONLY right-click that cancels: a
+    // same-square right-click whose press AND release are both the confirmed
+    // premove's origin. It takes priority over the highlight gesture.
+    const pre = getPremove();
+    if (
+      pre &&
+      arrowStart.file === pre.fromFile &&
+      arrowStart.rank === pre.fromRank &&
+      coords.file === pre.fromFile &&
+      coords.rank === pre.fromRank
+    ) {
+      cancelPremove();
+    } else {
+      // Same square — highlight it
+      const color = getHighlightColor(event);
+      addHighlight(arrowStart.file, arrowStart.rank, color);
+    }
   }
   arrowStart = null;
 }
@@ -935,6 +1222,19 @@ onRestart(() => {
 // Re-render arrows when they change
 onArrowChange(() => {
   scheduleArrowRender2D();
+});
+
+// Re-render premove visuals (confirmed square fills + dashed arrow +
+// destination ghost) when the premove state changes: server confirmation
+// echo, state restore/clear on reconnect, premoveCleared, or a local
+// optimistic cancel. The arrow SVG is reused (ensureArrowLayer2D), so no
+// duplicate overlays or listeners accrue across re-renders.
+onPremoveChange(() => {
+  if (mode > 0) {
+    renderPremoveSquares();
+    renderPremoveGhost();
+    scheduleArrowRender2D();
+  }
 });
 
 // Re-render board when selection changes (e.g. from 3D board)

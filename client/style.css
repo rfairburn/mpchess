@@ -530,6 +530,50 @@ canvas {
   border-color: #888;
   color: #ccc;
 }
+/* Premove status chip — small blue chip next to the turn indicator.
+   Hidden by default; shown (via .visible) while a premove is pending. */
+#premove-chip {
+  position: fixed;
+  top: 78px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #dbe6ff;
+  font:
+    600 13px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(30, 90, 200, 0.55);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 90, 200, 0.9);
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+  display: none;
+}
+#premove-chip.visible {
+  display: block;
+}
+#top-bar-premove-chip {
+  display: none;
+  color: #dbe6ff;
+  font:
+    600 11px/1.2 'Segoe UI',
+    Tahoma,
+    Geneva,
+    Verdana,
+    sans-serif;
+  background: rgba(30, 90, 200, 0.55);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 90, 200, 0.9);
+  white-space: nowrap;
+}
+#top-bar-premove-chip.visible {
+  display: inline-block;
+}
 #mouse-mode {
   position: fixed;
   top: 72px;
@@ -2239,6 +2283,55 @@ body.portrait-mobile #vertical-joystick {
 /* King in check */
 .board2d-square.in-check {
   background: radial-gradient(circle, #ff0000 0%, #ff6666 40%, transparent 70%) !important;
+}
+
+/* ── Premove (deep royal blue family, #1e5ac8) ── */
+
+/* Off-turn premove selection origin — pale tint of the premove blue */
+.board2d-square.premove-selected {
+  background-color: rgba(30, 90, 200, 0.25) !important;
+}
+
+/* Premove candidate (empty square) — blue dot */
+.board2d-square.premove-move::after {
+  content: '';
+  position: absolute;
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background-color: rgba(30, 90, 200, 0.55);
+}
+
+/* Premove candidate (capture) — blue ring */
+.board2d-square.premove-capture::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 3px solid rgba(30, 90, 200, 0.55);
+  background-color: transparent;
+}
+
+/* Confirmed premove origin/destination — solid royal blue fill */
+.board2d-square.premove-from,
+.board2d-square.premove-to {
+  background-color: rgba(30, 90, 200, 0.45) !important;
+}
+
+/* Confirmed premove ghost — semi-transparent clone of the premoved piece
+   at the destination square. Reuses the .board2d-piece sizing conventions
+   (same class); absolute-centered so it overlaps — never displaces — a
+   piece already on the square (captures / friendly recaptures). Non-
+   interactive; drawn above the real piece (z-index 10) and below nothing
+   else in the square. */
+.board2d-premove-ghost {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 12;
 }
 
 /* Drag ghost — floating piece that follows cursor */

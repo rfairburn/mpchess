@@ -200,16 +200,47 @@ function isInCheck(board, color) {
   return isAttacked(board, k.file, k.rank, color === 'white' ? 'black' : 'white');
 }
 
+// ── Move-generation policies ─────────────────────────────
+// getValidMoves() and getPremoveMoves() are thin wrappers over one shared
+// geometry generator (generateMoves) that differ only by an explicit policy
+// object. A single "filterCheck" flag is not sufficient — the two modes diverge
+// on four independent axes, so each axis is named:
+//   kingSafety       — legal: skip moves that leave the king in check;
+//                      premove: keep them (the opponent's move may resolve it)
+//   ownOccupiedDest  — legal: a friendly-occupied square is a hard stop;
+//                      premove: the first friendly-occupied square is a
+//                      candidate (a premoved recapture)
+//   pawnPolicy       — legal: strict pawn occupancy; premove: the permissive,
+//                      occupancy-aware pawn rules (see generateMoves)
+//   castlingPolicy   — legal: rights + empty path + rook + king safety;
+//                      premove: rights + empty path + rook, safety skipped
+const LEGAL_MOVE_POLICY = Object.freeze({
+  kingSafety: true,
+  ownOccupiedDest: false,
+  pawnPolicy: 'legal',
+  castlingPolicy: 'legal',
+});
+
+const PREMOVE_MOVE_POLICY = Object.freeze({
+  kingSafety: false,
+  ownOccupiedDest: true,
+  pawnPolicy: 'premove',
+  castlingPolicy: 'premove',
+});
+
 /**
- * Generate all valid moves for a piece at the given square.
+ * Shared move-geometry generator behind getValidMoves() and
+ * getPremoveMoves(). Emits the piece's moves for the given policy. Every
+ * temporary board mutation is restored in a finally block.
  * @param {Board} board
  * @param {number} file
  * @param {number} rank
  * @param {CastlingRights} castlingRights
  * @param {{file: number, rank: number}|null} enPassantTarget
+ * @param {{kingSafety: boolean, ownOccupiedDest: boolean, pawnPolicy: string, castlingPolicy: string}} policy
  * @returns {Move[]}
  */
-function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
+function generateMoves(board, file, rank, castlingRights, enPassantTarget, policy) {
   const piece = board[rank][file];
   if (piece === 0) return [];
   const color = pieceColor(piece);
@@ -219,7 +250,12 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
   function addMove(tf, tr, isEnPassant) {
     if (tf < 0 || tf >= 8 || tr < 0 || tr >= 8) return false;
     const target = board[tr][tf];
-    if (target !== 0 && isOwn(target, color)) return true;
+    if (target !== 0 && isOwn(target, color)) {
+      // A friendly-occupied square always stops a slide. In premove mode the
+      // first such square is itself a candidate (a premoved recapture).
+      if (policy.ownOccupiedDest) moves.push({ file: tf, rank: tr });
+      return true;
+    }
     const saved = board[tr][tf];
     let epCaptured = null;
     try {
@@ -235,8 +271,9 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
         epCaptured = board[capturedRank][tf];
         board[capturedRank][tf] = 0;
       }
-      const inCheck = isInCheck(board, color);
-      if (!inCheck) moves.push({ file: tf, rank: tr, enPassant: isEnPassant });
+      if (!policy.kingSafety || !isInCheck(board, color)) {
+        moves.push({ file: tf, rank: tr, enPassant: isEnPassant });
+      }
     } finally {
       board[rank][file] = piece;
       board[tr][tf] = saved;
@@ -252,19 +289,57 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
     const dir = color === 'white' ? 1 : -1;
     const startRank = color === 'white' ? 1 : 6;
     const nr = rank + dir;
-    if (nr >= 0 && nr < 8 && board[nr][file] === 0) {
-      addMove(file, nr);
-      const nr2 = rank + 2 * dir;
-      if (rank === startRank && nr2 >= 0 && nr2 < 8 && board[nr2][file] === 0) {
-        addMove(file, nr2);
+    if (policy.pawnPolicy === 'premove') {
+      // Permissive pawn candidates: emit a candidate iff the opponent's single
+      // move can make it legal; exclude only impossible candidates.
+      if (nr >= 0 && nr < 8) {
+        const fwd = board[nr][file];
+        // One-step forward: empty or enemy-occupied (the opponent may vacate an
+        // enemy piece). Friendly-occupied is impossible — not emitted.
+        if (fwd === 0 || isEnemy(fwd, color)) addMove(file, nr);
+        // Two-step forward (starting rank only): both squares must be empty at
+        // execution, and the opponent's single move can vacate at most one.
+        if (rank === startRank) {
+          const nr2 = rank + 2 * dir;
+          if (nr2 >= 0 && nr2 < 8) {
+            const dest = board[nr2][file];
+            const midOwn = isOwn(fwd, color);
+            const destOwn = isOwn(dest, color);
+            const midEnemy = isEnemy(fwd, color);
+            const destEnemy = isEnemy(dest, color);
+            if (!midOwn && !destOwn && !(midEnemy && destEnemy)) addMove(file, nr2);
+          }
+        }
+        // Diagonal captures: every in-bounds forward diagonal, regardless of
+        // current occupancy (empty: the opponent may move a piece onto it;
+        // enemy: already a capture; friendly: the opponent may capture our
+        // piece there and finish, leaving an enemy piece to recapture).
+        for (const df of [-1, 1]) {
+          const nf = file + df;
+          if (nf >= 0 && nf < 8) {
+            if (enPassantTarget && nf === enPassantTarget.file && nr === enPassantTarget.rank) {
+              addMove(nf, nr, true);
+            } else {
+              addMove(nf, nr);
+            }
+          }
+        }
       }
-    }
-    for (const df of [-1, 1]) {
-      const nf = file + df;
-      if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8) {
-        if (isEnemy(board[nr][nf], color)) addMove(nf, nr);
-        if (enPassantTarget && nf === enPassantTarget.file && nr === enPassantTarget.rank) {
-          addMove(nf, nr, true);
+    } else {
+      if (nr >= 0 && nr < 8 && board[nr][file] === 0) {
+        addMove(file, nr);
+        const nr2 = rank + 2 * dir;
+        if (rank === startRank && nr2 >= 0 && nr2 < 8 && board[nr2][file] === 0) {
+          addMove(file, nr2);
+        }
+      }
+      for (const df of [-1, 1]) {
+        const nf = file + df;
+        if (nf >= 0 && nf < 8 && nr >= 0 && nr < 8) {
+          if (isEnemy(board[nr][nf], color)) addMove(nf, nr);
+          if (enPassantTarget && nf === enPassantTarget.file && nr === enPassantTarget.rank) {
+            addMove(nf, nr, true);
+          }
         }
       }
     }
@@ -309,9 +384,10 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
         board[rank][7] === rookVal
       ) {
         if (
-          !isInCheck(board, color) &&
-          !isAttacked(board, 5, rank, enemy) &&
-          !isAttacked(board, 6, rank, enemy)
+          policy.castlingPolicy === 'premove' ||
+          (!isInCheck(board, color) &&
+            !isAttacked(board, 5, rank, enemy) &&
+            !isAttacked(board, 6, rank, enemy))
         ) {
           moves.push({ file: 6, rank, castle: 'K' });
         }
@@ -324,9 +400,10 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
         board[rank][0] === rookVal
       ) {
         if (
-          !isInCheck(board, color) &&
-          !isAttacked(board, 3, rank, enemy) &&
-          !isAttacked(board, 2, rank, enemy)
+          policy.castlingPolicy === 'premove' ||
+          (!isInCheck(board, color) &&
+            !isAttacked(board, 3, rank, enemy) &&
+            !isAttacked(board, 2, rank, enemy))
         ) {
           moves.push({ file: 2, rank, castle: 'Q' });
         }
@@ -334,6 +411,38 @@ function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
     }
   }
   return moves;
+}
+
+/**
+ * Generate all legal moves for a piece at the given square.
+ * Thin wrapper over generateMoves() with the strict legal policy.
+ * @param {Board} board
+ * @param {number} file
+ * @param {number} rank
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @returns {Move[]}
+ */
+function getValidMoves(board, file, rank, castlingRights, enPassantTarget) {
+  return generateMoves(board, file, rank, castlingRights, enPassantTarget, LEGAL_MOVE_POLICY);
+}
+
+/**
+ * Generate the piece's premove candidate moves (pseudo-legal mobility) in the
+ * current position. Permissive by design: used only to gate what the UI offers
+ * and what the server stores — Game.tryMove() remains the execution authority.
+ * Differences from getValidMoves(): no king-safety filter, friendly-occupied
+ * destinations are candidates, permissive pawn occupancy rules, and castling
+ * keeps its structural checks but skips the king-safety checks.
+ * @param {Board} board
+ * @param {number} file
+ * @param {number} rank
+ * @param {CastlingRights} castlingRights
+ * @param {{file: number, rank: number}|null} enPassantTarget
+ * @returns {Move[]}
+ */
+function getPremoveMoves(board, file, rank, castlingRights, enPassantTarget) {
+  return generateMoves(board, file, rank, castlingRights, enPassantTarget, PREMOVE_MOVE_POLICY);
 }
 
 /**
@@ -1554,6 +1663,7 @@ export {
   isAttacked,
   isInCheck,
   getValidMoves,
+  getPremoveMoves,
   hasAnyMoves,
   isInsufficientMaterial,
   buildNotation,
