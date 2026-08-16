@@ -17,7 +17,7 @@ import {
   onRestart,
   onStateUpdate,
 } from './network.js';
-import { getPremove } from './premove.js';
+import { getPremove, isPremoveEnabled } from './premove.js';
 import {
   menuOpen,
   helpOpen,
@@ -375,6 +375,22 @@ function getBoardSquareFromRay(event) {
   return null;
 }
 
+// Test-only: project a board square's center to screen coordinates so E2E
+// tests can click the 3D board deterministically. Read-only — it only reads
+// the live camera and window size; it never mutates renderer state. Returns
+// null before the renderer/camera is wired up.
+if (typeof window !== 'undefined') {
+  window.__testSquareScreenPos = (file, rank) => {
+    if (!_camera) return null;
+    const v = new THREE.Vector3(file - 3.5, 0.041, 3.5 - rank);
+    v.project(_camera);
+    return {
+      x: ((v.x + 1) / 2) * window.innerWidth,
+      y: ((1 - v.y) / 2) * window.innerHeight,
+    };
+  };
+}
+
 // ── Selection helpers (3D) ───────────────────────────────
 
 /**
@@ -477,6 +493,7 @@ export function setClickHandler(renderer) {
     }
 
     const offTurn = myRole && myRole !== serverTurn;
+    const premoveAllowed = !offTurn || isPremoveEnabled();
     const sel = getSelectedSquare();
     const vm = getValidMovesList();
     if (sel) {
@@ -490,7 +507,10 @@ export function setClickHandler(renderer) {
         // Clicked an invalid square — if it's one of our pieces, select it
         // instead (premove mode off-turn, normal mode on-turn)
         if (piece !== 0 && pieceColor(piece) === myRole) {
-          if (offTurn) selectPremovePiece(file, rank);
+          if (offTurn && !premoveAllowed) {
+            showError(t('error.not_your_turn'));
+            orchestrator.deselect();
+          } else if (offTurn) selectPremovePiece(file, rank);
           else selectPiece(file, rank);
         } else {
           orchestrator.deselect();
@@ -511,7 +531,10 @@ export function setClickHandler(renderer) {
     }
 
     if (piece !== 0 && pieceColor(piece) === myRole) {
-      if (offTurn) selectPremovePiece(file, rank);
+      if (offTurn && !premoveAllowed) {
+        showError(t('error.not_your_turn'));
+        orchestrator.deselect();
+      } else if (offTurn) selectPremovePiece(file, rank);
       else selectPiece(file, rank);
     } else {
       orchestrator.deselect();
@@ -533,10 +556,16 @@ function commitDrag() {
   if (!dragCandidate) return;
   const { file, rank } = dragCandidate;
 
-  // Off-turn drags select in premove mode (permissive candidates);
-  // on-turn drags keep the normal legal selection.
-  if (myRole && myRole !== serverTurn) selectPremovePiece(file, rank);
-  else selectPiece(file, rank);
+  // Off-turn drags select in premove mode (permissive candidates) when
+  // enabled; on-turn drags keep the normal legal selection.
+  if (myRole && myRole !== serverTurn) {
+    if (!isPremoveEnabled()) {
+      dragCandidate = null;
+      orchestrator.deselect();
+      return;
+    }
+    selectPremovePiece(file, rank);
+  } else selectPiece(file, rank);
 
   const pm = pieceMeshes.find((p) => p.file === file && p.rank === rank);
   if (!pm) {
@@ -687,9 +716,10 @@ function touchStartHandler(event) {
   const { file, rank } = sq;
   const piece = serverBoard[rank][file];
 
-  // Own pieces are touch-draggable on- and off-turn (off-turn drags
-  // complete as premoves); enemy pieces and empty squares are ignored.
+  // Own pieces are touch-draggable on-turn, and off-turn only when
+  // premoves are enabled; enemy pieces and empty squares are ignored.
   if (piece === 0 || pieceColor(piece) !== myRole) return;
+  if (myRole !== serverTurn && !isPremoveEnabled()) return;
 
   // Only assign ownership when creating a valid drag candidate.
   dragTouchId = t.identifier;
@@ -820,9 +850,10 @@ export function setDragHandlers(renderer) {
     const { file, rank } = sq;
     const piece = serverBoard[rank][file];
 
-    // Own pieces are draggable on- and off-turn (off-turn drags complete as
-    // premoves); enemy pieces and empty squares are ignored.
+    // Own pieces are draggable on-turn, and off-turn only when premoves are
+    // enabled; enemy pieces and empty squares are ignored.
     if (piece === 0 || pieceColor(piece) !== myRole) return;
+    if (myRole !== serverTurn && !isPremoveEnabled()) return;
 
     // Store as candidate — do NOT select yet (click handler will handle that)
     dragCandidate = { file, rank };

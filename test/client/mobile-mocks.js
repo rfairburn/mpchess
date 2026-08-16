@@ -114,6 +114,7 @@ vi.mock('../../client/network.js', () => ({
   threefoldCount: 0,
   canClaimDraw: false,
   sendPromotion: vi.fn(),
+  cancelPremove: vi.fn(),
   sendRestart: vi.fn(),
   sendConcede: vi.fn(),
   sendLeave: vi.fn(),
@@ -135,6 +136,7 @@ vi.mock('../../client/network.js', () => ({
   onPromotion: vi.fn(),
   onPremoveSet: vi.fn(),
   onPremovePlayed: vi.fn(),
+  onPremoveDiscarded: vi.fn(),
 }));
 
 vi.mock('../../client/pieces.js', () => ({

@@ -1181,6 +1181,7 @@ describe('controls.js', () => {
 
     beforeEach(async () => {
       premove = await import('../../client/premove.js');
+      premove.setPremoveEnabled(true);
       selection = await import('../../client/selection.js');
       highlights = await import('../../client/highlights.js');
       arrows = await import('../../client/arrows.js');
@@ -1188,6 +1189,7 @@ describe('controls.js', () => {
 
     afterEach(() => {
       premove.clearPremove();
+      premove.setPremoveEnabled(true);
     });
 
     // ── Off-turn selection ────────────────────────────────
@@ -1204,6 +1206,21 @@ describe('controls.js', () => {
       expect(ui.showError).not.toHaveBeenCalled();
       expect(network.sendMove).not.toHaveBeenCalled();
       expect(network.sendPremove).not.toHaveBeenCalled();
+    });
+
+    it('blocks off-turn premove interaction when premoves are disabled', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN;
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+      premove.setPremoveEnabled(false);
+
+      click(renderer, 0, 1);
+
+      expect(controls.selectedSquare).toBeNull();
+      expect(selection.getSelectionMode()).not.toBe('premove');
+      expect(chess.getPremoveMoves).not.toHaveBeenCalled();
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(ui.showError).toHaveBeenCalledWith('Not your turn');
     });
 
     it('off-turn selection invokes only premove-specific highlight APIs', () => {
@@ -1433,6 +1450,64 @@ describe('controls.js', () => {
           changedTouches: [endTouch],
         })
       );
+
+      expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
+      expect(network.sendMove).not.toHaveBeenCalled();
+    });
+
+    it('off-turn touch tap (below threshold) selects in premove mode and a second tap completes the premove', () => {
+      const b = emptyBoard();
+      b[1][0] = W_PAWN; // a2
+      const renderer = setupGame({ boardArr: b, meshAt: [0, 1] });
+
+      // Tap a2: touchstart + touchend below the drag threshold — the browser
+      // fires a compatibility click, which must select in premove mode. The
+      // touch gesture state (dragCandidate/dragTouchId) must not interfere
+      // with the click handler.
+      const touch = { identifier: 1, clientX: 100, clientY: 100 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 1)];
+      renderer.domElement.dispatchEvent(
+        new TouchEvent('touchstart', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch],
+          touches: [touch],
+        })
+      );
+      document.dispatchEvent(
+        new TouchEvent('touchend', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch],
+        })
+      );
+      click(renderer, 0, 1); // compatibility click
+
+      expect(controls.selectedSquare).toEqual({ file: 0, rank: 1 });
+      expect(selection.getSelectionMode()).toBe('premove');
+      expect(network.sendPremove).not.toHaveBeenCalled();
+      expect(network.sendMove).not.toHaveBeenCalled();
+
+      // Tap a4 (a candidate): the second compatibility click completes the
+      // premove — no stale touch state eats or misroutes it.
+      const touch2 = { identifier: 2, clientX: 100, clientY: 100 };
+      globalThis.__mockRaycasterResult = [rayPoint(0, 3)];
+      renderer.domElement.dispatchEvent(
+        new TouchEvent('touchstart', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch2],
+          touches: [touch2],
+        })
+      );
+      document.dispatchEvent(
+        new TouchEvent('touchend', {
+          bubbles: true,
+          cancelable: true,
+          changedTouches: [touch2],
+        })
+      );
+      click(renderer, 0, 3); // compatibility click
 
       expect(network.sendPremove).toHaveBeenCalledWith(0, 1, 0, 3);
       expect(network.sendMove).not.toHaveBeenCalled();

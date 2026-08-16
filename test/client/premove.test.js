@@ -11,6 +11,8 @@ describe('premove.js — state module', () => {
 
   beforeEach(async () => {
     vi.resetModules();
+    localStorage.removeItem('premoveEnabled');
+    localStorage.removeItem('premoveNotifyDiscarded');
     premove = await import('../../client/premove.js');
   });
 
@@ -131,6 +133,23 @@ describe('premove.js — state module', () => {
     premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 4 });
     expect(cb).toHaveBeenCalledTimes(2);
     expect(premove.getPremove().fromFile).toBe(4);
+  });
+
+  it('defaults premoves on and discard notifications off', () => {
+    expect(premove.isPremoveEnabled()).toBe(true);
+    expect(premove.shouldNotifyPremoveDiscarded()).toBe(false);
+  });
+
+  it('persists premove preferences across module reloads', async () => {
+    premove.setPremoveEnabled(false);
+    premove.setNotifyPremoveDiscarded(true);
+    expect(localStorage.getItem('premoveEnabled')).toBe('false');
+    expect(localStorage.getItem('premoveNotifyDiscarded')).toBe('true');
+
+    vi.resetModules();
+    premove = await import('../../client/premove.js');
+    expect(premove.isPremoveEnabled()).toBe(false);
+    expect(premove.shouldNotifyPremoveDiscarded()).toBe(true);
   });
 });
 
@@ -480,6 +499,19 @@ describe('network.js — premove protocol', () => {
       });
     });
 
+    it('state clears and cancels a restored premove when premoves are disabled', () => {
+      premove.setPremoveEnabled(false);
+      sendMsg(
+        makeStateMsg({
+          role: 'white',
+          premove: { fromFile: 4, fromRank: 6, toFile: 4, toRank: 4, promotion: null },
+        })
+      );
+
+      expect(premove.getPremove()).toBeNull();
+      expect(sentMessages).toContainEqual({ type: 'premoveCancel' });
+    });
+
     it('state with explicit premove:null clears local state', () => {
       sendMsg(makeStateMsg({ role: 'white' }));
       sendMsg({
@@ -709,16 +741,21 @@ describe('network.js — premove protocol', () => {
       expect(onPremovePlayed).not.toHaveBeenCalled();
     });
 
-    it('premoveDiscarded and premoveCleared fire no premove feedback events', () => {
+    it('emits premoveDiscarded but keeps premoveCleared silent', () => {
       sendMsg(makeStateMsg({ role: 'white' }));
       const onPremoveSet = vi.fn();
       const onPremovePlayed = vi.fn();
+      const onPremoveDiscarded = vi.fn();
       network.onPremoveSet(onPremoveSet);
       network.onPremovePlayed(onPremovePlayed);
-      sendMsg({ type: 'premoveDiscarded', reason: 'error.invalid_move' });
+      network.onPremoveDiscarded(onPremoveDiscarded);
+      const discarded = { type: 'premoveDiscarded', reason: 'error.invalid_move' };
+      sendMsg(discarded);
       sendMsg({ type: 'premoveCleared' });
       expect(onPremoveSet).not.toHaveBeenCalled();
       expect(onPremovePlayed).not.toHaveBeenCalled();
+      expect(onPremoveDiscarded).toHaveBeenCalledOnce();
+      expect(onPremoveDiscarded).toHaveBeenCalledWith(discarded);
     });
   });
 });

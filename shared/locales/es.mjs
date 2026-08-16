@@ -155,6 +155,8 @@ export default {
   'color.white': 'Blancas',
   'color.black': 'Negras',
   'ui.virtual_joystick': 'Joystick virtual',
+  'ui.enable_premoves': 'Activar premovimientos',
+  'ui.notify_premove_discarded': 'Avisar si se descarta un premovimiento',
   'ui.piece_set_2d': 'Juego de piezas 2D',
   'ui.piece_set_3d': 'Juego de modelos 3D',
   'ui.close': 'Cerrar',
@@ -220,6 +222,15 @@ export default {
   'help.camera_mode_desc': 'TAB o ♟ cambia al modo cámara. WASD para mover, ratón para mirar.',
   'help.board_2d': 'Tablero 2D',
   'help.board_2d_desc': 'El botón ⬜ activa el tablero 2D.',
+  'help.premoves': 'Premovimientos',
+  'help.premoves_desc':
+    'Mientras esperas tu turno, mueve una pieza para poner en cola una jugada. Las casillas azul oscuro, la flecha discontinua y la pieza fantasma muestran el premovimiento confirmado. Solo se guarda uno; uno nuevo reemplaza al anterior.',
+  'help.cancel_premove': 'Cancelar un premovimiento',
+  'help.cancel_premove_desc':
+    'Haz clic otra vez en el origen, haz clic derecho sin arrastrar o pulsa ESC. Puedes desactivar los premovimientos y activar avisos de descarte en Configuración.',
+  'help.premove_promotion': 'Promoción premovida',
+  'help.premove_promotion_desc':
+    'Si el peón premovido llega a la última fila, elige Dama, Torre, Alfil o Caballo antes de ponerlo en cola.',
   'help.pawn_promotion': 'Promoción de peón',
   'help.pawn_promotion_desc': 'Cuando un peón llega al final, elige Dama, Torre, Alfil o Caballo.',
   'help.annotations': 'Anotaciones',

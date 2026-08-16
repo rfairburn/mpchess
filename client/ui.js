@@ -17,6 +17,7 @@ import {
   canClaimDraw,
   sendPromotion,
   sendPremove,
+  cancelPremove,
   sendRestart,
   sendConcede,
   sendLeave,
@@ -36,7 +37,15 @@ import {
   onPlayerLeft,
   onFenImportWarning,
 } from './network.js';
-import { getPremove, onPremoveChange } from './premove.js';
+import {
+  getPremove,
+  onPremoveChange,
+  isPremoveEnabled,
+  setPremoveEnabled,
+  shouldNotifyPremoveDiscarded,
+  setNotifyPremoveDiscarded,
+} from './premove.js';
+import { clearSelection, getSelectionMode } from './selection.js';
 import {
   setCameraForRole,
   toggleMouseMode,
@@ -423,6 +432,8 @@ const btnSettingsClose = document.getElementById('btn-settings-close');
 const sensitivitySlider = document.getElementById('sensitivity-slider');
 const sensitivityValue = document.getElementById('sensitivity-value');
 const joystickToggle = document.getElementById('joystick-toggle');
+const premoveToggle = document.getElementById('premove-toggle');
+const premoveDiscardNotifyToggle = document.getElementById('premove-discard-notify-toggle');
 const select2dSet = document.getElementById('select-2d-set');
 const select3dSet = document.getElementById('select-3d-set');
 const selectLanguage = document.getElementById('select-language');
@@ -493,6 +504,11 @@ if (sensitivitySlider && sensitivityValue) {
   setJoystickEnabled(enabled);
 }
 
+if (premoveToggle) premoveToggle.checked = isPremoveEnabled();
+if (premoveDiscardNotifyToggle) {
+  premoveDiscardNotifyToggle.checked = shouldNotifyPremoveDiscarded();
+}
+
 // Initialize model set dropdowns from saved values
 {
   const saved2d = localStorage.getItem('svgPieceSet');
@@ -527,6 +543,22 @@ if (joystickToggle) {
     const state = joystickToggle.checked;
     localStorage.setItem('virtualJoystick', String(state));
     setJoystickEnabled(state);
+  });
+}
+
+if (premoveToggle) {
+  premoveToggle.addEventListener('change', () => {
+    setPremoveEnabled(premoveToggle.checked);
+    if (!premoveToggle.checked) {
+      if (getSelectionMode() === 'premove') clearSelection();
+      if (getPremove()) cancelPremove();
+    }
+  });
+}
+
+if (premoveDiscardNotifyToggle) {
+  premoveDiscardNotifyToggle.addEventListener('change', () => {
+    setNotifyPremoveDiscarded(premoveDiscardNotifyToggle.checked);
   });
 }
 

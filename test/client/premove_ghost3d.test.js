@@ -464,4 +464,64 @@ describe('3D board — confirmed premove ghost (Phase 3D)', () => {
     expect(ghostCount()).toBe(1);
     expect(ghostNode().children[0].geometry).toBe(geos[0]);
   });
+
+  it('a promotion premove renders the pawn ghost at the destination (promotion field ignored)', () => {
+    network.serverBoard[6][4] = W_PAWN; // white pawn on e7
+    premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 7, promotion: 'queen' });
+
+    const ghost = ghostNode();
+    expect(ghost).toBeDefined();
+    expect(ghostCount()).toBe(1);
+    // destination e8: world (0.5, y, -3.5)
+    expect(ghost.position.x).toBeCloseTo(0.5, 6);
+    expect(ghost.position.z).toBeCloseTo(-3.5, 6);
+    // the ghost continues to depict the originating pawn — the promotion
+    // value is already stored on the premove (chosen in the picker) and is
+    // consumed at execution, not while waiting
+    expect(ghost.children[0].geometry).toBe(geos[0]);
+
+    // Changing only the promotion field is a no-op for the ghost (same
+    // destination/type/color key) — no duplicate node, no re-clone
+    premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 7, promotion: null });
+    expect(ghostCount()).toBe(1);
+    expect(ghostNode()).toBe(ghost);
+  });
+
+  it('a premove set before the models finish loading renders the ghost once they load', async () => {
+    // Reconnect-restore race: the state message (carrying the premove) can
+    // arrive before the 3D models finish loading. The ghost must appear once
+    // the models load, without a manual re-set.
+    vi.resetModules();
+    deferredCallbacks.length = 0;
+
+    THREE = await import('three');
+    network = await import('../../client/network.js');
+    pieces = await import('../../client/pieces.js');
+    premove = await import('../../client/premove.js');
+
+    network.serverBoard = emptyBoard();
+    network.myRole = 'white';
+    scene = new THREE.Scene();
+    pieces.setScene(scene);
+    matWhite = new THREE.MeshStandardMaterial({ color: 0xf0e6d0 });
+    matBlack = new THREE.MeshStandardMaterial({ color: 0x3d2b1f });
+    pieces.setMaterials(matWhite, matBlack);
+
+    // Premove confirmed while the models are still loading
+    network.serverBoard[1][4] = W_PAWN; // white pawn on e2
+    premove.setPremove(PRE);
+    expect(pieces.modelsLoaded).toBe(false);
+    expect(ghostNode()).toBeUndefined();
+
+    // Models finish loading through the real loader path
+    pieces.loadPieceModels(scene, () => {});
+    installModels('set-a');
+
+    expect(pieces.modelsLoaded).toBe(true);
+    expect(ghostCount()).toBe(1);
+    const ghost = ghostNode();
+    expect(ghost.position.x).toBeCloseTo(0.5, 6);
+    expect(ghost.position.z).toBeCloseTo(0.5, 6);
+    expect(ghost.children[0].geometry).toBe(geos[0]);
+  });
 });

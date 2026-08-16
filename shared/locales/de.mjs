@@ -153,6 +153,8 @@ export default {
   'color.white': 'Weiß',
   'color.black': 'Schwarz',
   'ui.virtual_joystick': 'Virtueller Joystick',
+  'ui.enable_premoves': 'Premoves aktivieren',
+  'ui.notify_premove_discarded': 'Bei verworfenem Premove benachrichtigen',
   'ui.piece_set_2d': '2D-Figur-Set',
   'ui.piece_set_3d': '3D-Modell-Set',
   'ui.close': 'Schließen',
@@ -218,6 +220,15 @@ export default {
     'TAB oder ♟ wechselt zum Kamera-Modus. WASD zum Bewegen, Maus zum Umschauen.',
   'help.board_2d': '2D-Brett',
   'help.board_2d_desc': 'Die ⬜-Taste aktiviert das 2D-Brett.',
+  'help.premoves': 'Premoves',
+  'help.premoves_desc':
+    'Während Sie warten, ziehen Sie eine eigene Figur, um einen Zug vorzumerken. Dunkelblaue Felder, ein gestrichelter Pfeil und eine Geisterfigur zeigen den bestätigten Premove. Es wird nur einer gespeichert; ein neuer ersetzt ihn.',
+  'help.cancel_premove': 'Premove abbrechen',
+  'help.cancel_premove_desc':
+    'Klicken Sie erneut auf das Ausgangsfeld, rechtsklicken Sie dort ohne zu ziehen oder drücken Sie ESC. Premoves und optionale Verwerfungsbenachrichtigungen können in den Einstellungen geändert werden.',
+  'help.premove_promotion': 'Premove-Umwandlung',
+  'help.premove_promotion_desc':
+    'Wählen Sie Dame, Turm, Läufer oder Springer, bevor ein Bauern-Premove zur letzten Reihe vorgemerkt wird.',
   'help.pawn_promotion': 'Bauernumwandlung',
   'help.pawn_promotion_desc':
     'Wenn ein Bauer die letzte Reihe erreicht, wählen Sie Dame, Turm, Läufer oder Springer.',

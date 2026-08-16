@@ -190,6 +190,7 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       disconnectedPlayersInfo: [],
       validatedTokens: {},
       sendPromotion: vi.fn(),
+      cancelPremove: vi.fn(),
       sendRestart: vi.fn(),
       sendConcede: vi.fn(),
       sendLeave: vi.fn(),
@@ -227,6 +228,7 @@ describe('ui.js + controls.js — real dependency graph, no circular-dead-zone',
       debugEnabled: false,
       onPremoveSet: vi.fn(),
       onPremovePlayed: vi.fn(),
+      onPremoveDiscarded: vi.fn(),
     }));
 
     vi.doMock('../../client/board.js', () => ({

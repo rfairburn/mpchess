@@ -205,10 +205,26 @@
           <input type="range" id="sensitivity-slider" min="1" max="100" value="20" />
           <span id="sensitivity-value">20</span>
         </div>
-        <div id="joystick-toggle-row">
+        <div id="joystick-toggle-row" class="settings-toggle-row">
           <label for="joystick-toggle" data-i18n="ui.virtual_joystick">Virtual Joystick</label>
           <label class="toggle-switch">
             <input type="checkbox" id="joystick-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-toggle-row">
+          <label for="premove-toggle" data-i18n="ui.enable_premoves">Enable premoves</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="premove-toggle" />
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-toggle-row">
+          <label for="premove-discard-notify-toggle" data-i18n="ui.notify_premove_discarded"
+            >Notify when premove is discarded</label
+          >
+          <label class="toggle-switch">
+            <input type="checkbox" id="premove-discard-notify-toggle" />
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -288,6 +304,28 @@
               <span class="help-desc" data-i18n="help.board_2d_desc"
                 >⬜ button toggles a 2D board overlay. Click pieces to move. Desktop: small board in
                 top-right, click again for fullscreen. Mobile: centered overlay.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label" data-i18n="help.premoves">Premoves</span>
+              <span class="help-desc" data-i18n="help.premoves_desc"
+                >While waiting for your turn, move one of your pieces to queue a move. Deep-blue
+                squares, a dashed arrow, and a ghost show the confirmed premove. Only one is stored;
+                a new premove replaces it.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label" data-i18n="help.cancel_premove">Cancel a premove</span>
+              <span class="help-desc" data-i18n="help.cancel_premove_desc"
+                >Click its origin again, right-click its origin without dragging, or press ESC. You
+                can disable premoves and optional discard notifications in Settings.</span
+              >
+            </div>
+            <div class="help-row">
+              <span class="help-label" data-i18n="help.premove_promotion">Premove promotion</span>
+              <span class="help-desc" data-i18n="help.premove_promotion_desc"
+                >For a pawn premove to the back rank, choose Queen, Rook, Bishop, or Knight before
+                the premove is queued.</span
               >
             </div>
             <div class="help-row">

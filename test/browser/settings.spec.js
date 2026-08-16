@@ -61,6 +61,41 @@ test.describe.serial('Settings persistence', () => {
     }
   });
 
+  test('Premove preferences use their defaults and persist across reload', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#join-overlay')).toBeVisible({ timeout: 10000 });
+    await joinGame(page, 'white');
+
+    await openMenu(page);
+    await page.locator('#btn-settings').click();
+    await expect(page.locator('#settings-overlay')).toBeVisible({ timeout: 5000 });
+
+    const enabled = page.locator('#premove-toggle');
+    const notify = page.locator('#premove-discard-notify-toggle');
+    await expect(enabled).toBeChecked();
+    await expect(notify).not.toBeChecked();
+    await enabled.evaluate((el) => {
+      el.checked = false;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await notify.evaluate((el) => {
+      el.checked = true;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#join-overlay')).toBeVisible({ timeout: 10000 });
+    await joinGame(page, 'white');
+    await openMenu(page);
+    await page.locator('#btn-settings').click();
+
+    await expect(page.locator('#premove-toggle')).not.toBeChecked();
+    await expect(page.locator('#premove-discard-notify-toggle')).toBeChecked();
+
+    await page.locator('#btn-settings-close').click();
+    if (await page.locator('#menu-overlay').isVisible()) await closeMenu(page);
+  });
+
   test('Language change updates UI', async ({ page }) => {
     await page.goto('/');
 

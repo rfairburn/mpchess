@@ -199,8 +199,8 @@ describe('premove feedback — owner-only toasts + sound', () => {
     });
   });
 
-  describe('silent discard / clear / cancel', () => {
-    it('premoveDiscarded clears state silently (no toast, no sound)', () => {
+  describe('discard / clear / cancel feedback', () => {
+    it('premoveDiscarded clears state silently by default', () => {
       sendMsg(makeStateMsg({ role: 'white' }));
       sendMsg({ type: 'premove', fromFile: 4, fromRank: 6, toFile: 4, toRank: 4 });
       toast.showInfo.mockClear();
@@ -212,6 +212,17 @@ describe('premove feedback — owner-only toasts + sound', () => {
       expect(toast.showInfo).not.toHaveBeenCalled();
       expect(toast.showError).not.toHaveBeenCalled();
       expect(toast.showWarning).not.toHaveBeenCalled();
+      expect(sound.playMove).not.toHaveBeenCalled();
+    });
+
+    it('premoveDiscarded shows a toast when the optional notification is enabled', () => {
+      sendMsg(makeStateMsg({ role: 'white' }));
+      premove.setNotifyPremoveDiscarded(true);
+
+      sendMsg({ type: 'premoveDiscarded', reason: 'error.invalid_move' });
+
+      expect(toast.showInfo).toHaveBeenCalledOnce();
+      expect(toast.showInfo).toHaveBeenCalledWith('Premove no longer legal');
       expect(sound.playMove).not.toHaveBeenCalled();
     });
 

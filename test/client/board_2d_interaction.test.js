@@ -393,6 +393,7 @@ describe('2D board interaction', () => {
   let board2d;
   let network;
   let ui;
+  let premove;
 
   async function reloadModule() {
     vi.resetModules();
@@ -403,6 +404,8 @@ describe('2D board interaction', () => {
     board2d = await import('../../client/board_2d.js');
     network = await import('../../client/network.js');
     ui = await import('../../client/ui.js');
+    premove = await import('../../client/premove.js');
+    premove.setPremoveEnabled(true);
     network.serverBoard = startingBoard();
     network.serverTurn = 'white';
     network.myRole = 'white';
@@ -1061,6 +1064,21 @@ describe('2D board interaction', () => {
     // Normal legal-selection classes must not be used for premove candidates
     expect(grid.children[5 * 8 + 0].classList.contains('valid-move')).toBe(false);
     expect(grid.children[4 * 8 + 0].classList.contains('valid-move')).toBe(false);
+  });
+
+  it('blocks off-turn premove interaction when premoves are disabled', () => {
+    board2d.toggle2DBoard();
+    network.serverTurn = 'black';
+    premove.setPremoveEnabled(false);
+    const grid = gridEl();
+    const a2 = grid.children[6 * 8 + 0];
+
+    a2.click();
+
+    expect(a2.classList.contains('premove-selected')).toBe(false);
+    expect([...grid.children].some((sq) => sq.classList.contains('premove-move'))).toBe(false);
+    expect(network.sendPremove).not.toHaveBeenCalled();
+    expect(ui.showError).toHaveBeenCalledWith('Not your turn');
   });
 
   it('off-turn empty-square click deselects without a toast', () => {

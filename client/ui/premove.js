@@ -6,7 +6,8 @@
 //  so opponents and spectators never receive premove-specific UI.
 // ═══════════════════════════════════════════════════════════
 
-import { onPremoveSet, onPremovePlayed } from '../network.js';
+import { onPremoveSet, onPremovePlayed, onPremoveDiscarded } from '../network.js';
+import { shouldNotifyPremoveDiscarded } from '../premove.js';
 import { showInfo } from './toast.js';
 import { playMove } from '../sound.js';
 import { t } from '../../shared/i18n.mjs';
@@ -26,9 +27,9 @@ onPremovePlayed(() => {
   showInfo(t('premove.played'));
 });
 
-// `premoveDiscarded` and `premoveCleared` are intentionally silent (no
-// toast, no sound): the plan defaults to lichess-parity silence, and the
-// localized `premove.discarded` / `premove.cancelled` keys are kept for a
-// future optional notification. User-initiated cancels are also silent —
-// the premove visuals dropping immediately is the feedback for an action
-// the user just performed.
+onPremoveDiscarded(() => {
+  if (shouldNotifyPremoveDiscarded()) showInfo(t('premove.discarded'));
+});
+
+// `premoveCleared` and user-initiated cancels remain silent: the board is
+// changing or the visuals dropping immediately already confirms the action.

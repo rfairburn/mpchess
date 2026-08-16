@@ -426,6 +426,28 @@ describe('2D board — confirmed premove ghost (Phase 3D)', () => {
     expect(ghostIn(E4_DISPLAY)).toBeTruthy();
   });
 
+  it('a promotion premove renders the pawn ghost at the destination (promotion field ignored)', () => {
+    board2d.toggle2DBoard();
+    network.serverBoard[6][4] = W_PAWN; // white pawn on e7
+    for (const fn of stateListeners) fn(); // re-render with the new board
+    premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 7, promotion: 'queen' });
+
+    const all = ghosts();
+    expect(all).toHaveLength(1);
+    // destination e8: display row 0, col 4 (white orientation)
+    const ghost = ghostIn(0 * 8 + 4);
+    expect(ghost).toBeTruthy();
+    // the ghost continues to depict the originating pawn — the promotion
+    // value is already stored on the premove (chosen in the picker) and is
+    // consumed at execution, not while waiting
+    expect(ghost.src).toContain('wP.svg');
+
+    // Changing only the promotion field keeps exactly one ghost
+    premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 7, promotion: null });
+    expect(ghosts()).toHaveLength(1);
+    expect(ghostIn(0 * 8 + 4)).toBeTruthy();
+  });
+
   // ── Non-interactivity (CSS) ────────────────────────────
 
   it('the ghost CSS rule is non-interactive and semi-transparent (~0.5 opacity)', () => {

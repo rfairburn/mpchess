@@ -17,6 +17,7 @@ vi.mock('../../client/network.js', () => ({
   halfmoveClock: 0,
   threefoldCount: 0,
   sendPromotion: vi.fn(),
+  cancelPremove: vi.fn(),
   sendRestart: vi.fn(),
   sendConcede: vi.fn(),
   sendLeave: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('../../client/network.js', () => ({
   onPromotion: vi.fn(),
   onPremoveSet: vi.fn(),
   onPremovePlayed: vi.fn(),
+  onPremoveDiscarded: vi.fn(),
 }));
 
 vi.mock('../../client/pieces.js', () => ({
@@ -173,6 +175,13 @@ function createMinimalDOM() {
   slider.max = '100';
   slider.value = '20';
   document.body.appendChild(slider);
+
+  for (const id of ['premove-toggle', 'premove-discard-notify-toggle']) {
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = id;
+    document.body.appendChild(checkbox);
+  }
 
   // promo-choices with buttons
   const promoOverlay = document.getElementById('promo-overlay');
@@ -446,5 +455,52 @@ describe('ui.js — premove status chip', () => {
     expect(topChip.textContent).toBe('Premove: e2–e4');
     premove.clearPremove();
     expect(topChip.classList.contains('visible')).toBe(false);
+  });
+});
+
+describe('ui.js — premove settings', () => {
+  let network;
+  let premove;
+  let selection;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    localStorage.clear();
+    createMinimalDOM();
+    network = await import('../../client/network.js');
+    premove = await import('../../client/premove.js');
+    selection = await import('../../client/selection.js');
+    await import('../../client/ui.js');
+  });
+
+  it('initializes premoves on and discard notifications off', () => {
+    expect(document.getElementById('premove-toggle').checked).toBe(true);
+    expect(document.getElementById('premove-discard-notify-toggle').checked).toBe(false);
+  });
+
+  it('persists both premove preferences', () => {
+    const enabled = document.getElementById('premove-toggle');
+    const notify = document.getElementById('premove-discard-notify-toggle');
+    enabled.checked = false;
+    enabled.dispatchEvent(new Event('change'));
+    notify.checked = true;
+    notify.dispatchEvent(new Event('change'));
+
+    expect(premove.isPremoveEnabled()).toBe(false);
+    expect(premove.shouldNotifyPremoveDiscarded()).toBe(true);
+    expect(localStorage.getItem('premoveEnabled')).toBe('false');
+    expect(localStorage.getItem('premoveNotifyDiscarded')).toBe('true');
+  });
+
+  it('cancels confirmed and in-progress premoves when premoves are disabled', () => {
+    premove.setPremove({ fromFile: 4, fromRank: 6, toFile: 4, toRank: 4 });
+    selection.setSelectedSquare({ file: 0, rank: 1 }, [{ file: 0, rank: 3 }], 'premove');
+    const enabled = document.getElementById('premove-toggle');
+    enabled.checked = false;
+    enabled.dispatchEvent(new Event('change'));
+    expect(network.cancelPremove).toHaveBeenCalledOnce();
+    expect(selection.getSelectedSquare()).toBeNull();
+    expect(selection.getSelectionMode()).toBe('legal');
   });
 });

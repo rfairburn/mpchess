@@ -3,8 +3,23 @@
 //  (client-side only)
 // ═══════════════════════════════════════════════════════════
 
+const ENABLED_STORAGE_KEY = 'premoveEnabled';
+const NOTIFY_DISCARDED_STORAGE_KEY = 'premoveNotifyDiscarded';
+
 let premove = null; // { fromFile, fromRank, toFile, toRank, promotion } or null
 let callbacks = [];
+let premoveEnabled = readStoredBoolean(ENABLED_STORAGE_KEY, true);
+let notifyDiscarded = readStoredBoolean(NOTIFY_DISCARDED_STORAGE_KEY, false);
+
+function readStoredBoolean(key, fallback) {
+  if (typeof localStorage === 'undefined') return fallback;
+  const value = localStorage.getItem(key);
+  return value === null ? fallback : value === 'true';
+}
+
+function storeBoolean(key, value) {
+  if (typeof localStorage !== 'undefined') localStorage.setItem(key, String(value));
+}
 
 // Normalize a raw premove value (server echo / state field) into the
 // canonical stored shape. Malformed values (missing/non-integer/out-of-range
@@ -59,4 +74,22 @@ export function clearPremove() {
 
 export function onPremoveChange(callback) {
   callbacks.push(callback);
+}
+
+export function isPremoveEnabled() {
+  return premoveEnabled;
+}
+
+export function setPremoveEnabled(value) {
+  premoveEnabled = Boolean(value);
+  storeBoolean(ENABLED_STORAGE_KEY, premoveEnabled);
+}
+
+export function shouldNotifyPremoveDiscarded() {
+  return notifyDiscarded;
+}
+
+export function setNotifyPremoveDiscarded(value) {
+  notifyDiscarded = Boolean(value);
+  storeBoolean(NOTIFY_DISCARDED_STORAGE_KEY, notifyDiscarded);
 }

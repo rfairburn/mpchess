@@ -153,6 +153,8 @@ export default {
   'color.white': 'White',
   'color.black': 'Black',
   'ui.virtual_joystick': 'Virtual Joystick',
+  'ui.enable_premoves': 'Enable premoves',
+  'ui.notify_premove_discarded': 'Notify when premove is discarded',
   'ui.piece_set_2d': '2D Piece Set',
   'ui.piece_set_3d': '3D Model Set',
   'ui.close': 'Close',
@@ -221,6 +223,15 @@ export default {
   'help.board_2d': '2D board',
   'help.board_2d_desc':
     '⬜ button toggles a 2D board overlay. Click pieces to move. Desktop: small board in top-right, click again for fullscreen. Mobile: centered overlay.',
+  'help.premoves': 'Premoves',
+  'help.premoves_desc':
+    'While waiting for your turn, move one of your pieces to queue a move. Deep-blue squares, a dashed arrow, and a ghost show the confirmed premove. Only one is stored; a new premove replaces it.',
+  'help.cancel_premove': 'Cancel a premove',
+  'help.cancel_premove_desc':
+    'Click its origin again, right-click its origin without dragging, or press ESC. You can disable premoves and optional discard notifications in Settings.',
+  'help.premove_promotion': 'Premove promotion',
+  'help.premove_promotion_desc':
+    'For a pawn premove to the back rank, choose Queen, Rook, Bishop, or Knight before the premove is queued.',
   'help.pawn_promotion': 'Pawn promotion',
   'help.pawn_promotion_desc':
     'When a pawn reaches the back rank, pick Queen, Rook, Bishop, or Knight.',

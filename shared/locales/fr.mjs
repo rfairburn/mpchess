@@ -154,6 +154,8 @@ export default {
   'color.white': 'Blancs',
   'color.black': 'Noirs',
   'ui.virtual_joystick': 'Joystick virtuel',
+  'ui.enable_premoves': 'Activer les pré-coups',
+  'ui.notify_premove_discarded': "Avertir lorsqu'un pré-coup est annulé",
   'ui.piece_set_2d': 'Ensemble de pièces 2D',
   'ui.piece_set_3d': 'Ensemble de modèles 3D',
   'ui.close': 'Fermer',
@@ -217,6 +219,15 @@ export default {
   'help.camera_mode_desc': 'TAB ou ♟ passe en mode caméra. WASD pour bouger, souris pour regarder.',
   'help.board_2d': 'Échiquier 2D',
   'help.board_2d_desc': "Le bouton ⬜ active l'échiquier 2D.",
+  'help.premoves': 'Pré-coups',
+  'help.premoves_desc':
+    'En attendant votre tour, déplacez une pièce pour programmer un coup. Les cases bleu foncé, la flèche pointillée et la pièce fantôme indiquent le pré-coup confirmé. Un seul est conservé ; un nouveau le remplace.',
+  'help.cancel_premove': 'Annuler un pré-coup',
+  'help.cancel_premove_desc':
+    "Cliquez de nouveau sur son origine, faites un clic droit sans glisser ou appuyez sur ÉCH. Les pré-coups et les notifications d'annulation sont réglables dans Paramètres.",
+  'help.premove_promotion': 'Promotion en pré-coup',
+  'help.premove_promotion_desc':
+    'Pour un pion atteignant la dernière rangée, choisissez Dame, Tour, Fou ou Cavalier avant de programmer le pré-coup.',
   'help.pawn_promotion': 'Promotion de pion',
   'help.pawn_promotion_desc':
     'Quand un pion atteint la dernière rangée, choisissez Dame, Tour, Fou ou Cavalier.',

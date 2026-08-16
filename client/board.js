@@ -1036,3 +1036,57 @@ export function createLabels(scene, font) {
     scene.add(m2);
   });
 }
+
+// ── Test-only E2E hooks (read-only renderer state) ───────
+// Expose the 3D premove renderer state for browser tests: the shared
+// premove value, the current selection (square + mode), the confirmed
+// origin/destination square emissive fills, the dashed system arrow, and
+// the annotation arrow count. Read-only — never mutates scene or module
+// state, so they are safe to leave defined in production builds.
+if (typeof window !== 'undefined') {
+  window.__testPremove3D = () => {
+    const pre = getPremove();
+    const confirmed = getPremoveConfirmedSquares();
+    const emissive = (file, rank) => {
+      const sq = squares[rank]?.[file];
+      return sq ? sq.material.emissive.getHex() : null;
+    };
+    const emissiveIntensity = (file, rank) => {
+      const sq = squares[rank]?.[file];
+      return sq ? sq.material.emissiveIntensity : null;
+    };
+    const sel = getSelectedSquare();
+    // Arrow visibility/attachment as primitives: a detached, hidden, or
+    // solid (single-segment) arrow must be distinguishable from a visible
+    // dashed one attached to the premove group.
+    const arrowAttached = !!(
+      premoveArrowMesh &&
+      premoveArrowGroup &&
+      premoveArrowMesh.parent === premoveArrowGroup
+    );
+    return {
+      // Snapshots: the hook must never expose live internal objects — page
+      // code could mutate them and corrupt the premove/renderer state.
+      premove: pre ? { ...pre } : null,
+      confirmedSquares: confirmed ? { ...confirmed } : null,
+      fromEmissive: confirmed ? emissive(confirmed.fromFile, confirmed.fromRank) : null,
+      toEmissive: confirmed ? emissive(confirmed.toFile, confirmed.toRank) : null,
+      fromEmissiveIntensity: confirmed
+        ? emissiveIntensity(confirmed.fromFile, confirmed.fromRank)
+        : null,
+      toEmissiveIntensity: confirmed ? emissiveIntensity(confirmed.toFile, confirmed.toRank) : null,
+      selection: sel ? { file: sel.file, rank: sel.rank, mode: getSelectionMode() } : null,
+      arrow: premoveArrowMesh
+        ? {
+            present: true,
+            attached: arrowAttached,
+            visible: premoveArrowMesh.visible,
+            dashSegments: premoveArrowMesh.userData?.dashSegments?.length ?? 0,
+            color: premoveArrowMesh.material.color.getHex(),
+            renderOrder: premoveArrowMesh.renderOrder,
+          }
+        : { present: false, attached: false, visible: false, dashSegments: 0 },
+    };
+  };
+  window.__testAnnotationArrows3D = () => (arrowGroup ? arrowGroup.children.length : 0);
+}

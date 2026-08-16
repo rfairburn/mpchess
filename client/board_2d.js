@@ -17,7 +17,7 @@ import {
   cancelPremove,
   previousMove,
 } from './network.js';
-import { getPremove, onPremoveChange } from './premove.js';
+import { getPremove, onPremoveChange, isPremoveEnabled } from './premove.js';
 import { isMobileLayout } from './capabilities.js';
 import {
   pieceColor,
@@ -763,6 +763,7 @@ function handleSquareClick(sq) {
   }
 
   const offTurn = myRole && myRole !== serverTurn;
+  const premoveAllowed = !offTurn || isPremoveEnabled();
   const sel = getSelectedSquare();
 
   if (sel) {
@@ -788,7 +789,10 @@ function handleSquareClick(sq) {
     // Clicked a non-candidate square — if it's one of our pieces, select it
     // instead (premove mode off-turn, normal mode on-turn)
     if (piece !== 0 && pieceColor(piece) === myRole) {
-      if (offTurn) selectPremovePiece(file, rank);
+      if (offTurn && !premoveAllowed) {
+        showError(t('error.not_your_turn'));
+        deselect();
+      } else if (offTurn) selectPremovePiece(file, rank);
       else selectPiece(file, rank);
       return;
     }
@@ -798,7 +802,10 @@ function handleSquareClick(sq) {
 
   // No selection — try to select a piece
   if (piece !== 0 && pieceColor(piece) === myRole) {
-    if (offTurn) selectPremovePiece(file, rank);
+    if (offTurn && !premoveAllowed) {
+      showError(t('error.not_your_turn'));
+      deselect();
+    } else if (offTurn) selectPremovePiece(file, rank);
     else selectPiece(file, rank);
     return;
   }
@@ -827,9 +834,10 @@ function onMouseDown(event) {
   const { file, rank } = coords;
   const piece = serverBoard[rank][file];
 
-  // Own pieces are draggable on- and off-turn (off-turn drags complete as
-  // premoves); enemy pieces and empty squares are ignored.
+  // Own pieces are draggable on-turn, and off-turn only when premoves are
+  // enabled; enemy pieces and empty squares are ignored.
   if (piece === 0 || pieceColor(piece) !== myRole) return;
+  if (myRole !== serverTurn && !isPremoveEnabled()) return;
 
   dragStartX = event.clientX;
   dragStartY = event.clientY;
@@ -895,10 +903,16 @@ function onMouseUp(event) {
 function commitDrag() {
   if (!dragCandidate) return;
   const { file, rank } = dragCandidate;
-  // Off-turn drags select in premove mode (permissive candidates);
-  // on-turn drags keep the normal legal selection.
-  if (myRole && myRole !== serverTurn) selectPremovePiece(file, rank);
-  else selectPiece(file, rank);
+  // Off-turn drags select in premove mode (permissive candidates) when
+  // enabled; on-turn drags keep the normal legal selection.
+  if (myRole && myRole !== serverTurn) {
+    if (!isPremoveEnabled()) {
+      dragCandidate = null;
+      deselect();
+      return;
+    }
+    selectPremovePiece(file, rank);
+  } else selectPiece(file, rank);
   dragging = true;
   dragPiece = { file, rank };
   playMove();

@@ -950,3 +950,20 @@ onPromotion((_msg) => {
   // animating pawn mesh is immediately updated to the promoted piece type.
   if (_scene) rebuildPieces(_scene, true);
 });
+
+// Test-only: expose the confirmed-premove 3D ghost state for E2E
+// assertions. Read-only — never mutates the ghost or the scene.
+if (typeof window !== 'undefined') {
+  window.__testPremoveGhost3D = () => {
+    if (!premoveGhost) return { present: false };
+    const { group, mesh } = premoveGhost;
+    return {
+      present: true,
+      file: Math.round(group.position.x + 3.5),
+      rank: Math.round(3.5 - group.position.z),
+      opacity: mesh.material.opacity,
+      transparent: mesh.material.transparent,
+      depthWrite: mesh.material.depthWrite,
+    };
+  };
+}

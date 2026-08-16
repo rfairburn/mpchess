@@ -1903,17 +1903,19 @@ body.portrait-mobile #vertical-joystick {
   }
 }
 
-/* ═══ M4.0 — Joystick toggle in menu ═══ */
-#joystick-toggle-row {
-  margin: 10px 0 4px;
-  display: flex;
+/* ═══ Settings toggles ═══ */
+.settings-toggle-row {
+  margin: 10px auto 4px;
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 44px;
   align-items: center;
-  justify-content: center;
   gap: 12px;
+  max-width: 400px;
 }
-#joystick-toggle-row label:first-child {
+.settings-toggle-row > label:first-child {
   font-size: 14px;
   color: #c4a882;
+  text-align: right;
 }
 .toggle-switch {
   position: relative;

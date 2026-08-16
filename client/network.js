@@ -39,7 +39,7 @@ export let previousMove = null; // { fromFile, fromRank, toFile, toRank } | null
 
 // Event emitter — replaces 25 callback arrays
 import { EventEmitter } from './event_emitter.js';
-import { setPremove, clearPremove } from './premove.js';
+import { setPremove, clearPremove, isPremoveEnabled } from './premove.js';
 const emitter = new EventEmitter();
 
 /** @typedef {(msg: object) => void} NetworkCallback */
@@ -129,6 +129,9 @@ export function onPremoveSet(fn) {
 }
 export function onPremovePlayed(fn) {
   emitter.on('premovePlayed', fn);
+}
+export function onPremoveDiscarded(fn) {
+  emitter.on('premoveDiscarded', fn);
 }
 
 function clearReconnectTimer() {
@@ -246,9 +249,15 @@ export function handleServerMessage(event) {
       serverEvaluation = msg.evaluation ?? null;
       previousMove = msg.lastMove || null;
       if (typeof msg.debug === 'boolean') debugEnabled = msg.debug;
-      // Sync the owner's premove (explicit null when none): restores a
-      // pending premove on reconnect and clears it when absent/null.
-      setPremove(msg.premove ?? null);
+      // Sync the owner's premove (explicit null when none). If premoves are
+      // disabled locally, clear any stale server-side pending move that may
+      // have survived a reload or a disconnected settings change.
+      if (msg.premove && !isPremoveEnabled()) {
+        clearPremove();
+        sendPremoveCancel();
+      } else {
+        setPremove(msg.premove ?? null);
+      }
       emitter.emit('stateUpdate', msg);
       break;
     }
@@ -266,15 +275,23 @@ export function handleServerMessage(event) {
       break;
     }
     case 'premove': {
-      // Private confirmation echo from the server (sent only to the owner) —
-      // set local state and signal the owner for "Premove set" feedback.
+      // Private confirmation echo from the server (sent only to the owner).
+      // A settings change can race this echo, so reject it if premoves were
+      // disabled after the request was sent.
+      if (!isPremoveEnabled()) {
+        clearPremove();
+        sendPremoveCancel();
+        break;
+      }
       setPremove(msg);
       emitter.emit('premoveSet', msg);
       break;
     }
     case 'premoveDiscarded': {
-      // Our stored premove became illegal and was discarded — clear silently.
+      // Our stored premove became illegal and was discarded. Clearing is
+      // always immediate; optional feedback is decided by the client setting.
       clearPremove();
+      emitter.emit('premoveDiscarded', msg);
       break;
     }
     case 'premoveCleared': {

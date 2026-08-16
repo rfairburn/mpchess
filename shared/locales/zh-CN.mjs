@@ -150,6 +150,8 @@ export default {
   'color.white': '白方',
   'color.black': '黑方',
   'ui.virtual_joystick': '虚拟摇杆',
+  'ui.enable_premoves': '启用预走',
+  'ui.notify_premove_discarded': '预走被放弃时通知',
   'ui.piece_set_2d': '2D棋子套装',
   'ui.piece_set_3d': '3D模型套装',
   'ui.close': '关闭',
@@ -210,6 +212,14 @@ export default {
   'help.camera_mode_desc': 'TAB 或 ♟ 切换到相机模式。WASD 移动，鼠标环顾。',
   'help.board_2d': '2D棋盘',
   'help.board_2d_desc': '⬜ 按钮切换2D棋盘。',
+  'help.premoves': '预走',
+  'help.premoves_desc':
+    '等待你的回合时，移动自己的棋子即可预先排队一步。深蓝色格子、虚线箭头和半透明棋子表示已确认的预走。只保存一个；新预走会替换旧预走。',
+  'help.cancel_premove': '取消预走',
+  'help.cancel_premove_desc':
+    '再次点击起点、在起点单击右键或按 ESC。可在设置中禁用预走或启用预走被放弃的通知。',
+  'help.premove_promotion': '预走升变',
+  'help.premove_promotion_desc': '兵预走到底线时，先选择后、车、象或马，再将预走排队。',
   'help.pawn_promotion': '兵升变',
   'help.pawn_promotion_desc': '兵到达底线时，选择后、车、象或马。',
   'help.annotations': '标注',
