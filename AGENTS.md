@@ -3,7 +3,7 @@
 ## Testing
 
 - `npm test` is the gold-standard full CI run. It executes `scripts/ci.sh`. Run it before issuing a pull request. Individual tests work between given how expensive this is.
-- `npm test` can take up to 900 seconds due to the Stockfish build step and the full Playwright test suite. Use a 900s timeout when running it.
+- `npm test` can take up to 1800 seconds due to the Stockfish build step and the full Playwright test suite. Use an 1800s timeout when running it.
 - Always check `npm run lint` and `npm run format:check` for any code changes.
 - New features must include appropriate automated tests. Add or update tests in the relevant server, client, or integration suite so the new behavior is covered.
 - Before returning after code changes, run `npm test` unless the user explicitly asked not to run tests or the change is documentation-only and cannot affect behavior.
